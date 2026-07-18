@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "997752335330",
+    "project_id": "walkpenang-5cefb",
+    "storage_bucket": "walkpenang-5cefb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:997752335330:android:8f0666466ee06535eb27bb",
+        "android_client_info": {
+          "package_name": "com.example.walkpenang"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "997752335330-k44v0i8cub53l8130hlh2vc2707cg72k.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.walkpenang",
+            "certificate_hash": "7f6ae3b0e8262d9136bb1f90c50eed310f551826"
+          }
+        },
+        {
+          "client_id": "997752335330-187vdcetruk3utibkd3s8vp846a322ck.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDpqJ21IDIF60KJiclTqw0nPzix0zLVh-U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "997752335330-187vdcetruk3utibkd3s8vp846a322ck.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "997752335330-cn23bbhc9qj1p77fd61ujnp0g8q0ahv3.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.walkpenang"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
