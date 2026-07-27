@@ -1,241 +1,70 @@
-import 'dart:io';
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:walkpenang/screens/verify_email_screen.dart';
-import '../models/user_profile.dart';
-import '../services/profile_store.dart';
-import '../services/auth_service.dart';
-import 'home_screen.dart';
+import 'package:flutter/material.dart';
+
+import '../controllers/onboarding_controller.dart';
+import 'home_view.dart';
+import 'verify_email_view.dart';
 
 // 🎨 Brand palette pulled straight from the WalkPenang logo mark.
 class _Brand {
-  static const cream = Color(0xFFFFF1D5); // matches LogoScreen/LoadingScreen
+  static const cream = Color(0xFFFFF1D5); // matches LogoView/LoadingView
   static const indigo = Color(0xFF3D2FE0); // the "W" figure
   static const pink = Color(0xFFEC3D96); // the outline / wordmark
   static const mint = Color(0xFF4CE6B0); // the "P" figure
   static const ink = Color(0xFF241C4D); // body text on cream
 }
 
-class OnboardingScreen extends StatefulWidget {
+class OnboardingView extends StatefulWidget {
   final User? existingUser;
 
-  const OnboardingScreen({super.key, this.existingUser});
+  const OnboardingView({super.key, this.existingUser});
 
   @override
-  State<OnboardingScreen> createState() => _OnboardingScreenState();
+  State<OnboardingView> createState() => _OnboardingViewState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
-  final _authFormKey = GlobalKey<FormState>();
-  final _profileFormKey = GlobalKey<FormState>();
-
-  final _emailCtrl = TextEditingController();
-  final _passwordCtrl = TextEditingController();
-  final _nicknameCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
-  final _weightCtrl = TextEditingController();
-  final _heightCtrl = TextEditingController();
-
-  final _store = ProfileStore();
-  final _auth = AuthService();
-
-  User? _authenticatedUser;
-  File? _selectedImage;
-  String _units = 'metric';
-  bool _busy = false;
-  bool _obscurePassword = true;
-  double _currentBmi = 0.0;
-  String _bmiCategory = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _weightCtrl.addListener(_onDimensionsChanged);
-    _heightCtrl.addListener(_onDimensionsChanged);
-
-    final passedInUser = widget.existingUser;
-    if (passedInUser != null) {
-      _authenticatedUser = passedInUser;
-      if (passedInUser.displayName != null) {
-        _nicknameCtrl.text = passedInUser.displayName!;
-      }
-      if (passedInUser.email != null) {
-        _emailCtrl.text = passedInUser.email!;
-      }
-    }
-  }
+class _OnboardingViewState extends State<OnboardingView> {
+  late final OnboardingController _controller =
+      OnboardingController(existingUser: widget.existingUser);
 
   @override
   void dispose() {
-    _emailCtrl.dispose();
-    _passwordCtrl.dispose();
-    _nicknameCtrl.dispose();
-    _phoneCtrl.dispose();
-    _weightCtrl.dispose();
-    _heightCtrl.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
-  void _onDimensionsChanged() {
-    final w = double.tryParse(_weightCtrl.text.trim());
-    final h = double.tryParse(_heightCtrl.text.trim());
-    if (w != null && h != null && h > 0) {
-      final hM = h / 100;
-      setState(() {
-        _currentBmi = w / (hM * hM);
-        if (_currentBmi < 18.5) {
-          _bmiCategory = 'Underweight';
-        } else if (_currentBmi < 25) {
-          _bmiCategory = 'Normal';
-        } else if (_currentBmi < 30) {
-          _bmiCategory = 'Overweight';
-        } else {
-          _bmiCategory = 'Obese';
-        }
-      });
-    }
-  }
+  // ── Wiring: run a controller action, then react to its outcome ────────────
 
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 70,
-    );
+  Future<void> _handleAuth() => _apply(_controller.signInOrRegister());
 
-    if (pickedFile != null) {
-      setState(() {
-        _selectedImage = File(pickedFile.path);
-      });
-    }
-  }
+  Future<void> _handleGoogleAuth() => _apply(_controller.signInWithGoogle());
 
-  Future<void> _handleAuth() async {
-    if (!_authFormKey.currentState!.validate()) return;
-    setState(() => _busy = true);
+  Future<void> _handleCompleteProfile() => _apply(_controller.completeProfile());
 
-    try {
-      final user = await _auth.signInOrRegisterWithEmail(
-        _emailCtrl.text.trim(),
-        _passwordCtrl.text.trim(),
-      );
-      if (user != null) {
-        await _processUserNavigation(user);
-      }
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
+  Future<void> _apply(Future<OnboardingOutcome> action) async {
+    final outcome = await action;
+    if (!mounted) return;
+
+    if (outcome.error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? 'Authentication error occurred.')),
+        SnackBar(content: Text(outcome.error!)),
       );
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _handleGoogleAuth() async {
-    setState(() => _busy = true);
-    try {
-      final user = await _auth.signInWithGoogle();
-      if (user != null) {
-        await _processUserNavigation(user);
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Google Sign-In failed.')),
-      );
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _processUserNavigation(User user) async {
-    void go(Widget screen) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => screen),
-          );
-        }
-      });
-    }
-
-    if (!user.emailVerified &&
-        user.providerData.any((p) => p.providerId == 'password')) {
-      go(const VerifyEmailScreen());
       return;
     }
 
-    final existingProfile = await _store.load();
-    if (!mounted) return;
-    if (existingProfile != null && existingProfile.isComplete) {
-      go(HomeScreen(profile: existingProfile));
-    } else {
-      setState(() {
-        _authenticatedUser = user;
-        if (user.displayName != null) {
-          _nicknameCtrl.text = user.displayName!;
-        }
-      });
-    }
-  }
-
-  Future<void> _completeProfile() async {
-    if (_busy) return;
-    if (!_profileFormKey.currentState!.validate()) return;
-    if (_authenticatedUser == null) return;
-
-    setState(() => _busy = true);
-
-    try {
-      String? photoUrl = _authenticatedUser!.photoURL;
-
-      if (_selectedImage != null) {
-        final uploadedUrl = await _store.uploadProfileImage(
-          _selectedImage!,
-          _authenticatedUser!.uid,
-        );
-        if (uploadedUrl != null) {
-          photoUrl = uploadedUrl;
-        }
-      }
-
-      final profile = UserProfile(
-        nickname: _nicknameCtrl.text.trim(),
-        weightKg: double.tryParse(_weightCtrl.text.trim()) ?? 0.0,
-        heightCm: double.tryParse(_heightCtrl.text.trim()) ?? 0.0,
-        units: _units,
-        email: _authenticatedUser!.email ?? _emailCtrl.text.trim(),
-        photoUrl: photoUrl,
-        phoneNumber: _phoneCtrl.text.trim(),
-        points: 0,
-      );
-
-      await _store.save(profile);
-
-      if (!mounted) return;
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => HomeScreen(profile: profile)),
-          );
-        }
-      });
-    } catch (e) {
-      if (e.toString().contains('navigator.dart') ||
-          e.toString().contains('_debugLocked')) {
+    switch (outcome.next) {
+      case OnboardingNext.stay:
         return;
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to complete setup: $e')),
+      case OnboardingNext.verifyEmail:
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const VerifyEmailView()),
         );
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
+      case OnboardingNext.home:
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => HomeView(profile: outcome.profile!),
+          ),
+        );
     }
   }
 
@@ -248,8 +77,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // 🏷️ Logo hero — fills the top 40% of the screen, replacing the
-            // old "WalkPenang Authentication" AppBar title.
+            // 🏷️ Logo hero — fills the top 40% of the screen.
             SizedBox(
               height: screenHeight * 0.40,
               width: double.infinity,
@@ -262,15 +90,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
             Expanded(
-              child: _busy
-                  ? const Center(
-                child: CircularProgressIndicator(color: _Brand.indigo),
-              )
-                  : SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                child: _authenticatedUser == null
-                    ? _buildAuthPhase()
-                    : _buildMetricsPhase(),
+              child: ListenableBuilder(
+                listenable: _controller,
+                builder: (context, _) {
+                  if (_controller.busy) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: _Brand.indigo),
+                    );
+                  }
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                    child: _controller.isAuthenticated
+                        ? _buildMetricsPhase()
+                        : _buildAuthPhase(),
+                  );
+                },
               ),
             ),
           ],
@@ -285,8 +119,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     required IconData icon,
     Widget? suffixIcon,
   }) {
-    OutlineInputBorder border(Color color, double width) =>
-        OutlineInputBorder(
+    OutlineInputBorder border(Color color, double width) => OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: color, width: width),
         );
@@ -309,50 +142,46 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Widget _buildAuthPhase() {
     return Form(
-      key: _authFormKey,
+      key: _controller.authFormKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // 🖊️ Register / sign in column
           TextFormField(
-            controller: _emailCtrl,
+            controller: _controller.emailCtrl,
             keyboardType: TextInputType.emailAddress,
             style: const TextStyle(color: _Brand.ink),
             decoration: _fieldDecoration(
               label: 'Email address',
               icon: Icons.alternate_email_rounded,
             ),
-            validator: (v) =>
-            (v == null || !v.contains('@')) ? 'Provide a valid email' : null,
+            validator: _controller.validateEmail,
           ),
           const SizedBox(height: 14),
           TextFormField(
-            controller: _passwordCtrl,
-            obscureText: _obscurePassword,
+            controller: _controller.passwordCtrl,
+            obscureText: _controller.obscurePassword,
             style: const TextStyle(color: _Brand.ink),
             decoration: _fieldDecoration(
               label: 'Password',
               icon: Icons.lock_outline_rounded,
               suffixIcon: IconButton(
                 icon: Icon(
-                  _obscurePassword
+                  _controller.obscurePassword
                       ? Icons.visibility_outlined
                       : Icons.visibility_off_outlined,
                   color: _Brand.ink.withOpacity(0.5),
                 ),
-                onPressed: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
+                onPressed: _controller.togglePasswordVisibility,
               ),
             ),
-            validator: (v) => (v == null || v.length < 6)
-                ? 'Password must be at least 6 characters'
-                : null,
+            validator: _controller.validatePassword,
           ),
           const SizedBox(height: 20),
           SizedBox(
             height: 52,
             child: FilledButton(
-              onPressed: _busy ? null : _handleAuth,
+              onPressed: _controller.busy ? null : _handleAuth,
               style: FilledButton.styleFrom(
                 backgroundColor: _Brand.indigo,
                 shape: RoundedRectangleBorder(
@@ -392,7 +221,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           SizedBox(
             height: 52,
             child: OutlinedButton.icon(
-              onPressed: _busy ? null : _handleGoogleAuth,
+              onPressed: _controller.busy ? null : _handleGoogleAuth,
               style: OutlinedButton.styleFrom(
                 backgroundColor: Colors.white,
                 side: const BorderSide(color: _Brand.mint, width: 1.6),
@@ -400,7 +229,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              icon: const Icon(Icons.g_mobiledata, size: 28, color: _Brand.indigo),
+              icon: const Icon(Icons.g_mobiledata,
+                  size: 28, color: _Brand.indigo),
               label: const Text(
                 'Continue with Google',
                 style: TextStyle(
@@ -417,8 +247,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Widget _buildMetricsPhase() {
+    final selectedImage = _controller.selectedImage;
+
     return Form(
-      key: _profileFormKey,
+      key: _controller.profileFormKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -429,8 +261,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   radius: 50,
                   backgroundColor: _Brand.indigo.withOpacity(0.1),
                   backgroundImage:
-                  _selectedImage != null ? FileImage(_selectedImage!) : null,
-                  child: _selectedImage == null
+                      selectedImage != null ? FileImage(selectedImage) : null,
+                  child: selectedImage == null
                       ? const Icon(Icons.person, size: 50, color: _Brand.indigo)
                       : null,
                 ),
@@ -443,7 +275,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: IconButton(
                       icon: const Icon(Icons.camera_alt,
                           size: 15, color: Colors.white),
-                      onPressed: _pickImage,
+                      onPressed: _controller.pickImage,
                     ),
                   ),
                 ),
@@ -455,67 +287,68 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             "Let's finish setting up your fitness profile.",
             textAlign: TextAlign.center,
             style: TextStyle(
-                fontSize: 15, color: _Brand.indigo, fontWeight: FontWeight.w600),
+              fontSize: 15,
+              color: _Brand.indigo,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 20),
           TextFormField(
-            controller: _nicknameCtrl,
+            controller: _controller.nicknameCtrl,
             style: const TextStyle(color: _Brand.ink),
             decoration: _fieldDecoration(
               label: 'Display name / nickname',
               icon: Icons.badge_outlined,
             ),
-            validator: (v) =>
-            (v == null || v.trim().isEmpty) ? 'Name required' : null,
+            validator: (v) => _controller.validateRequired(v, 'Name required'),
           ),
           const SizedBox(height: 14),
           TextFormField(
-            controller: _phoneCtrl,
+            controller: _controller.phoneCtrl,
             keyboardType: TextInputType.phone,
             style: const TextStyle(color: _Brand.ink),
             decoration: _fieldDecoration(
               label: 'Contact number',
               icon: Icons.call_outlined,
             ),
-            validator: (v) => (v == null || v.trim().isEmpty)
-                ? 'Contact details required'
-                : null,
+            validator: (v) =>
+                _controller.validateRequired(v, 'Contact details required'),
           ),
           const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
                 child: TextFormField(
-                  controller: _heightCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  controller: _controller.heightCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(color: _Brand.ink),
                   decoration: _fieldDecoration(
                     label: 'Height (cm)',
                     icon: Icons.height_rounded,
                   ),
-                  validator: (v) =>
-                  (double.tryParse(v ?? '') ?? 0) <= 0 ? 'Invalid' : null,
+                  validator: _controller.validateMeasurement,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: TextFormField(
-                  controller: _weightCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  controller: _controller.weightCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(color: _Brand.ink),
                   decoration: _fieldDecoration(
                     label: 'Weight (kg)',
                     icon: Icons.monitor_weight_outlined,
                   ),
-                  validator: (v) =>
-                  (double.tryParse(v ?? '') ?? 0) <= 0 ? 'Invalid' : null,
+                  validator: _controller.validateMeasurement,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 14),
           DropdownButtonFormField<String>(
-            value: _units,
+            value: _controller.units,
             style: const TextStyle(color: _Brand.ink),
             decoration: _fieldDecoration(
               label: 'System units',
@@ -523,11 +356,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
             items: const [
               DropdownMenuItem(value: 'metric', child: Text('Metric (kg, km)')),
-              DropdownMenuItem(value: 'imperial', child: Text('Imperial (lb, mi)')),
+              DropdownMenuItem(
+                  value: 'imperial', child: Text('Imperial (lb, mi)')),
             ],
-            onChanged: (v) => setState(() => _units = v ?? 'metric'),
+            onChanged: _controller.setUnits,
           ),
-          if (_currentBmi > 0) ...[
+          if (_controller.bmi > 0) ...[
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(14),
@@ -537,10 +371,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 border: Border.all(color: _Brand.mint, width: 1.2),
               ),
               child: Text(
-                'Auto calculated BMI: ${_currentBmi.toStringAsFixed(1)} ($_bmiCategory)',
+                'Auto calculated BMI: ${_controller.bmi.toStringAsFixed(1)} (${_controller.bmiCategory})',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                    fontWeight: FontWeight.bold, color: _Brand.ink),
+                  fontWeight: FontWeight.bold,
+                  color: _Brand.ink,
+                ),
               ),
             ),
           ],
@@ -548,7 +384,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           SizedBox(
             height: 52,
             child: FilledButton(
-              onPressed: _completeProfile,
+              onPressed: _handleCompleteProfile,
               style: FilledButton.styleFrom(
                 backgroundColor: _Brand.indigo,
                 shape: RoundedRectangleBorder(
