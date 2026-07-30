@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
+import 'theme/app_theme.dart';
 import 'views/logo_view.dart';
 
 void main() async {
@@ -20,7 +21,7 @@ class WalkPenangApp extends StatelessWidget {
     return MaterialApp(
       title: 'WalkPenang',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorSchemeSeed: Colors.teal, useMaterial3: true),
+      theme: buildAppTheme(),
       home: const LogoView(),
     );
   }

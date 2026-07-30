@@ -8,6 +8,11 @@ class UserProfile {
   final String? phoneNumber;
   final int points;
 
+  // 📊 Home dashboard totals. They stay at zero until the Walking & Carbon
+  // module starts writing to them.
+  final double distanceKm;
+  final double co2SavedKg;
+
   UserProfile({
     required this.nickname,
     required this.weightKg,
@@ -17,6 +22,8 @@ class UserProfile {
     this.photoUrl,
     this.phoneNumber,
     this.points = 0,
+    this.distanceKm = 0,
+    this.co2SavedKg = 0,
   });
 
   // 🧮 Computed BMI Getter
@@ -46,6 +53,8 @@ class UserProfile {
     String? photoUrl,
     String? phoneNumber,
     int? points,
+    double? distanceKm,
+    double? co2SavedKg,
   }) {
     return UserProfile(
       nickname: nickname ?? this.nickname,
@@ -56,6 +65,8 @@ class UserProfile {
       photoUrl: photoUrl ?? this.photoUrl,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       points: points ?? this.points,
+      distanceKm: distanceKm ?? this.distanceKm,
+      co2SavedKg: co2SavedKg ?? this.co2SavedKg,
     );
   }
 
@@ -70,6 +81,8 @@ class UserProfile {
       photoUrl: map['photoUrl'] as String?,
       phoneNumber: map['phoneNumber'] as String?,
       points: (map['points'] as num?)?.toInt() ?? 0,
+      distanceKm: (map['distanceKm'] as num?)?.toDouble() ?? 0.0,
+      co2SavedKg: (map['co2SavedKg'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -83,6 +96,8 @@ class UserProfile {
       'photoUrl': photoUrl,
       'phoneNumber': phoneNumber,
       'points': points,
+      'distanceKm': distanceKm,
+      'co2SavedKg': co2SavedKg,
     };
   }
 

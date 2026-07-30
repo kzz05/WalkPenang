@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../controllers/verify_email_controller.dart';
+import '../theme/app_theme.dart';
 import 'loading_view.dart';
 import 'onboarding_view.dart';
+import 'widgets/wp_components.dart';
 
+/// Screen 05 · Verify Email — the screen that waits for the link to be clicked.
 class VerifyEmailView extends StatefulWidget {
   const VerifyEmailView({super.key});
 
@@ -63,67 +66,63 @@ class _VerifyEmailViewState extends State<VerifyEmailView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Verify Your Email'),
-        centerTitle: true,
-        backgroundColor: Colors.teal,
-        foregroundColor: Colors.white,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
+      backgroundColor: AppColors.background,
+      body: SafeArea(
         child: ListenableBuilder(
           listenable: _controller,
           builder: (context, _) {
-            return Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(24, 40, 24, 32),
               children: [
-                const Icon(Icons.email_outlined, size: 100, color: Colors.teal),
-                const SizedBox(height: 30),
-                const Text(
-                  'A verification email has been sent to:',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16, color: Colors.black54),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _controller.userEmail,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                // ✉️ Black disc with the envelope mark.
+                const Center(
+                  child: CircleAvatar(
+                    radius: 60,
+                    backgroundColor: AppColors.surface,
+                    child: Icon(
+                      Icons.mail_outline_rounded,
+                      size: 52,
+                      color: AppColors.primary,
+                    ),
                   ),
+                ),
+                const SizedBox(height: 32),
+                Text(
+                  'Check your inbox',
+                  textAlign: TextAlign.center,
+                  style: AppType.display,
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'We sent a verification link to',
+                  textAlign: TextAlign.center,
+                  style: AppType.body.copyWith(color: AppColors.muted),
+                ),
+                const SizedBox(height: 14),
+                Center(child: WpChip(_controller.userEmail)),
+                const SizedBox(height: 18),
+                Text(
+                  'Tap the link and this screen will continue automatically.',
+                  textAlign: TextAlign.center,
+                  style: AppType.body.copyWith(color: AppColors.muted),
+                ),
+                const SizedBox(height: 36),
+                WpPrimaryButton(
+                  label: 'resend verification email',
+                  onPressed: _controller.canResendEmail ? _resend : null,
+                ),
+                const SizedBox(height: 14),
+                WpOutlineButton(
+                  label: 'cancel & log out',
+                  onPressed: _handleCancel,
                 ),
                 const SizedBox(height: 24),
-                const Text(
-                  'Please check your inbox (and spam folder) and click the confirmation link to automatically continue.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 14, color: Colors.grey),
-                ),
-                const SizedBox(height: 40),
-
-                // Resend button with cooldown state
-                FilledButton.icon(
-                  onPressed: _controller.canResendEmail ? _resend : null,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.teal,
-                    disabledBackgroundColor: Colors.teal.shade100,
-                  ),
-                  icon: const Icon(Icons.refresh),
-                  label: Text(
-                    _controller.canResendEmail
-                        ? 'Resend Verification Email'
-                        : 'Resend Link in ${_controller.resendCooldown}s',
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Cancel button
-                OutlinedButton(
-                  onPressed: _handleCancel,
-                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                  child: const Text('Cancel & Log Out'),
+                WpMonoLabel(
+                  _controller.canResendEmail
+                      ? 'auto-checking every 3s'
+                      : 'auto-checking every 3s · resend in '
+                      '${_controller.resendCooldown}s',
+                  align: TextAlign.center,
                 ),
               ],
             );

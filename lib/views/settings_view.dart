@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../controllers/settings_controller.dart';
 import '../models/user_profile.dart';
+import '../theme/app_theme.dart';
 import 'onboarding_view.dart';
+import 'widgets/wp_components.dart';
 
+/// Screen 08 · Settings — a read-only profile summary plus the log-out action.
 class SettingsView extends StatefulWidget {
   final UserProfile profile;
 
@@ -15,7 +18,7 @@ class SettingsView extends StatefulWidget {
 
 class _SettingsViewState extends State<SettingsView> {
   late final SettingsController _controller =
-      SettingsController(profile: widget.profile);
+  SettingsController(profile: widget.profile);
 
   Future<void> _confirmLogout() async {
     final ok = await showDialog<bool>(
@@ -24,16 +27,23 @@ class _SettingsViewState extends State<SettingsView> {
         title: const Text('Log out of WalkPenang?'),
         content: const Text(
           'Are you sure you want to log out? '
-          'Your profile data is safely secured in the cloud and will restore when you log back in.',
+              'Your profile data is safely secured in the cloud and will restore when you log back in.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text('Cancel', style: AppType.button),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Log out'),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.onPrimary,
+              shape: const RoundedRectangleBorder(
+                borderRadius: AppRadius.mdAll,
+              ),
+            ),
+            child: Text('Log out', style: AppType.button),
           ),
         ],
       ),
@@ -45,85 +55,58 @@ class _SettingsViewState extends State<SettingsView> {
 
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const OnboardingView()),
-      (route) => false,
+          (route) => false,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final profile = _controller.profile;
-    final hasPhoto = profile.photoUrl != null && profile.photoUrl!.isNotEmpty;
+    final photoUrl = profile.photoUrl;
+    final hasPhoto = photoUrl != null && photoUrl.isNotEmpty;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: ListView(
-        children: [
-          const SizedBox(height: 20),
-          // 📷 PROFILE AVATAR
-          Center(
-            child: CircleAvatar(
-              radius: 50,
-              backgroundColor: Colors.teal.shade100,
-              backgroundImage:
-                  hasPhoto ? NetworkImage(profile.photoUrl!) : null,
-              child: hasPhoto
-                  ? null
-                  : const Icon(Icons.person, size: 50, color: Colors.teal),
-            ),
+    return WpScreen(
+      children: [
+        WpBackBar(onBack: () => Navigator.of(context).pop()),
+        const SizedBox(height: 8),
+        Text('Settings', style: AppType.display),
+        const SizedBox(height: 28),
+        Center(
+          child: WpAvatar(
+            radius: 50,
+            image: hasPhoto ? NetworkImage(photoUrl) : null,
           ),
-          const SizedBox(height: 10),
-          Center(
-            child: Text(
-              profile.nickname,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-          ),
-          Center(
-            child: Text(
-              profile.email ?? '',
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-          ),
-          const SizedBox(height: 10),
-          const Divider(),
-          // 📞 CONTACT DETAILS
-          ListTile(
-            leading: const Icon(Icons.phone, color: Colors.teal),
-            title: const Text('Contact Number'),
-            subtitle: Text(profile.phoneNumber ?? 'Not provided'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.height, color: Colors.teal),
-            title: const Text('Height'),
-            subtitle: Text('${profile.heightCm} cm'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.monitor_weight, color: Colors.teal),
-            title: const Text('Weight'),
-            subtitle: Text('${profile.weightKg} kg'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.calculate, color: Colors.teal),
-            title: const Text('Body Mass Index (BMI)'),
-            subtitle: Text(
-              '${profile.bmi.toStringAsFixed(1)} (${profile.bmiCategory})',
-            ),
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text(
-              'Log out',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.red,
-              ),
-            ),
-            subtitle: const Text('Safely ends your active session'),
-            onTap: _confirmLogout,
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          profile.nickname,
+          textAlign: TextAlign.center,
+          style: AppType.display.copyWith(fontSize: 24),
+        ),
+        const SizedBox(height: 6),
+        WpMonoLabel(profile.email ?? '', size: 12, align: TextAlign.center),
+        const SizedBox(height: 24),
+        const Divider(height: 1, thickness: 1, color: AppColors.outline),
+        WpDetailRow(
+          label: 'contact number',
+          value: profile.phoneNumber?.isNotEmpty == true
+              ? profile.phoneNumber!
+              : 'Not provided',
+        ),
+        WpDetailRow(label: 'height', value: '${profile.heightCm} cm'),
+        WpDetailRow(label: 'weight', value: '${profile.weightKg} kg'),
+        WpDetailRow(
+          label: 'body mass index',
+          value: '${profile.bmi.toStringAsFixed(1)} · ${profile.bmiCategory}',
+        ),
+        const SizedBox(height: 32),
+        WpOutlineButton(label: 'log out', onPressed: _confirmLogout),
+        const SizedBox(height: 20),
+        const WpMonoLabel(
+          'profile stays safely in the cloud',
+          align: TextAlign.center,
+        ),
+      ],
     );
   }
 }
