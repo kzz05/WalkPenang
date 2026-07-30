@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../controllers/onboarding_controller.dart';
 import '../theme/app_theme.dart';
 import 'home_view.dart';
-import 'verify_email_view.dart';
+import 'otp_verification_view.dart';
 import 'widgets/wp_components.dart';
 
 /// Screens 03 · Sign In and 04 · Profile Setup.
@@ -54,7 +54,7 @@ class _OnboardingViewState extends State<OnboardingView> {
         return;
       case OnboardingNext.verifyEmail:
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const VerifyEmailView()),
+          MaterialPageRoute(builder: (_) => const OtpVerificationView()),
         );
       case OnboardingNext.home:
         Navigator.of(context).pushReplacement(

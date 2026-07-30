@@ -1,136 +1,151 @@
-# WalkPenang — MVC structure
+# Email OTP — setup and deployment
 
-The `lib/` folder follows the architecture diagram: Model, View, Controller,
-plus a service layer for Firebase access.
+The app no longer verifies email addresses with a Firebase link. It now mails a
+6-digit code and checks it server-side.
 
 ```
-lib/
-├── models/          →  UserProfile                  (Model)
-├── services/        →  AuthService, ProfileStore    (Data Access Objects / Firebase Service)
-├── controllers/     →  one controller per screen    (Controller)
-├── theme/           →  design tokens                (Presentation)
-└── views/           →  one view per screen          (View)
-    └── widgets/     →  the shared WalkPenang UI kit
+OtpVerificationView  →  OtpVerificationController  →  OtpService
+                                                         │
+                                          Cloud Functions │ (functions/index.js)
+                                                         ▼
+                                 sendEmailOtp  ·  verifyEmailOtp
+                                          │              │
+                                    Gmail SMTP      Admin SDK sets
+                                                    emailVerified = true
 ```
 
-## Who does what
+`emailVerified` stays the source of truth, so `LoadingController` and
+`OnboardingController` needed no changes — they already branch on it.
 
-| Layer | Responsibility | May import |
+## Why the code can't be generated in the app
+
+1. A code generated on the device can be read off the device, so it proves
+   nothing about who owns the mailbox.
+2. SMTP credentials in an APK are credentials you've given away.
+3. Only the Admin SDK can set `emailVerified` on a user.
+
+Firestore never stores the code itself — only an HMAC-SHA256 of it, peppered
+with a secret. `firestore.rules` denies all client access to `email_otps`.
+
+---
+
+## Prerequisites
+
+**Cloud Functions require the Blaze plan.** It is pay-as-you-go with a free
+monthly allowance (2M invocations) that a student project will not come close
+to exhausting, but Google requires a card on file. Upgrade at
+Firebase console → ⚙️ → Usage and billing → Modify plan.
+
+There is no way around this: the Spark (free) plan cannot deploy functions.
+
+## 1. Get a Gmail app password
+
+The functions send mail through Gmail SMTP.
+
+1. The sending Google account must have **2-Step Verification** turned on.
+2. Go to <https://myaccount.google.com/apppasswords>.
+3. Create an app password named `walkpenang`.
+4. Copy the 16-character value — spaces don't matter.
+
+> Gmail caps sending at ~500 messages/day. Fine for development and marking.
+> For anything real, swap `service: "gmail"` in `functions/index.js` for
+> SendGrid, Mailgun, or Resend.
+
+## 2. Install dependencies
+
+```bash
+cd functions
+npm install
+cd ..
+```
+
+## 3. Set the three secrets
+
+```bash
+firebase functions:secrets:set SMTP_USER    # your.address@gmail.com
+firebase functions:secrets:set SMTP_PASS    # the 16-char app password
+firebase functions:secrets:set OTP_PEPPER   # any long random string
+```
+
+Generate a pepper with:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+The pepper is what stops a leaked hash from being brute-forced offline — there
+are only a million 6-digit codes, so an unpeppered hash falls in under a second.
+Set it once and don't change it, or every code in flight becomes invalid.
+
+## 4. Deploy
+
+```bash
+firebase deploy --only functions
+```
+
+⚠️ **Check `firestore.rules` before deploying it.** The file in this repo grants
+each user access to `users/{their own uid}` and denies everything on
+`email_otps`. If your console currently runs open test-mode rules, deploying
+will tighten them — which is correct, but verify it matches how your teammates'
+modules read Firestore first.
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+## 5. Try it
+
+```bash
+flutter run
+```
+
+Register with a real address you can read. The code arrives within a few
+seconds; type it into the six boxes.
+
+Watch the server side with:
+
+```bash
+firebase functions:log --only sendEmailOtp,verifyEmailOtp
+```
+
+---
+
+## Behaviour
+
+| Rule | Value | Where |
 |---|---|---|
-| `models/` | Data shape + business rules (BMI, `isComplete`, JSON mapping) | nothing app-specific |
-| `services/` | Talks to Firebase Auth, Firestore, Storage, SharedPreferences | `models/` |
-| `controllers/` | Screen state, validation, calls services, decides *what* happens next | `models/`, `services/` |
-| `theme/` | Colour, type and radius tokens; the `ThemeData` | nothing app-specific |
-| `views/` | Builds widgets, runs `Navigator`, shows snackbars/dialogs | `controllers/`, `models/`, `theme/`, `views/widgets/` |
+| Code lifetime | 10 minutes | `CODE_TTL_MS` |
+| Resend cooldown | 30 seconds | `RESEND_COOLDOWN_MS` (mirrored in the controller) |
+| Wrong attempts allowed | 5, then the code dies | `MAX_ATTEMPTS` |
+| Code length | 6 digits, `crypto.randomInt` | `generateCode()` |
 
-## Design system
+Every failure path the user can hit — wrong code, expired code, too many
+attempts, resend too soon, server unreachable — has a specific message that
+renders in the black panel under the digit boxes.
 
-`theme/app_theme.dart` transcribes the Figma "00 · Design Tokens" sheet and is
-the **only** place a hex value or font size is allowed to be written down:
+## Troubleshooting
 
-| Token | Value |
-|---|---|
-| Primary | `#E4B592` |
-| Background | `#FFF3EA` |
-| Surface (black cards) | `#000000` |
-| On-primary / ink | `#111111` |
-| Border (input fill) | `#FFFFFF` |
-| Radius | SM 10 (cards, inputs) · MD 50 (pills) |
-| Type | Jost — Bold 32 / SemiBold 18 / Medium 15 |
-| Mono labels | IBM Plex Mono 10, uppercase, tracked out |
+**`unavailable` / "not deployed yet"** — the functions aren't live. Run
+`firebase deploy --only functions` and confirm the region is `us-central1`,
+which is what `OtpService` connects to.
 
-Jost and IBM Plex Mono arrive through the `google_fonts` package, which fetches
-them once on first launch and caches them on-device.
+**No email arrives** — check `firebase functions:log`. Usually a wrong app
+password, or 2FA not enabled on the sending account.
 
-`views/widgets/wp_components.dart` holds the pieces every screen is built from
-— `WpScreen`, `WpPageTitle`, `WpField`, `WpPrimaryButton`, `WpOutlineButton`,
-`WpAvatar`, `WpChip`, `WpStatTile`, `WpModuleCard`, `WpDetailRow`,
-`WpBottomNav`. A view should reach for one of these before writing a raw
-`Container`, so that a change to button height or corner radius happens once.
+**"No code is waiting"** — the document was consumed or expired. Tap resend.
 
-A view never touches Firebase or `ImagePicker` directly, and a controller never
-touches `BuildContext` or `Navigator`.
+**Verified, but the app still asks for a code** — `OtpService.verifyCode()`
+calls `reload()` and `getIdToken(true)` to refresh the cached token. If you
+changed that, the client keeps its stale `emailVerified: false`.
 
-## The pattern
+## Reverting to email links
 
-Controllers with changing state extend `ChangeNotifier`; views own the
-controller instance and rebuild through `ListenableBuilder`. No extra package
-is required — this is plain Flutter.
+The old screens are in git history:
 
-```dart
-// controller
-class HomeController extends ChangeNotifier {
-  HomeController(this._profile);
-  UserProfile _profile;
-  UserProfile get profile => _profile;
-
-  void updateProfile(UserProfile profile) {
-    _profile = profile;
-    notifyListeners();
-  }
-}
-
-// view
-class _HomeViewState extends State<HomeView> {
-  late final HomeController _controller = HomeController(widget.profile);
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => ListenableBuilder(
-        listenable: _controller,
-        builder: (context, _) => Text(_controller.profile.nickname),
-      );
-}
+```bash
+git show HEAD:lib/views/verify_email_view.dart
+git show HEAD:lib/controllers/verify_email_controller.dart
 ```
 
-`LogoController`, `LoadingController` and `SettingsController` hold no changing
-state, so they are plain classes rather than `ChangeNotifier`s.
-
-### Navigation
-
-Controllers can't navigate, so a controller that needs to redirect returns a
-value describing the decision and the view acts on it:
-
-- `LoadingController.resolveDestination()` returns a `LoadingRoute`
-  (`onboarding` / `verifyEmail` / `completeProfile` / `home`).
-- `OnboardingController` methods return an `OnboardingOutcome`
-  (`stay` / `verifyEmail` / `home`, plus an optional error message).
-- `VerifyEmailController` exposes an `onVerified` callback, because the poll
-  timer decides when to move on rather than a user tap.
-
-### Async safety
-
-Controllers that keep working after a screen closes guard notifications with a
-`_safeNotify()` helper, since calling `notifyListeners()` on a disposed
-`ChangeNotifier` throws.
-
-## Screen map
-
-| View | Controller |
-|---|---|
-| `logo_view.dart` | `logo_controller.dart` |
-| `loading_view.dart` | `loading_controller.dart` |
-| `onboarding_view.dart` | `onboarding_controller.dart` |
-| `verify_email_view.dart` | `verify_email_controller.dart` |
-| `home_view.dart` | `home_controller.dart` |
-| `edit_profile_view.dart` | `edit_profile_controller.dart` |
-| `settings_view.dart` | `settings_controller.dart` |
-| `otp_verification_view.dart` | `otp_verification_controller.dart` |
-
-`otp_verification_view.dart` is **not reachable** from any navigation path —
-the app verifies email addresses through Firebase email links. It is kept as a
-starting point for a future SMS/OTP flow; delete both files if you don't want it.
-
-## Adding a screen
-
-1. `lib/controllers/<name>_controller.dart` — state, validation, service calls.
-2. `lib/views/<name>_view.dart` — widgets only; create the controller in
-   `initState`, dispose it in `dispose`. Build it out of `views/widgets/` and
-   `theme/` — never a hard-coded colour or font size.
-3. If it needs new data, add the model to `models/` and the Firebase calls to
-   `services/` — never to the view.
+Restore both, put `sendVerificationEmail()` back in `AuthService`, and point
+`loading_view.dart` and `onboarding_view.dart` at `VerifyEmailView` again.
