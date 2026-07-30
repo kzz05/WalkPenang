@@ -3,18 +3,18 @@ import 'package:flutter/services.dart';
 
 import '../controllers/otp_verification_controller.dart';
 import '../theme/app_theme.dart';
+import 'home_view.dart';
+import 'loading_view.dart';
 import 'onboarding_view.dart';
 import 'widgets/wp_components.dart';
 
 /// Screen 09 · OTP Verification.
 ///
-/// ⚠️ Not wired into navigation — the app verifies email addresses through
-/// Firebase email links (see VerifyEmailView). Kept for a future SMS/OTP flow,
-/// which is why the design carries a "PLANNED FLOW · NOT WIRED" flag.
+/// The live email-verification step: a 6-digit code is mailed by the
+/// `sendEmailOtp` Cloud Function and checked by `verifyEmailOtp`. Replaces the
+/// old email-link screen, which required leaving the app to click a link.
 class OtpVerificationView extends StatefulWidget {
-  final String email;
-
-  const OtpVerificationView({super.key, required this.email});
+  const OtpVerificationView({super.key});
 
   @override
   State<OtpVerificationView> createState() => _OtpVerificationViewState();
@@ -26,10 +26,10 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
   @override
   void initState() {
     super.initState();
-    _controller.startResendTimer();
     // The digit boxes are painted from the controller's text, so repaint on
     // every keystroke. Purely visual state, so it stays in the view.
     _controller.otpCtrl.addListener(_onDigitsChanged);
+    _sendFirstCode();
   }
 
   @override
@@ -41,37 +41,62 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
 
   void _onDigitsChanged() => setState(() {});
 
-  Future<void> _verifyOtp() async {
-    final verified = await _controller.verifyOtp();
+  Future<void> _sendFirstCode() async {
+    _showIfError(await _controller.start());
+  }
+
+  Future<void> _resendCode() async {
+    final error = await _controller.resendCode();
     if (!mounted) return;
 
-    if (!verified) {
-      final error = _controller.errorMessage;
-      if (error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error)),
-        );
-      }
-      return;
+    _showIfError(error);
+    if (error == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('A fresh 6-digit code is on its way.')),
+      );
     }
+  }
 
+  void _showIfError(String? error) {
+    if (error == null || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Email verified successfully!')),
-    );
-
-    // Route back to the onboarding/login entry point.
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const OnboardingView()),
-          (route) => false,
+      SnackBar(content: Text(error)),
     );
   }
 
-  void _resendCode() {
-    if (!_controller.resendCode()) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('A fresh 6-digit verification code has been sent.'),
-      ),
+  Future<void> _verifyOtp() async {
+    final outcome = await _controller.verifyOtp();
+    if (!mounted) return;
+
+    switch (outcome.next) {
+      case OtpNext.stay:
+      // The error is already rendered under the boxes by the controller.
+        return;
+      case OtpNext.home:
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (_) => HomeView(profile: outcome.profile!),
+          ),
+              (route) => false,
+        );
+      case OtpNext.completeProfile:
+      // Let LoadingView re-resolve — it already knows how to hand the
+      // signed-in user to the profile-setup form.
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoadingView()),
+              (route) => false,
+        );
+    }
+  }
+
+  /// Abandons verification, ends the session, and returns to sign-in.
+  Future<void> _cancel() async {
+    await _controller.cancel();
+    if (!mounted) return;
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const OnboardingView()),
+          (route) => false,
     );
   }
 
@@ -89,19 +114,12 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
           );
         }
 
+        final error = _controller.errorMessage;
+
         return WpScreen(
           children: [
-            WpBackBar(onBack: () => Navigator.of(context).pop()),
+            WpBackBar(onBack: _cancel),
             const SizedBox(height: 8),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: WpChip(
-                'planned flow · not wired',
-                background: AppColors.primary,
-                uppercase: true,
-              ),
-            ),
-            const SizedBox(height: 20),
             Text('Verification code', style: AppType.display),
             const SizedBox(height: 16),
             Text(
@@ -109,16 +127,42 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
               style: AppType.body.copyWith(color: AppColors.muted),
             ),
             const SizedBox(height: 14),
-            Align(alignment: Alignment.centerLeft, child: WpChip(widget.email)),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: WpChip(_controller.email),
+            ),
             const SizedBox(height: 24),
             Form(key: _controller.formKey, child: _buildDigitBoxes()),
+
+            // ⚠️ Wrong / expired / rate-limited codes report here, right
+            // under the boxes the user just typed into.
+            if (error != null) ...[
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: AppRadius.smAll,
+                ),
+                child: WpMonoLabel(
+                  error,
+                  size: 11,
+                  color: Colors.white,
+                  align: TextAlign.center,
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             Center(
               child: GestureDetector(
                 onTap: _controller.canResend ? _resendCode : null,
                 behavior: HitTestBehavior.opaque,
                 child: WpMonoLabel(
-                  _controller.canResend
+                  _controller.sending
+                      ? 'sending…'
+                      : _controller.canResend
                       ? 'resend verification code'
                       : 'resend code in ${_controller.secondsRemaining}s',
                   size: 11,
@@ -130,6 +174,8 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
             ),
             const SizedBox(height: 32),
             WpPrimaryButton(label: 'verify code', onPressed: _verifyOtp),
+            const SizedBox(height: 14),
+            WpOutlineButton(label: 'cancel & log out', onPressed: _cancel),
           ],
         );
       },
@@ -158,6 +204,7 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
             controller: _controller.otpCtrl,
             validator: _controller.validateOtp,
             keyboardType: TextInputType.number,
+            autofocus: true,
             inputFormatters: [
               FilteringTextInputFormatter.digitsOnly,
               LengthLimitingTextInputFormatter(6),
@@ -173,7 +220,10 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
               focusedBorder: InputBorder.none,
               errorBorder: InputBorder.none,
               focusedErrorBorder: InputBorder.none,
+              // The controller surfaces validation in its own error panel.
+              errorStyle: TextStyle(fontSize: 0, height: 0),
             ),
+            onFieldSubmitted: (_) => _verifyOtp(),
           ),
         ),
       ],
