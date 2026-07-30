@@ -10,7 +10,7 @@ Flutter + Firebase mobile application promoting walking tourism in Penang, Malay
 | `master` | Integration and testing branch. All modules are combined and tested here before release. | Team |
 | `dataset` | Destination and attraction seed data for Firestore. | |
 | `User-Authentication-&-Profile-Module` | Module 1 — registration, login, and user profile management. | Ian Wong Jing Li |
-| `Map-&-GPS-Module` | Module 3 — map display, route plotting, and GPS navigation. | |
+| `Map-&-GPS-Module` | Module 3 — map display, route plotting, and GPS navigation. | Tang Yue Hann |
 | `Walking-and-Carbon-Module` | Module 4 — transport mode selection, pre-walk summary, carbon savings, calorie estimation, destination proximity verification, and walking journey completion. | Poon Wei Seng |
 | `Reward-and-Achievement-Module` | Module 5 — points awarding, badge unlocking, walking journal, and statistics dashboard. | Tang Khuan Zhi |
 
