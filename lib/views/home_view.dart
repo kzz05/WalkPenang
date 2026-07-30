@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../controllers/home_controller.dart';
 import '../models/user_profile.dart';
+import '../theme/app_theme.dart';
 import 'edit_profile_view.dart';
 import 'settings_view.dart';
+import 'widgets/wp_components.dart';
 
+/// Screen 06 · Home — brand bar, profile hero, stat tiles, module list.
 class HomeView extends StatefulWidget {
   final UserProfile profile;
 
@@ -17,10 +20,52 @@ class HomeView extends StatefulWidget {
 class _HomeViewState extends State<HomeView> {
   late final HomeController _controller = HomeController(widget.profile);
 
+  /// The four modules, in the order the bottom bar lists them.
+  static const _modules = [
+    (
+    title: 'Map & GPS',
+    subtitle: 'live map · nearby pins',
+    owner: 'Tang Yue Hann',
+    ),
+    (
+    title: 'Food & Attractions',
+    subtitle: 'search · bookmarks',
+    owner: 'Ong Song Wei',
+    ),
+    (
+    title: 'Walking & Carbon',
+    subtitle: 'track · carbon saved',
+    owner: 'Poon Wei Seng',
+    ),
+    (
+    title: 'Rewards',
+    subtitle: 'points · badges',
+    owner: 'Tang Khuan Zhi',
+    ),
+  ];
+
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  /// The hamburger opens this — the dashboard's route to the account screens.
+  Future<void> _openAccountMenu() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _AccountMenu(
+        onEditProfile: () {
+          Navigator.pop(sheetContext);
+          _openEditProfile();
+        },
+        onSettings: () {
+          Navigator.pop(sheetContext);
+          _openSettings();
+        },
+      ),
+    );
   }
 
   Future<void> _openSettings() async {
@@ -40,96 +85,250 @@ class _HomeViewState extends State<HomeView> {
     if (updated != null) _controller.updateProfile(updated);
   }
 
+  void _announcePending(String label, String owner) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$label module — to be built ($owner)')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Image.asset(
-          'assets/images/walkpenanglogonew.PNG',
-          width: 100,
-          height: 100,
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: _openSettings,
-          ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: ListenableBuilder(
-          listenable: _controller,
-          builder: (context, _) {
-            final profile = _controller.profile;
-            final hasPhoto =
-                profile.photoUrl != null && profile.photoUrl!.isNotEmpty;
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: ListenableBuilder(
+                listenable: _controller,
+                builder: (context, _) {
+                  final profile = _controller.profile;
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Card(
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      radius: 28,
-                      backgroundColor: Colors.teal[100],
-                      // 1. Use the cloud profile photo when there is one.
-                      backgroundImage:
-                          hasPhoto ? NetworkImage(profile.photoUrl!) : null,
-                      // 2. Fall back to the generic teal icon otherwise.
-                      child: hasPhoto
-                          ? null
-                          : const Icon(Icons.person,
-                              size: 28, color: Colors.teal),
-                    ),
-                    title: Text('Hi, ${profile.nickname}'),
-                    subtitle: Text(
-                      'Weight: ${profile.weightKg} kg  •  Height: ${profile.heightCm} cm\n'
-                      'BMI: ${profile.bmi.toStringAsFixed(1)} (${profile.bmiCategory})  •  Points: ${profile.points}',
-                    ),
-                    isThreeLine: true,
-                    trailing: const Icon(Icons.edit),
-                    onTap: _openEditProfile,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Modules',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                // Placeholders your teammates replace with real screens.
-                _moduleButton(Icons.map, 'Map & GPS', 'Tang Yue Hann'),
-                _moduleButton(
-                    Icons.restaurant, 'Food & Attractions', 'Ong Song Wei'),
-                _moduleButton(Icons.directions_walk, 'Walking & Carbon',
-                    'Poon Wei Seng'),
-                _moduleButton(Icons.emoji_events, 'Rewards', 'Tang Khuan Zhi'),
-              ],
-            );
-          },
+                  return ListView(
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                    children: [
+                      _buildBrandBar(),
+                      const SizedBox(height: 24),
+                      _ProfileHero(
+                        profile: profile,
+                        onTap: _openEditProfile,
+                      ),
+                      const SizedBox(height: 20),
+                      _buildStatRow(profile),
+                      const SizedBox(height: 28),
+                      const WpMonoLabel('modules'),
+                      const SizedBox(height: 12),
+                      for (final module in _modules)
+                        WpModuleCard(
+                          title: module.title,
+                          subtitle: module.subtitle,
+                          onTap: () =>
+                              _announcePending(module.title, module.owner),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            WpBottomNav(
+              currentIndex: 0,
+              items: const ['home', 'map', 'walk', 'rewards'],
+              onTap: (index) {
+                if (index == 0) return;
+                // The bar mirrors the module list minus Food & Attractions.
+                final module = switch (index) {
+                  1 => _modules[0],
+                  2 => _modules[2],
+                  _ => _modules[3],
+                };
+                _announcePending(module.title, module.owner);
+              },
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _moduleButton(IconData icon, String label, String owner) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: OutlinedButton.icon(
-        icon: Icon(icon),
-        label: Align(
-          alignment: Alignment.centerLeft,
-          child: Text('$label  (todo: $owner)'),
+  /// Logo on the left, a circular menu button on the right.
+  Widget _buildBrandBar() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Image.asset(
+          'assets/images/walkpenanglogonobg.png',
+          height: 64,
+          fit: BoxFit.contain,
         ),
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        InkWell(
+          onTap: _openAccountMenu,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.onPrimary, width: 1.6),
+            ),
+            child: const Icon(Icons.menu, size: 20, color: AppColors.onPrimary),
+          ),
         ),
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('$label module — to be built')),
-          );
-        },
+      ],
+    );
+  }
+
+  Widget _buildStatRow(UserProfile profile) {
+    // IntrinsicHeight keeps the three tiles the same height. A plain
+    // `stretch` can't be used here — inside a ListView the Row's height is
+    // unbounded, and stretching against infinity throws during layout.
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: WpStatTile(
+              label: 'distance',
+              value: profile.distanceKm.toStringAsFixed(1),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: WpStatTile(
+              label: 'co2 saved',
+              value: profile.co2SavedKg.toStringAsFixed(1),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: WpStatTile(
+              label: 'points',
+              value: '${profile.points}',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The sheet behind the hamburger — the dashboard's account section.
+class _AccountMenu extends StatelessWidget {
+  final VoidCallback onEditProfile;
+  final VoidCallback onSettings;
+
+  const _AccountMenu({required this.onEditProfile, required this.onSettings});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Container(
+        margin: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: AppRadius.smAll,
+          border: Border.all(color: AppColors.outline),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(left: 4, bottom: 12),
+              child: WpMonoLabel('account'),
+            ),
+            WpModuleCard(
+              title: 'Edit profile',
+              subtitle: 'photo · name · metrics',
+              onTap: onEditProfile,
+            ),
+            WpModuleCard(
+              title: 'Settings',
+              subtitle: 'account details · log out',
+              onTap: onSettings,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The black pill greeting card at the top of the home screen.
+class _ProfileHero extends StatelessWidget {
+  final UserProfile profile;
+  final VoidCallback onTap;
+
+  const _ProfileHero({required this.profile, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final photoUrl = profile.photoUrl;
+    final hasPhoto = photoUrl != null && photoUrl.isNotEmpty;
+
+    return Material(
+      color: AppColors.surface,
+      borderRadius: AppRadius.mdAll,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.mdAll,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              WpAvatar(
+                radius: 36,
+                image: hasPhoto ? NetworkImage(photoUrl) : null,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const WpMonoLabel('signed in', color: AppColors.primary),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Hi, ${profile.nickname}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.display.copyWith(
+                        fontSize: 24,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    // Shrinks rather than wrapping, so a long nickname or a
+                    // 4-digit points total can't make the card two lines tall.
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: WpMonoLabel(
+                        'bmi ${profile.bmi.toStringAsFixed(1)} · '
+                            '${profile.bmiCategory} · ${profile.points} pts',
+                        color: AppColors.onSurfaceMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // ✏️ Makes it obvious the whole card opens Edit Profile.
+              Container(
+                width: 36,
+                height: 36,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.primary,
+                ),
+                child: const Icon(
+                  Icons.edit,
+                  size: 16,
+                  color: AppColors.onPrimary,
+                ),
+              ),
+              const SizedBox(width: 4),
+            ],
+          ),
+        ),
       ),
     );
   }

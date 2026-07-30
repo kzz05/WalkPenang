@@ -2,18 +2,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../controllers/onboarding_controller.dart';
+import '../theme/app_theme.dart';
 import 'home_view.dart';
 import 'verify_email_view.dart';
+import 'widgets/wp_components.dart';
 
-// 🎨 Brand palette pulled straight from the WalkPenang logo mark.
-class _Brand {
-  static const cream = Color(0xFFFFF1D5); // matches LogoView/LoadingView
-  static const indigo = Color(0xFF3D2FE0); // the "W" figure
-  static const pink = Color(0xFFEC3D96); // the outline / wordmark
-  static const mint = Color(0xFF4CE6B0); // the "P" figure
-  static const ink = Color(0xFF241C4D); // body text on cream
-}
-
+/// Screens 03 · Sign In and 04 · Profile Setup.
+///
+/// One view, two phases: the auth form swaps for the fitness form the moment
+/// the controller reports an authenticated user.
 class OnboardingView extends StatefulWidget {
   final User? existingUser;
 
@@ -25,7 +22,7 @@ class OnboardingView extends StatefulWidget {
 
 class _OnboardingViewState extends State<OnboardingView> {
   late final OnboardingController _controller =
-      OnboardingController(existingUser: widget.existingUser);
+  OnboardingController(existingUser: widget.existingUser);
 
   @override
   void dispose() {
@@ -70,333 +67,214 @@ class _OnboardingViewState extends State<OnboardingView> {
 
   @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-
     return Scaffold(
-      backgroundColor: _Brand.cream,
+      backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Column(
-          children: [
-            // 🏷️ Logo hero — fills the top 40% of the screen.
-            SizedBox(
-              height: screenHeight * 0.40,
-              width: double.infinity,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(48, 16, 48, 8),
-                child: Image.asset(
-                  'assets/images/walkpenanglogonew.PNG',
-                  fit: BoxFit.contain,
-                ),
-              ),
-            ),
-            Expanded(
-              child: ListenableBuilder(
-                listenable: _controller,
-                builder: (context, _) {
-                  if (_controller.busy) {
-                    return const Center(
-                      child: CircularProgressIndicator(color: _Brand.indigo),
-                    );
-                  }
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                    child: _controller.isAuthenticated
-                        ? _buildMetricsPhase()
-                        : _buildAuthPhase(),
-                  );
-                },
-              ),
-            ),
-          ],
+        child: ListenableBuilder(
+          listenable: _controller,
+          builder: (context, _) {
+            if (_controller.busy) {
+              return const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              );
+            }
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+              children: _controller.isAuthenticated
+                  ? _buildMetricsPhase()
+                  : _buildAuthPhase(),
+            );
+          },
         ),
       ),
     );
   }
 
-  // Shared field styling so every input on this screen matches the brand.
-  InputDecoration _fieldDecoration({
-    required String label,
-    required IconData icon,
-    Widget? suffixIcon,
-  }) {
-    OutlineInputBorder border(Color color, double width) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: color, width: width),
-        );
+  // ── Phase 1 · Sign in ─────────────────────────────────────────────────────
 
-    return InputDecoration(
-      labelText: label,
-      labelStyle: const TextStyle(color: _Brand.ink),
-      prefixIcon: Icon(icon, color: _Brand.pink),
-      suffixIcon: suffixIcon,
-      filled: true,
-      fillColor: Colors.white,
-      border: border(Colors.transparent, 0),
-      enabledBorder: border(_Brand.indigo.withOpacity(0.15), 1.4),
-      focusedBorder: border(_Brand.indigo, 2),
-      errorBorder: border(_Brand.pink, 1.4),
-      focusedErrorBorder: border(_Brand.pink, 2),
-      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-    );
-  }
-
-  Widget _buildAuthPhase() {
-    return Form(
-      key: _controller.authFormKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 🖊️ Register / sign in column
-          TextFormField(
-            controller: _controller.emailCtrl,
-            keyboardType: TextInputType.emailAddress,
-            style: const TextStyle(color: _Brand.ink),
-            decoration: _fieldDecoration(
-              label: 'Email address',
-              icon: Icons.alternate_email_rounded,
+  List<Widget> _buildAuthPhase() {
+    return [
+      const WpPageTitle(
+        'Sign in',
+        caption: 'one form · signs you in or creates the account',
+      ),
+      const SizedBox(height: 40),
+      Form(
+        key: _controller.authFormKey,
+        child: Column(
+          children: [
+            WpField(
+              label: 'email address',
+              controller: _controller.emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              validator: _controller.validateEmail,
             ),
-            validator: _controller.validateEmail,
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: _controller.passwordCtrl,
-            obscureText: _controller.obscurePassword,
-            style: const TextStyle(color: _Brand.ink),
-            decoration: _fieldDecoration(
-              label: 'Password',
-              icon: Icons.lock_outline_rounded,
+            const SizedBox(height: 20),
+            WpField(
+              label: 'password',
+              controller: _controller.passwordCtrl,
+              obscureText: _controller.obscurePassword,
+              validator: _controller.validatePassword,
               suffixIcon: IconButton(
                 icon: Icon(
                   _controller.obscurePassword
                       ? Icons.visibility_outlined
                       : Icons.visibility_off_outlined,
-                  color: _Brand.ink.withOpacity(0.5),
+                  size: 20,
+                  color: AppColors.muted,
                 ),
                 onPressed: _controller.togglePasswordVisibility,
               ),
             ),
-            validator: _controller.validatePassword,
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            height: 52,
-            child: FilledButton(
-              onPressed: _controller.busy ? null : _handleAuth,
-              style: FilledButton.styleFrom(
-                backgroundColor: _Brand.indigo,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              child: const Text(
-                'Sign In / Register',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-
-          // — divider —
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 22),
-            child: Row(
-              children: [
-                Expanded(child: Divider(color: Color(0x333D2FE0))),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12),
-                  child: Text(
-                    'OR',
-                    style: TextStyle(
-                      color: _Brand.ink,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ),
-                Expanded(child: Divider(color: Color(0x333D2FE0))),
-              ],
-            ),
-          ),
-
-          // 🟢 Google sign-in
-          SizedBox(
-            height: 52,
-            child: OutlinedButton.icon(
-              onPressed: _controller.busy ? null : _handleGoogleAuth,
-              style: OutlinedButton.styleFrom(
-                backgroundColor: Colors.white,
-                side: const BorderSide(color: _Brand.mint, width: 1.6),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              icon: const Icon(Icons.g_mobiledata,
-                  size: 28, color: _Brand.indigo),
-              label: const Text(
-                'Continue with Google',
-                style: TextStyle(
-                  color: _Brand.ink,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15,
-                ),
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
-    );
+      const SizedBox(height: 28),
+      WpPrimaryButton(
+        label: 'sign in / register',
+        onPressed: _handleAuth,
+      ),
+      const SizedBox(height: 24),
+      const WpOrDivider(),
+      const SizedBox(height: 24),
+      WpOutlineButton(
+        label: 'continue with google',
+        onPressed: _handleGoogleAuth,
+      ),
+    ];
   }
 
-  Widget _buildMetricsPhase() {
+  // ── Phase 2 · Profile setup ───────────────────────────────────────────────
+
+  List<Widget> _buildMetricsPhase() {
     final selectedImage = _controller.selectedImage;
 
-    return Form(
-      key: _controller.profileFormKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Center(
-            child: Stack(
+    return [
+      const WpPageTitle(
+        'Set up your profile',
+        caption: 'step 2 of 2 · fitness configuration',
+      ),
+      const SizedBox(height: 28),
+      Center(
+        child: WpAvatar(
+          radius: 55,
+          background: AppColors.surface,
+          image: selectedImage != null ? FileImage(selectedImage) : null,
+          onEdit: _controller.pickImage,
+        ),
+      ),
+      const SizedBox(height: 28),
+      Form(
+        key: _controller.profileFormKey,
+        child: Column(
+          children: [
+            WpField(
+              label: 'display name / nickname',
+              controller: _controller.nicknameCtrl,
+              validator: (v) =>
+                  _controller.validateRequired(v, 'Name required'),
+            ),
+            const SizedBox(height: 20),
+            WpField(
+              label: 'contact number',
+              controller: _controller.phoneCtrl,
+              keyboardType: TextInputType.phone,
+              validator: (v) =>
+                  _controller.validateRequired(v, 'Contact details required'),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  radius: 50,
-                  backgroundColor: _Brand.indigo.withOpacity(0.1),
-                  backgroundImage:
-                      selectedImage != null ? FileImage(selectedImage) : null,
-                  child: selectedImage == null
-                      ? const Icon(Icons.person, size: 50, color: _Brand.indigo)
-                      : null,
+                Expanded(
+                  child: WpField(
+                    label: 'height (cm)',
+                    controller: _controller.heightCtrl,
+                    keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                    validator: _controller.validateMeasurement,
+                  ),
                 ),
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: CircleAvatar(
-                    backgroundColor: _Brand.pink,
-                    radius: 17,
-                    child: IconButton(
-                      icon: const Icon(Icons.camera_alt,
-                          size: 15, color: Colors.white),
-                      onPressed: _controller.pickImage,
-                    ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: WpField(
+                    label: 'weight (kg)',
+                    controller: _controller.weightCtrl,
+                    keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                    validator: _controller.validateMeasurement,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            WpDropdownField(
+              label: 'system units',
+              value: _controller.units,
+              options: const {
+                'metric': 'Metric (kg, cm)',
+                'imperial': 'Imperial (lb, in)',
+              },
+              onChanged: _controller.setUnits,
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 20),
+      BmiCard(bmi: _controller.bmi, category: _controller.bmiCategory),
+      const SizedBox(height: 24),
+      WpPrimaryButton(
+        label: 'finalize account setup',
+        onPressed: _handleCompleteProfile,
+      ),
+    ];
+  }
+}
+
+/// The black BMI read-out: mono label, big number, and a sand category pill.
+class BmiCard extends StatelessWidget {
+  final double bmi;
+  final String category;
+
+  const BmiCard({super.key, required this.bmi, required this.category});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasValue = bmi > 0;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: AppRadius.smAll,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const WpMonoLabel(
+                  'body mass index',
+                  color: AppColors.onSurfaceMuted,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  hasValue ? bmi.toStringAsFixed(1) : '—',
+                  style: AppType.stat.copyWith(
+                    color: Colors.white,
+                    fontSize: 32,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          const Text(
-            "Let's finish setting up your fitness profile.",
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 15,
-              color: _Brand.indigo,
-              fontWeight: FontWeight.w600,
+          if (hasValue)
+            WpChip(
+              category,
+              background: AppColors.primary,
+              uppercase: true,
             ),
-          ),
-          const SizedBox(height: 20),
-          TextFormField(
-            controller: _controller.nicknameCtrl,
-            style: const TextStyle(color: _Brand.ink),
-            decoration: _fieldDecoration(
-              label: 'Display name / nickname',
-              icon: Icons.badge_outlined,
-            ),
-            validator: (v) => _controller.validateRequired(v, 'Name required'),
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: _controller.phoneCtrl,
-            keyboardType: TextInputType.phone,
-            style: const TextStyle(color: _Brand.ink),
-            decoration: _fieldDecoration(
-              label: 'Contact number',
-              icon: Icons.call_outlined,
-            ),
-            validator: (v) =>
-                _controller.validateRequired(v, 'Contact details required'),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  controller: _controller.heightCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(color: _Brand.ink),
-                  decoration: _fieldDecoration(
-                    label: 'Height (cm)',
-                    icon: Icons.height_rounded,
-                  ),
-                  validator: _controller.validateMeasurement,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextFormField(
-                  controller: _controller.weightCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(color: _Brand.ink),
-                  decoration: _fieldDecoration(
-                    label: 'Weight (kg)',
-                    icon: Icons.monitor_weight_outlined,
-                  ),
-                  validator: _controller.validateMeasurement,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          DropdownButtonFormField<String>(
-            value: _controller.units,
-            style: const TextStyle(color: _Brand.ink),
-            decoration: _fieldDecoration(
-              label: 'System units',
-              icon: Icons.straighten_outlined,
-            ),
-            items: const [
-              DropdownMenuItem(value: 'metric', child: Text('Metric (kg, km)')),
-              DropdownMenuItem(
-                  value: 'imperial', child: Text('Imperial (lb, mi)')),
-            ],
-            onChanged: _controller.setUnits,
-          ),
-          if (_controller.bmi > 0) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: _Brand.mint.withOpacity(0.18),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: _Brand.mint, width: 1.2),
-              ),
-              child: Text(
-                'Auto calculated BMI: ${_controller.bmi.toStringAsFixed(1)} (${_controller.bmiCategory})',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: _Brand.ink,
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 22),
-          SizedBox(
-            height: 52,
-            child: FilledButton(
-              onPressed: _handleCompleteProfile,
-              style: FilledButton.styleFrom(
-                backgroundColor: _Brand.indigo,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              child: const Text(
-                'Finalize Account Setup',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
         ],
       ),
     );
