@@ -70,12 +70,9 @@ class AuthService {
     return userCredential.user;
   }
 
-  Future<void> sendVerificationEmail() async {
-    final user = _auth.currentUser;
-    if (user != null && !user.emailVerified) {
-      await user.sendEmailVerification();
-    }
-  }
+  // 📧 Email verification is no longer done with Firebase's built-in link.
+  // A 6-digit code is issued and checked by the `sendEmailOtp` /
+  // `verifyEmailOtp` Cloud Functions — see OtpService and functions/index.js.
 
   Future<void> signOut() async {
     await _ensureInitialized();
