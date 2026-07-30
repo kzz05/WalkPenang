@@ -4,7 +4,7 @@ import '../controllers/loading_controller.dart';
 import '../theme/app_theme.dart';
 import 'home_view.dart';
 import 'onboarding_view.dart';
-import 'verify_email_view.dart';
+import 'otp_verification_view.dart';
 import 'widgets/wp_components.dart';
 
 /// Screen 02 · Loading — logo, a sand progress bar, and a mono status line.
@@ -30,7 +30,7 @@ class _LoadingViewState extends State<LoadingView> {
 
     final Widget next = switch (route.destination) {
       LoadingDestination.onboarding => const OnboardingView(),
-      LoadingDestination.verifyEmail => const VerifyEmailView(),
+      LoadingDestination.verifyEmail => const OtpVerificationView(),
       LoadingDestination.completeProfile =>
           OnboardingView(existingUser: route.user),
       LoadingDestination.home => HomeView(profile: route.profile!),
