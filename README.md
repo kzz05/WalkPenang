@@ -71,15 +71,20 @@ differently, do not add fields without being asked.
 
 **`users`** — document ID is the Firebase Auth UID
 ```
-name, email, photoUrl, joinedDate,
+nickname, email, phoneNumber, photoUrl, joinedDate,
+heightCm, weightKg, unitPreference,
 totalPoints, totalCheckIns, totalDistanceKm,
 totalCarbonSaved, totalCalories
 ```
 
-**`destinations`**
+**`favorites`** — subcollection under `users/{uid}/favorites`
 ```
-name, description, category, imageUrl,
-latitude, longitude, address, openingHours
+placeId, placeName, category, latitude, longitude, savedAt
+```
+
+**`reviews`**
+```
+userId, placeId, rating, comment, timestamp
 ```
 
 **`journeys`**
@@ -90,39 +95,126 @@ distanceKm, transportMode, carbonSaved, caloriesBurned, pointsEarned
 
 **`badges`** — static definitions, seeded once
 ```
-name, description, iconUrl, milestoneType, milestoneValue
+badgeId, name, description, iconUrl, milestoneType, milestoneValue
 ```
 
 **`user_badges`**
 ```
-userId, badgeId, dateEarned
+userId, badgeId, badgeName, description, dateEarned
 ```
 
 Rules:
 
 - Collection names are lowercase; field names are `lowerCamelCase`.
 - Timestamps are stored as Firestore `Timestamp`, never as a formatted string.
+- Place data comes live from the Google Places API and is **not** mirrored into
+  Firestore. Only the `placeId` and minimal display metadata are persisted.
 - The cumulative totals on `users` are denormalised counters, updated
   incrementally on check-in. Do not recompute them by reading every journey.
 - Every query is filtered by `userId`. Never fetch a whole collection.
+- Firestore security rules restrict every read and write to the currently
+  authenticated user's own documents.
 
 ---
 
 ## Business rules
 
 Hard-coded values are forbidden anywhere except `utils/constants.dart`. These
-are the authoritative values — do not change or "improve" them.
+are the authoritative values, taken from the approved use case descriptions — do
+not change, round, or "improve" them.
 
-| Rule | Value | Owner |
-| --- | --- | --- |
-| Arrival radius for a valid check-in | 100 metres | Walking & Carbon |
-| Points per completed check-in | 10 | Reward |
-| Bonus points | 1 point per 0.1 km walked, rounded down | Reward |
-| Explorer badge | 5 check-ins | Reward |
-| Trailblazer badge | 10 km cumulative | Reward |
-| Penang Wanderer badge | 50 km cumulative | Reward |
-| Transport modes | Walking, Public Transport, Driving | Walking & Carbon |
-| Points awarded for non-walking modes | None — driving is the carbon baseline only | Walking & Carbon / Reward |
+### User & Profile
+
+| Rule | Value |
+| --- | --- |
+| Password minimum length | 6 characters |
+| Email format | Validated before any Firebase call |
+| Registration behaviour | One combined form. If the email is new, create the account; if it already exists, automatically retry as a sign-in with the same credentials rather than showing an error |
+| New account side effect | An empty Firestore profile document is created |
+| Email verification method | 6-digit OTP issued and validated server-side via Cloud Function; the client refreshes its ID token afterwards |
+| OTP resend cooldown | 30 seconds |
+| OTP rejection reasons | Incorrect, expired, already consumed, or too many attempts |
+| Google Sign-In accounts | Pre-verified — skip the email verification step entirely |
+| Password accounts | Unverified accounts are routed to the Verify Email screen before any other destination |
+| Routing after verification | Home screen, or the profile-setup form if the profile is incomplete |
+| Editable profile fields | Nickname, contact number, avatar, height, weight, measurement unit |
+| Avatar storage | Picked image is held locally until save, then uploaded to Firebase Storage; only the download URL is written to Firestore |
+| Profile persistence | Written to both the local cache and Firestore on every save |
+| Profile validation | Required fields non-empty; height and weight must be valid numbers |
+| Logout | Requires a confirmation dialog, then clears the local cache, signs out of Google (if used) and Firebase, and clears the navigation history |
+
+### Destination & Attraction
+
+| Rule | Value |
+| --- | --- |
+| Search inputs | Keyword plus the user's current GPS coordinates |
+| Result ordering | Ranked by relevance and proximity |
+| Empty search query | Show a default list of popular nearby food spots and attractions — never an error |
+| Categories | Cafe, Historic Site, Local Street Food, Museum |
+| Filter scope | Applied to the active query within the current search radius |
+| Place details source | Google Places / Yelp / TripAdvisor API — never cached as the source of truth |
+| Review source | Cloud Firestore, keyed by place ID |
+| Favourites | Require an authenticated user; tapping an already-saved place removes it |
+| Rating scale | 1–5 stars, mandatory before submission |
+| Review comment | Must meet the minimum length before submission is accepted |
+| Review payload | userId, placeId, rating, comment, timestamp |
+| Rating aggregate | Overall average is recalculated when a review is submitted |
+
+### Route & Navigation (Map & GPS)
+
+| Rule | Value |
+| --- | --- |
+| Search radius options | 1 km, 2 km, 5 km |
+| Pin types | Food establishments and tourist attractions only |
+| Geographic restriction | The map is restricted to the Penang boundary at all times |
+| Boundary definition | A fixed `LatLngBounds` constant in `utils/constants.dart` |
+| Boundary enforcement | `cameraTargetBounds` restricts panning; validation applies to both the user's location and every selected destination |
+| Destination outside Penang | Selection is rejected, not silently corrected |
+| GPS package | Flutter Geolocator, via the device GPS service |
+| GPS updates | Continuous and real time while the map screen is active |
+| GPS accuracy | Readings below the accuracy threshold are flagged; timeouts end the use case |
+| Route units | Distance in kilometres, duration in minutes, from the Directions API walking-mode response |
+| Navigation | Launched externally through a Google Maps deep link built from the destination coordinates, opened with `url_launcher` |
+| Maps API key | Configured in `AndroidManifest.xml`; never inlined in Dart source |
+| Module boundary | This module does not calculate carbon or calories, and does not perform check-in verification or award points |
+
+### Walking & Carbon
+
+| Rule | Value |
+| --- | --- |
+| Transport modes | Walking, Driving, Public Transport |
+| Mode selection | Exactly one mode per journey |
+| Feature gating | Carbon, calorie, journey completion, and reward features are enabled **only** when Walking is selected |
+| Carbon formula | `carbonSaved = distanceKm × 0.21` kg CO₂, using average private car emissions as the baseline |
+| Calorie formula | `caloriesBurned = distanceKm × weightKg × 0.9` |
+| Body weight source | The user's profile; if it is missing, prompt the user to set it rather than substituting a default |
+| Input validation | Distance in kilometres and weight in kilograms, both valid positive values |
+| Pre-walk summary | Displayed for walking-mode journeys only |
+| Arrival radius | 100 metres from the destination coordinates |
+| GPS freshness | Verification uses a current reading; stale or low-accuracy readings are rejected and verification does not proceed |
+| Journey completion | Permitted only after successful proximity verification |
+| Duplicate completion | Each journey can be completed exactly once; a repeat attempt must not re-trigger reward processing |
+| Data persistence | Carbon and calorie values are recorded only after successful completion |
+| Module boundary | This module triggers reward processing but never calculates points or badges itself |
+
+### Reward & Achievement
+
+| Rule | Value |
+| --- | --- |
+| Points formula | 10 points per completed check-in + 1 point per 0.1 km walked, rounded down |
+| Input received | distance (km), carbon saved (kg CO₂), calories burned (kcal) — already verified by Walking & Carbon |
+| Explorer badge | 5 check-ins |
+| Trailblazer badge | 10 km cumulative distance |
+| Penang Wanderer badge | 50 km cumulative distance |
+| Points write | Atomic increment (`FieldValue.increment`), never read-modify-write |
+| Failed points write | Retried when the connection is restored; the pending update is held locally until synced |
+| Badge write | Checked for an existing record first; duplicates are skipped, not overwritten |
+| Badge record fields | badgeId, badgeName, description, dateEarned |
+| Journal ordering | Reverse chronological, most recent first |
+| Journal detail fields | Destination name, check-in date/time, distance walked, points earned, carbon saved, calories burned |
+| Dashboard refresh | Real time whenever a new check-in is recorded |
+| Record scope | Only the currently logged-in tourist's records, enforced by Firestore security rules |
+| Module boundary | This module never retrieves GPS coordinates and never computes distance, carbon, or calories |
 
 ---
 
