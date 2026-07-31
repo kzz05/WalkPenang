@@ -15,24 +15,6 @@ Flutter + Firebase mobile application promoting walking tourism in Penang, Malay
 | `Walking-and-Carbon-Module` | Module 4 — transport mode selection, pre-walk summary, carbon savings, calorie estimation, destination proximity verification, and walking journey completion. | Poon Wei Seng |
 | `Reward-and-Achievement-Module` | Module 5 — points awarding, badge unlocking, walking journal, and statistics dashboard. | Tang Khuan Zhi |
 
-## Module ownership
-
-Five modules, one owner each. Never edit files belonging to another module
-without being told to explicitly.
-
-| Module | Prefix | Responsibility |
-| --- | --- | --- |
-| User & Profile | `user` | Registration, login, logout, profile view and edit |
-| Destination & Attraction | `dest` | Destination listing, search, filter, detail view |
-| Route & Navigation | `route` | Map display, route generation, turn-by-turn directions |
-| Walking & Carbon | `walk` | Transport mode selection, GPS tracking, arrival verification, carbon and calorie calculation |
-| Reward & Achievement | `reward` | Points, badges, walking journal, statistics dashboard |
-
-**The boundary most often violated:** Walking & Carbon owns GPS retrieval,
-arrival verification, and the carbon/calorie formulas. Reward & Achievement owns
-points and badges. Reward receives a completed, verified journey and never
-computes distance, carbon, or calories itself. Do not blur these.
-
 ---
 
 ## Folder structure
