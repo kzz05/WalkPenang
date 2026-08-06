@@ -5,6 +5,7 @@ import '../models/user_profile.dart';
 import '../theme/app_theme.dart';
 import 'edit_profile_view.dart';
 import 'settings_view.dart';
+import 'walking_view.dart';
 import 'widgets/wp_components.dart';
 
 /// Screen 06 · Home — brand bar, profile hero, stat tiles, module list.
@@ -85,6 +86,14 @@ class _HomeViewState extends State<HomeView> {
     if (updated != null) _controller.updateProfile(updated);
   }
 
+  Future<void> _openWalkingModule() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const WalkingView(),
+      ),
+    );
+  }
+
   void _announcePending(String label, String owner) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('$label module — to be built ($owner)')),
@@ -122,8 +131,14 @@ class _HomeViewState extends State<HomeView> {
                         WpModuleCard(
                           title: module.title,
                           subtitle: module.subtitle,
-                          onTap: () =>
-                              _announcePending(module.title, module.owner),
+                          onTap: () {
+                            if (module.title == 'Walking & Carbon') {
+                              _openWalkingModule();
+                              return;
+                            }
+
+                            _announcePending(module.title, module.owner);
+                          },
                         ),
                     ],
                   );
@@ -135,12 +150,17 @@ class _HomeViewState extends State<HomeView> {
               items: const ['home', 'map', 'walk', 'rewards'],
               onTap: (index) {
                 if (index == 0) return;
-                // The bar mirrors the module list minus Food & Attractions.
+
+                if (index == 2) {
+                  _openWalkingModule();
+                  return;
+                }
+
                 final module = switch (index) {
                   1 => _modules[0],
-                  2 => _modules[2],
                   _ => _modules[3],
                 };
+
                 _announcePending(module.title, module.owner);
               },
             ),
