@@ -31,6 +31,13 @@
 
   <title>walkpenang</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Map & GPS module: google_maps_flutter_web loads tiles through this
+       script tag rather than the native AndroidManifest.xml / AppDelegate.swift
+       key entries. Same Google Cloud key, with "Maps JavaScript API" enabled
+       and (for production) an HTTP referrer restriction instead of an
+       Android/iOS app restriction. -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY_HERE"></script>
 </head>
 <body>
   <!--

@@ -4,6 +4,7 @@ import '../controllers/home_controller.dart';
 import '../models/user_profile.dart';
 import '../theme/app_theme.dart';
 import 'edit_profile_view.dart';
+import 'map_view.dart';
 import 'settings_view.dart';
 import 'widgets/wp_components.dart';
 
@@ -91,6 +92,18 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
+  /// Map & GPS is the only module built so far — everything else still
+  /// shows the placeholder snackbar until its owner builds it.
+  void _openModule(String title, String owner) {
+    if (title == 'Map & GPS') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const MapView()),
+      );
+      return;
+    }
+    _announcePending(title, owner);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -122,8 +135,7 @@ class _HomeViewState extends State<HomeView> {
                         WpModuleCard(
                           title: module.title,
                           subtitle: module.subtitle,
-                          onTap: () =>
-                              _announcePending(module.title, module.owner),
+                          onTap: () => _openModule(module.title, module.owner),
                         ),
                     ],
                   );
@@ -141,7 +153,7 @@ class _HomeViewState extends State<HomeView> {
                   2 => _modules[2],
                   _ => _modules[3],
                 };
-                _announcePending(module.title, module.owner);
+                _openModule(module.title, module.owner);
               },
             ),
           ],
