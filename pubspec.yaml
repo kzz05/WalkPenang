@@ -43,6 +43,7 @@ dependencies:
   firebase_storage: ^13.4.5 #FOR UPLOADING IMAGES
   image_picker: ^1.2.3 #FOR SELECTING IMAGES
   cloud_functions: ^6.3.5
+  cached_network_image: ^3.4.1
 
 dev_dependencies:
   flutter_test:
