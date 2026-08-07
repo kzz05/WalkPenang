@@ -4,6 +4,7 @@ import '../controllers/home_controller.dart';
 import '../models/user_profile.dart';
 import '../theme/app_theme.dart';
 import 'edit_profile_view.dart';
+import 'reward/stats_dashboard_screen.dart';
 import 'settings_view.dart';
 import 'walking_view.dart';
 import 'widgets/wp_components.dart';
@@ -94,6 +95,14 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
+  Future<void> _openRewardModule() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const StatsDashboardScreen(),
+      ),
+    );
+  }
+
   void _announcePending(String label, String owner) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('$label module — to be built ($owner)')),
@@ -137,6 +146,11 @@ class _HomeViewState extends State<HomeView> {
                               return;
                             }
 
+                            if (module.title == 'Rewards') {
+                              _openRewardModule();
+                              return;
+                            }
+
                             _announcePending(module.title, module.owner);
                           },
                         ),
@@ -153,6 +167,11 @@ class _HomeViewState extends State<HomeView> {
 
                 if (index == 2) {
                   _openWalkingModule();
+                  return;
+                }
+
+                if (index == 3) {
+                  _openRewardModule();
                   return;
                 }
 
