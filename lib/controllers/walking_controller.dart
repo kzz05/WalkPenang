@@ -25,6 +25,19 @@ class WalkingController extends ChangeNotifier {
 
   String? get journeyStartError => _journeyStartError;
 
+  /// Walking-only carbon savings (kg CO2) for [distanceKm] — 0.0 for any
+  /// other selected transport mode, reusing [WalkingBenefits]'s
+  /// distance-based formula and edge-case handling.
+  double calculateCarbonSavings(double distanceKm) {
+    if (_selectedMode != TransportMode.walking) return 0.0;
+    return WalkingBenefits.calculateCarbonSavingsKg(distanceKm);
+  }
+
+  /// Carbon savings for the current [routeSummary], ready to be persisted
+  /// once a journey completes. 0.0 when there's no route yet.
+  double get carbonSavedKg =>
+      calculateCarbonSavings(_routeSummary?.distanceKm ?? 0.0);
+
   void selectMode(TransportMode mode) {
     if (_selectedMode == mode) return;
 

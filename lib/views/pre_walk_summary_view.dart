@@ -63,7 +63,10 @@ class _PreWalkSummaryViewState extends State<PreWalkSummaryView> {
                     child: summary == null
                         ? const _MissingRouteData()
                         : SingleChildScrollView(
-                            child: _SummaryContent(summary: summary),
+                            child: _SummaryContent(
+                              summary: summary,
+                              controller: widget.controller,
+                            ),
                           ),
                   ),
                   const SizedBox(height: 24),
@@ -189,19 +192,25 @@ class _MissingRouteData extends StatelessWidget {
 /// data is available.
 class _SummaryContent extends StatelessWidget {
   final WalkingRouteSummary summary;
+  final WalkingController controller;
 
-  const _SummaryContent({required this.summary});
+  const _SummaryContent({required this.summary, required this.controller});
 
   @override
   Widget build(BuildContext context) {
     final benefits = WalkingBenefits.fromDistanceKm(summary.distanceKm);
+    final carbonSavedKg = controller.calculateCarbonSavings(summary.distanceKm);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _DestinationHero(summary: summary),
         const SizedBox(height: 14),
-        _StatsGrid(summary: summary, benefits: benefits),
+        _StatsGrid(
+          summary: summary,
+          benefits: benefits,
+          carbonSavedKg: carbonSavedKg,
+        ),
         const SizedBox(height: 14),
         _RewardNote(summary: summary),
       ],
@@ -271,8 +280,13 @@ class _DestinationHero extends StatelessWidget {
 class _StatsGrid extends StatelessWidget {
   final WalkingRouteSummary summary;
   final WalkingBenefits benefits;
+  final double carbonSavedKg;
 
-  const _StatsGrid({required this.summary, required this.benefits});
+  const _StatsGrid({
+    required this.summary,
+    required this.benefits,
+    required this.carbonSavedKg,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -308,7 +322,7 @@ class _StatsGrid extends StatelessWidget {
               Expanded(
                 child: _StatTile(
                   dotColor: _Palette.co2Dot,
-                  value: benefits.carbonSavingsKg.toStringAsFixed(2),
+                  value: carbonSavedKg.toStringAsFixed(2),
                   label: 'KG CO₂ SAVED',
                   background: _Palette.co2TileBg,
                 ),
