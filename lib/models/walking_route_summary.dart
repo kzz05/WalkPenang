@@ -64,12 +64,16 @@ class WalkingBenefits {
   /// Average brisk-walking calorie burn rate (kcal/km) for an adult.
   static const _kcalPerKm = 58.3;
 
+  /// Carbon saved for [distanceKm] of walking, in kg CO2 — 0.0 for a
+  /// distance that's zero, negative, or non-finite (NaN/infinite).
+  static double calculateCarbonSavingsKg(double distanceKm) {
+    if (!distanceKm.isFinite || distanceKm <= 0) return 0.0;
+    return distanceKm * _co2PerKm;
+  }
+
   factory WalkingBenefits.fromDistanceKm(double distanceKm) {
-    final carbonSavingsKg = double.parse(
-      (distanceKm * _co2PerKm).toStringAsFixed(2),
-    );
     return WalkingBenefits(
-      carbonSavingsKg: carbonSavingsKg,
+      carbonSavingsKg: calculateCarbonSavingsKg(distanceKm),
       calories: (distanceKm * _kcalPerKm).round(),
     );
   }
