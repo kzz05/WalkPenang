@@ -46,3 +46,6 @@ app.*.map.json
 
 # Local drop zone for files shared with Claude (not committed)
 /_inbox/
+
+# Local environment variables
+.env

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../controllers/walking_controller.dart';
 import '../models/transport_mode.dart';
+import '../models/walking_route_summary.dart';
 import '../theme/app_theme.dart';
+import 'pre_walk_summary_view.dart';
 import 'widgets/wp_components.dart';
 
 /// Screen 01 · Transport Mode Selection (UC-W01) v2 — destination pill,
@@ -24,8 +26,20 @@ class _WalkingViewState extends State<WalkingView> {
   }
 
   void _onContinue() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Pre-Walk Summary — to be built')),
+    if (_controller.selectedMode != TransportMode.walking) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pre-Walk Summary — to be built')),
+      );
+      return;
+    }
+
+    // TODO(map-gps): seed this from the Map & GPS module's calculated
+    // route instead of the Sprint 1 demo fallback.
+    _controller.setRouteSummary(WalkingRouteSummary.demo);
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PreWalkSummaryView(controller: _controller),
+      ),
     );
   }
 
