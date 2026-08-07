@@ -12,6 +12,7 @@ dependencies:
     sdk: flutter
 
   cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1 #JOST + IBM PLEX MONO FROM THE DESIGN TOKENS
   shared_preferences: ^2.2.0
   google_sign_in: ^7.2.0
   firebase_core: ^4.12.1
@@ -19,6 +20,7 @@ dependencies:
   cloud_firestore: ^6.7.1
   firebase_storage: ^13.4.5 #FOR UPLOADING IMAGES
   image_picker: ^1.2.3 #FOR SELECTING IMAGES
+  cloud_functions: ^6.3.5 #EMAIL OTP CALLABLES, USED BY services/otp_service.dart
 
 dev_dependencies:
   flutter_test:
@@ -36,5 +38,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  # No assets declared on this branch yet. main's pubspec lists assets/images/,
-  # and Module 5 adds assets/badges/ when the badge artwork lands in Sprint 3.
+  assets:
+    - assets/images/
+  # Module 5 adds assets/badges/ when the badge artwork lands in Sprint 3.
