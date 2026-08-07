@@ -12,7 +12,7 @@
              by the Places/Directions HTTP calls. This one is for map tiles only. -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="YOUR_GOOGLE_MAPS_API_KEY_HERE" />
+            android:value="AIzaSyD88SdOZjLyU3T3BMH8RGz6xZIiiPWp-6w" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
