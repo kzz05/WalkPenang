@@ -98,6 +98,13 @@ class RewardConstants {
   static const String ledgerDistanceMetresField = 'distanceMetres';
   static const String ledgerAwardedAtField = 'awardedAt';
 
+  // --- Earned badge document fields ---------------------------------------
+  //
+  // The document ID is the badge ID, so holding a badge twice is structurally
+  // impossible rather than something the code has to remember to check.
+
+  static const String userBadgeDateEarnedField = 'dateEarned';
+
   // --- Check-in document fields -------------------------------------------
 
   /// Guard flag stamped on Module 4's check-in document once Module 5 has
