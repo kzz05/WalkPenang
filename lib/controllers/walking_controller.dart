@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/transport_mode.dart';
+import '../models/user_profile.dart';
 import '../models/walking_route_summary.dart';
 
 /// Where the Start Journey action is in its lifecycle — drives the
@@ -10,6 +11,7 @@ enum JourneyStartStatus { idle, loading, success }
 class WalkingController extends ChangeNotifier {
   TransportMode? _selectedMode;
   WalkingRouteSummary? _routeSummary;
+  UserProfile? _userProfile;
   JourneyStartStatus _journeyStartStatus = JourneyStartStatus.idle;
   String? _journeyStartError;
 
@@ -20,6 +22,12 @@ class WalkingController extends ChangeNotifier {
   bool get walkingFeaturesEnabled => _selectedMode == TransportMode.walking;
 
   WalkingRouteSummary? get routeSummary => _routeSummary;
+
+  /// The signed-in user's profile, as supplied by whichever screen opened
+  /// the Walking module (see [WalkingView]) — reused here rather than
+  /// querying ProfileStore/Firestore directly, so this module stays a
+  /// consumer of the existing User Authentication & Profile Module.
+  UserProfile? get userProfile => _userProfile;
 
   JourneyStartStatus get journeyStartStatus => _journeyStartStatus;
 
@@ -38,10 +46,41 @@ class WalkingController extends ChangeNotifier {
   double get carbonSavedKg =>
       calculateCarbonSavings(_routeSummary?.distanceKm ?? 0.0);
 
+  /// Walking-only calorie estimate (US-W04) for the current [routeSummary]
+  /// and [userProfile] — null (not 0) whenever the calculation isn't valid:
+  /// Walking isn't the selected mode, the route distance is missing/zero/
+  /// negative/non-finite, or the profile's body weight is missing/zero/
+  /// negative/non-finite. Callers must treat null as "show the missing/
+  /// invalid weight state", never as a zero calorie estimate.
+  double? get caloriesBurned {
+    if (_selectedMode != TransportMode.walking) return null;
+
+    final distanceKm = _routeSummary?.distanceKm;
+    if (distanceKm == null || !distanceKm.isFinite || distanceKm <= 0) {
+      return null;
+    }
+
+    final bodyWeightKg = _userProfile?.weightKg;
+    if (bodyWeightKg == null || !bodyWeightKg.isFinite || bodyWeightKg <= 0) {
+      return null;
+    }
+
+    return WalkingBenefits.calculateCaloriesBurned(distanceKm, bodyWeightKg);
+  }
+
   void selectMode(TransportMode mode) {
     if (_selectedMode == mode) return;
 
     _selectedMode = mode;
+    notifyListeners();
+  }
+
+  /// Called by [WalkingView] with the currently signed-in user's profile —
+  /// and again by [PreWalkSummaryView] after Edit Profile hands back an
+  /// updated one — so [caloriesBurned] can be (re)computed. Mirrors
+  /// [setRouteSummary]'s seam.
+  void setUserProfile(UserProfile? profile) {
+    _userProfile = profile;
     notifyListeners();
   }
 

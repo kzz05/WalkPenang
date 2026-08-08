@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../controllers/walking_controller.dart';
 import '../models/transport_mode.dart';
+import '../models/user_profile.dart';
 import '../models/walking_route_summary.dart';
 import '../theme/app_theme.dart';
 import 'pre_walk_summary_view.dart';
@@ -10,7 +11,9 @@ import 'widgets/wp_components.dart';
 /// Screen 01 · Transport Mode Selection (UC-W01) v2 — destination pill,
 /// Walking/Driving/Public Transport cards, and the Continue CTA.
 class WalkingView extends StatefulWidget {
-  const WalkingView({super.key});
+  final UserProfile profile;
+
+  const WalkingView({super.key, required this.profile});
 
   @override
   State<WalkingView> createState() => _WalkingViewState();
@@ -18,6 +21,14 @@ class WalkingView extends StatefulWidget {
 
 class _WalkingViewState extends State<WalkingView> {
   final WalkingController _controller = WalkingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Seeds the Walking module with the already-loaded profile (US-W04)
+    // rather than querying ProfileStore/Firestore from within this module.
+    _controller.setUserProfile(widget.profile);
+  }
 
   @override
   void dispose() {
