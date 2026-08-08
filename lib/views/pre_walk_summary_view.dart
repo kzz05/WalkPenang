@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../controllers/walking_controller.dart';
+import '../models/user_profile.dart';
 import '../models/walking_route_summary.dart';
 import '../theme/app_theme.dart';
+import 'edit_profile_view.dart';
 import 'widgets/wp_components.dart';
 
 /// Screen 02 · Pre-Walk Summary (UC-W02) v2 — destination hero, walking
@@ -196,9 +198,26 @@ class _SummaryContent extends StatelessWidget {
 
   const _SummaryContent({required this.summary, required this.controller});
 
+  /// Sends the user to the existing Edit Profile screen and, if they save
+  /// changes, refreshes [controller]'s profile the same way [HomeView]
+  /// refreshes its own — so [WalkingController.caloriesBurned] recomputes
+  /// with the updated weight once we're back on this screen.
+  Future<void> _openEditProfile(BuildContext context) async {
+    final profile = controller.userProfile;
+    if (profile == null) return;
+
+    final updated = await Navigator.of(context).push<UserProfile>(
+      MaterialPageRoute(
+        builder: (_) => EditProfileView(profile: profile),
+      ),
+    );
+    if (updated != null) {
+      controller.setUserProfile(updated);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final benefits = WalkingBenefits.fromDistanceKm(summary.distanceKm);
     final carbonSavedKg = controller.calculateCarbonSavings(summary.distanceKm);
 
     return Column(
@@ -208,8 +227,9 @@ class _SummaryContent extends StatelessWidget {
         const SizedBox(height: 14),
         _StatsGrid(
           summary: summary,
-          benefits: benefits,
           carbonSavedKg: carbonSavedKg,
+          caloriesBurned: controller.caloriesBurned,
+          onUpdateWeight: () => _openEditProfile(context),
         ),
         const SizedBox(height: 14),
         _RewardNote(summary: summary),
@@ -279,13 +299,19 @@ class _DestinationHero extends StatelessWidget {
 /// The 2×2 distance / duration / CO2 / calories tiles.
 class _StatsGrid extends StatelessWidget {
   final WalkingRouteSummary summary;
-  final WalkingBenefits benefits;
   final double carbonSavedKg;
+
+  /// Null when the calorie estimate isn't available (US-W04) — the KCAL
+  /// tile prompts the user to update their profile instead of showing a
+  /// number.
+  final double? caloriesBurned;
+  final VoidCallback onUpdateWeight;
 
   const _StatsGrid({
     required this.summary,
-    required this.benefits,
     required this.carbonSavedKg,
+    required this.caloriesBurned,
+    required this.onUpdateWeight,
   });
 
   @override
@@ -329,12 +355,20 @@ class _StatsGrid extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: _StatTile(
-                  dotColor: _Palette.kcalDot,
-                  value: '${benefits.calories}',
-                  label: 'KCAL BURNED',
-                  background: _Palette.kcalTileBg,
-                ),
+                child: caloriesBurned == null
+                    ? _StatTile(
+                        dotColor: _Palette.kcalDot,
+                        value: 'Add',
+                        label: 'TAP TO ADD',
+                        background: _Palette.kcalTileBg,
+                        onTap: onUpdateWeight,
+                      )
+                    : _StatTile(
+                        dotColor: _Palette.kcalDot,
+                        value: '${caloriesBurned!.round()}',
+                        label: 'KCAL BURNED',
+                        background: _Palette.kcalTileBg,
+                      ),
               ),
             ],
           ),
@@ -350,51 +384,65 @@ class _StatTile extends StatelessWidget {
   final String label;
   final Color background;
 
+  /// When set, the tile becomes tappable — used by the KCAL tile's missing
+  /// body-weight prompt (US-W04) to jump to Edit Profile.
+  final VoidCallback? onTap;
+
   const _StatTile({
     required this.dotColor,
     required this.value,
     required this.label,
     this.background = Colors.white,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: background,
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: AppType.body.copyWith(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style:
+              AppType.mono.copyWith(fontSize: 10, color: _Palette.valueMuted),
+        ),
+      ],
+    );
+
+    return Material(
+      color: background,
+      borderRadius: BorderRadius.circular(_Palette.tileRadius),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(_Palette.tileRadius),
-        boxShadow: const [
-          BoxShadow(
-            color: _Palette.cardShadow,
-            blurRadius: 8,
-            offset: Offset(0, 2),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(_Palette.tileRadius),
+            boxShadow: const [
+              BoxShadow(
+                color: _Palette.cardShadow,
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: AppType.body.copyWith(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style:
-                AppType.mono.copyWith(fontSize: 10, color: _Palette.valueMuted),
-          ),
-        ],
+          child: content,
+        ),
       ),
     );
   }

@@ -24,24 +24,24 @@ class _HomeViewState extends State<HomeView> {
   /// The four modules, in the order the bottom bar lists them.
   static const _modules = [
     (
-    title: 'Map & GPS',
-    subtitle: 'live map · nearby pins',
-    owner: 'Tang Yue Hann',
+      title: 'Map & GPS',
+      subtitle: 'live map · nearby pins',
+      owner: 'Tang Yue Hann',
     ),
     (
-    title: 'Food & Attractions',
-    subtitle: 'search · bookmarks',
-    owner: 'Ong Song Wei',
+      title: 'Food & Attractions',
+      subtitle: 'search · bookmarks',
+      owner: 'Ong Song Wei',
     ),
     (
-    title: 'Walking & Carbon',
-    subtitle: 'track · carbon saved',
-    owner: 'Poon Wei Seng',
+      title: 'Walking & Carbon',
+      subtitle: 'track · carbon saved',
+      owner: 'Poon Wei Seng',
     ),
     (
-    title: 'Rewards',
-    subtitle: 'points · badges',
-    owner: 'Tang Khuan Zhi',
+      title: 'Rewards',
+      subtitle: 'points · badges',
+      owner: 'Tang Khuan Zhi',
     ),
   ];
 
@@ -89,7 +89,7 @@ class _HomeViewState extends State<HomeView> {
   Future<void> _openWalkingModule() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => const WalkingView(),
+        builder: (_) => WalkingView(profile: _controller.profile),
       ),
     );
   }
@@ -324,7 +324,7 @@ class _ProfileHero extends StatelessWidget {
                       alignment: Alignment.centerLeft,
                       child: WpMonoLabel(
                         'bmi ${profile.bmi.toStringAsFixed(1)} · '
-                            '${profile.bmiCategory} · ${profile.points} pts',
+                        '${profile.bmiCategory} · ${profile.points} pts',
                         color: AppColors.onSurfaceMuted,
                       ),
                     ),
