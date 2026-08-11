@@ -4,6 +4,7 @@ import '../controllers/home_controller.dart';
 import '../models/user_profile.dart';
 import '../theme/app_theme.dart';
 import 'edit_profile_view.dart';
+import 'map_view.dart';
 import 'settings_view.dart';
 import 'walking_view.dart';
 import 'widgets/wp_components.dart';
@@ -100,6 +101,22 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
+  /// Single dispatch point for both the module list and the bottom nav.
+  /// Modules that are built push their view; the rest still show the
+  /// placeholder snackbar until their owner builds them.
+  void _openModule(String title, String owner) {
+    switch (title) {
+      case 'Map & GPS':
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const MapView()),
+        );
+      case 'Walking & Carbon':
+        _openWalkingModule();
+      default:
+        _announcePending(title, owner);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -131,14 +148,7 @@ class _HomeViewState extends State<HomeView> {
                         WpModuleCard(
                           title: module.title,
                           subtitle: module.subtitle,
-                          onTap: () {
-                            if (module.title == 'Walking & Carbon') {
-                              _openWalkingModule();
-                              return;
-                            }
-
-                            _announcePending(module.title, module.owner);
-                          },
+                          onTap: () => _openModule(module.title, module.owner),
                         ),
                     ],
                   );
@@ -151,17 +161,14 @@ class _HomeViewState extends State<HomeView> {
               onTap: (index) {
                 if (index == 0) return;
 
-                if (index == 2) {
-                  _openWalkingModule();
-                  return;
-                }
-
+                // The bar mirrors the module list minus Food & Attractions.
                 final module = switch (index) {
                   1 => _modules[0],
+                  2 => _modules[2],
                   _ => _modules[3],
                 };
 
-                _announcePending(module.title, module.owner);
+                _openModule(module.title, module.owner);
               },
             ),
           ],
