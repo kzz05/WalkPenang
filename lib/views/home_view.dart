@@ -10,7 +10,10 @@ import 'settings_view.dart';
 import 'walking_view.dart';
 import 'widgets/wp_components.dart';
 
-/// Screen 06 · Home — brand bar, profile hero, stat tiles, module list.
+/// Screen 06 · Home — brand bar over a full-height map, with the walk and
+/// rewards modules reached from the bottom nav and the account screens from
+/// the hamburger. The map is embedded rather than pushed so it is the first
+/// thing a tourist sees after signing in.
 class HomeView extends StatefulWidget {
   final UserProfile profile;
 
@@ -22,30 +25,6 @@ class HomeView extends StatefulWidget {
 
 class _HomeViewState extends State<HomeView> {
   late final HomeController _controller = HomeController(widget.profile);
-
-  /// The four modules, in the order the bottom bar lists them.
-  static const _modules = [
-    (
-      title: 'Map & GPS',
-      subtitle: 'live map · nearby pins',
-      owner: 'Tang Yue Hann',
-    ),
-    (
-      title: 'Food & Attractions',
-      subtitle: 'search · bookmarks',
-      owner: 'Ong Song Wei',
-    ),
-    (
-      title: 'Walking & Carbon',
-      subtitle: 'track · carbon saved',
-      owner: 'Poon Wei Seng',
-    ),
-    (
-      title: 'Rewards',
-      subtitle: 'points · badges',
-      owner: 'Tang Khuan Zhi',
-    ),
-  ];
 
   @override
   void dispose() {
@@ -104,30 +83,6 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
-  void _announcePending(String label, String owner) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$label module — to be built ($owner)')),
-    );
-  }
-
-  /// Single dispatch point for both the module list and the bottom nav.
-  /// Modules that are built push their view; the rest still show the
-  /// placeholder snackbar until their owner builds them.
-  void _openModule(String title, String owner) {
-    switch (title) {
-      case 'Map & GPS':
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const MapView()),
-        );
-      case 'Walking & Carbon':
-        _openWalkingModule();
-      case 'Rewards':
-        _openRewardModule();
-      default:
-        _announcePending(title, owner);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -135,51 +90,25 @@ class _HomeViewState extends State<HomeView> {
       body: SafeArea(
         child: Column(
           children: [
-            Expanded(
-              child: ListenableBuilder(
-                listenable: _controller,
-                builder: (context, _) {
-                  final profile = _controller.profile;
-
-                  return ListView(
-                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                    children: [
-                      _buildBrandBar(),
-                      const SizedBox(height: 24),
-                      _ProfileHero(
-                        profile: profile,
-                        onTap: _openEditProfile,
-                      ),
-                      const SizedBox(height: 20),
-                      _buildStatRow(profile),
-                      const SizedBox(height: 28),
-                      const WpMonoLabel('modules'),
-                      const SizedBox(height: 12),
-                      for (final module in _modules)
-                        WpModuleCard(
-                          title: module.title,
-                          subtitle: module.subtitle,
-                          onTap: () => _openModule(module.title, module.owner),
-                        ),
-                    ],
-                  );
-                },
-              ),
+            // The brand bar sits above the map rather than floating over it,
+            // so the hamburger never competes with the map's pan gestures.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+              child: _buildBrandBar(),
             ),
+            // Home *is* the map — it fills whatever is left between the brand
+            // bar and the nav, so it is the first thing shown after sign-in.
+            const Expanded(child: MapPanel()),
             WpBottomNav(
               currentIndex: 0,
-              items: const ['home', 'map', 'walk', 'rewards'],
+              items: const ['home', 'walk', 'rewards'],
               onTap: (index) {
-                if (index == 0) return;
-
-                // The bar mirrors the module list minus Food & Attractions.
-                final module = switch (index) {
-                  1 => _modules[0],
-                  2 => _modules[2],
-                  _ => _modules[3],
-                };
-
-                _openModule(module.title, module.owner);
+                switch (index) {
+                  case 1:
+                    _openWalkingModule();
+                  case 2:
+                    _openRewardModule();
+                }
               },
             ),
           ],
@@ -212,39 +141,6 @@ class _HomeViewState extends State<HomeView> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildStatRow(UserProfile profile) {
-    // IntrinsicHeight keeps the three tiles the same height. A plain
-    // `stretch` can't be used here — inside a ListView the Row's height is
-    // unbounded, and stretching against infinity throws during layout.
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: WpStatTile(
-              label: 'distance',
-              value: profile.distanceKm.toStringAsFixed(1),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: WpStatTile(
-              label: 'co2 saved',
-              value: profile.co2SavedKg.toStringAsFixed(1),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: WpStatTile(
-              label: 'points',
-              value: '${profile.points}',
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -286,86 +182,6 @@ class _AccountMenu extends StatelessWidget {
               onTap: onSettings,
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// The black pill greeting card at the top of the home screen.
-class _ProfileHero extends StatelessWidget {
-  final UserProfile profile;
-  final VoidCallback onTap;
-
-  const _ProfileHero({required this.profile, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final photoUrl = profile.photoUrl;
-    final hasPhoto = photoUrl != null && photoUrl.isNotEmpty;
-
-    return Material(
-      color: AppColors.surface,
-      borderRadius: AppRadius.mdAll,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: AppRadius.mdAll,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              WpAvatar(
-                radius: 36,
-                image: hasPhoto ? NetworkImage(photoUrl) : null,
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const WpMonoLabel('signed in', color: AppColors.primary),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Hi, ${profile.nickname}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppType.display.copyWith(
-                        fontSize: 24,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    // Shrinks rather than wrapping, so a long nickname or a
-                    // 4-digit points total can't make the card two lines tall.
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: WpMonoLabel(
-                        'bmi ${profile.bmi.toStringAsFixed(1)} · '
-                        '${profile.bmiCategory} · ${profile.points} pts',
-                        color: AppColors.onSurfaceMuted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // ✏️ Makes it obvious the whole card opens Edit Profile.
-              Container(
-                width: 36,
-                height: 36,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.primary,
-                ),
-                child: const Icon(
-                  Icons.edit,
-                  size: 16,
-                  color: AppColors.onPrimary,
-                ),
-              ),
-              const SizedBox(width: 4),
-            ],
-          ),
         ),
       ),
     );
