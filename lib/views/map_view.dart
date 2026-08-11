@@ -105,9 +105,18 @@ class _MapPanelState extends State<MapPanel> {
                 target: MapConstants.georgeTownCenter,
                 zoom: MapConstants.defaultZoom,
               ),
-              onMapCreated: (controller) => _mapController = controller,
-              myLocationEnabled: true,
-              myLocationButtonEnabled: true,
+              onMapCreated: (controller) {
+                _mapController = controller;
+                // A fix can land before the platform view finishes creating,
+                // in which case _onControllerChanged saw a null _mapController
+                // and skipped centring. Retry here so the camera still
+                // reaches the tourist whichever of the two arrives first.
+                _onControllerChanged();
+              },
+              // Enabling the blue dot before the OS grants permission makes
+              // the Android Maps SDK raise a SecurityException.
+              myLocationEnabled: _controller.hasLocationPermission,
+              myLocationButtonEnabled: _controller.hasLocationPermission,
               cameraTargetBounds: CameraTargetBounds(
                 _controller.boundaryConstraint,
               ),

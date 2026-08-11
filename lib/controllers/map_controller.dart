@@ -19,10 +19,10 @@ class MapController extends ChangeNotifier {
     LocationService? locationService,
     BoundaryValidatorService? boundaryValidatorService,
     PlacesService? placesService,
-  }) : _locationService = locationService ?? LocationService(),
-       _boundaryValidatorService =
-           boundaryValidatorService ?? BoundaryValidatorService(),
-       _placesService = placesService ?? PlacesService(MapService());
+  })  : _locationService = locationService ?? LocationService(),
+        _boundaryValidatorService =
+            boundaryValidatorService ?? BoundaryValidatorService(),
+        _placesService = placesService ?? PlacesService(MapService());
 
   final LocationService _locationService;
   final BoundaryValidatorService _boundaryValidatorService;
@@ -37,6 +37,17 @@ class MapController extends ChangeNotifier {
   double searchRadiusKm = MapConstants.defaultSearchRadiusKm;
   bool isWithinPenang = true;
 
+  /// Gates `GoogleMap.myLocationEnabled`. Switching that on before the OS has
+  /// actually granted the permission makes the Android SDK raise a
+  /// SecurityException, so the map must not ask for the blue dot until this
+  /// is true.
+  bool hasLocationPermission = false;
+
+  /// Centre the last pin fetch actually used, so [_applyLocation] can tell how
+  /// far the tourist has walked since — null until the first fetch.
+  LatLng? _lastPinFetchCenter;
+  bool _isFetchingPins = false;
+
   /// UC-007 step 5: centre the map on the live fix once one exists, and on
   /// George Town before the first fix arrives.
   LatLng get cameraCenter => currentLocation != null
@@ -45,7 +56,8 @@ class MapController extends ChangeNotifier {
 
   /// UC-007 constraint C2 / UC-009 step 3: fed straight into
   /// `GoogleMap.cameraTargetBounds` so panning can't leave Penang.
-  LatLngBounds get boundaryConstraint => _boundaryValidatorService.panningBounds;
+  LatLngBounds get boundaryConstraint =>
+      _boundaryValidatorService.panningBounds;
 
   /// UC-007 steps 2-6, UC-008 steps 2-7, UC-009 steps 1-3 — run once when
   /// the map screen opens.
@@ -61,6 +73,7 @@ class MapController extends ChangeNotifier {
       // Outside it, that throw left isLoading true forever and the loading
       // scrim covered the screen with no way back.
       final granted = await _locationService.requestLocationPermission();
+      hasLocationPermission = granted;
       if (!granted) {
         errorMessage = MapErrorMessages.locationPermissionDenied;
         return;
@@ -81,8 +94,8 @@ class MapController extends ChangeNotifier {
   void _startLocationUpdates() {
     _locationSubscription?.cancel();
     _locationSubscription = _locationService.startLocationUpdates().listen(
-      _applyLocation,
-    );
+          _applyLocation,
+        );
   }
 
   /// UC-008 steps 4-6 / UC-009 steps 1-2: updates the marker and re-checks
@@ -115,20 +128,52 @@ class MapController extends ChangeNotifier {
         isWithinPenang != wasWithinPenang) {
       notifyListeners();
     }
+
+    // Pins used to be fetched once and never again, so they stayed pinned to
+    // wherever the very first fix landed even after the tourist walked well
+    // out of range of them. Refetch once the walk exceeds half the current
+    // search radius — far enough that the old pins are genuinely stale, but
+    // not so eager that a slow stroll bills a Places call every few metres.
+    if (_shouldRefetchPins()) unawaited(renderNearbyPins());
+  }
+
+  bool _shouldRefetchPins() {
+    final lastCenter = _lastPinFetchCenter;
+    final location = currentLocation;
+    if (lastCenter == null || location == null || _isFetchingPins) return false;
+
+    final metresMoved = _locationService.distanceMeters(
+      startLatitude: lastCenter.latitude,
+      startLongitude: lastCenter.longitude,
+      endLatitude: location.latitude,
+      endLongitude: location.longitude,
+    );
+    return metresMoved > searchRadiusKm * 1000 / 2;
   }
 
   /// UC-007 step 4 / A2: (re)loads nearby pins for the current centre and
   /// radius — also the retry path when a tourist widens the search radius.
   Future<void> renderNearbyPins() async {
+    // Captured once up front: the position stream can move cameraCenter
+    // mid-flight, and the centre recorded below has to be the one the results
+    // actually belong to.
+    final center = cameraCenter;
+    _isFetchingPins = true;
     try {
       final results = await _placesService.fetchNearbyPlaces(
-        center: cameraCenter,
+        center: center,
         radiusKm: searchRadiusKm,
       );
       nearbyPlaces = results;
       if (results.isEmpty) errorMessage = MapErrorMessages.noPlacesFound;
     } catch (_) {
       errorMessage = MapErrorMessages.mapLoadFailed;
+    } finally {
+      // Recorded even when the call failed, so a tourist standing still after
+      // a network error doesn't retry on every single GPS tick. The radius
+      // chips remain the manual retry path.
+      _lastPinFetchCenter = center;
+      _isFetchingPins = false;
     }
     notifyListeners();
   }

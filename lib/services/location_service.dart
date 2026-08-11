@@ -47,10 +47,26 @@ class LocationService {
   /// UC-008 A2: flags a weak fix without discarding it.
   bool checkSignalAccuracy(GpsLocation location) => location.isAccurate;
 
+  /// Great-circle distance in metres. Used to decide when the tourist has
+  /// walked far enough that the nearby pins are worth refetching.
+  double distanceMeters({
+    required double startLatitude,
+    required double startLongitude,
+    required double endLatitude,
+    required double endLongitude,
+  }) {
+    return Geolocator.distanceBetween(
+      startLatitude,
+      startLongitude,
+      endLatitude,
+      endLongitude,
+    );
+  }
+
   GpsLocation _toGpsLocation(Position position) => GpsLocation(
-    latitude: position.latitude,
-    longitude: position.longitude,
-    accuracyMeters: position.accuracy,
-    timestamp: position.timestamp,
-  );
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracyMeters: position.accuracy,
+        timestamp: position.timestamp,
+      );
 }
