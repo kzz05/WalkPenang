@@ -50,3 +50,7 @@ app.*.map.json
 # Local environment variables, incl. the Google Maps API key.
 # Never commit the real key — only .env.example.
 .env
+
+# Legacy Flutter tool output (.idea/ and /build/ are already covered above)
+.packages
+.flutter-plugins

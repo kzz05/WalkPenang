@@ -1,6 +1,23 @@
-# walkpenang
+# WalkPenang
 
-A new Flutter project.
+Flutter app for walking around Penang: maps and GPS, food and attraction
+discovery, walking and carbon tracking, and a rewards/badge system.
+
+This branch (`in-develop`) is the integration branch where the per-module
+feature branches are merged. Branch off it, not off `main`.
+
+## Structure
+
+| Folder | Layer | Contents |
+|---|---|---|
+| `lib/models/` | Model | Profile, places, search filters, transport mode, walking/journey state, badges, points |
+| `lib/controllers/` | Controller | Per-module flow control — home, onboarding, OTP, discovery, map, walking, reward |
+| `lib/views/` | View | Screens; `views/reward/` groups the reward screens, `views/widgets/` holds the shared `wp_components.dart` kit |
+| `lib/widgets/reward/` | View | Reward components — badge card, emblem, unlock/points notifications, stat card |
+| `lib/services/` | Service | Auth, OTP, profile store, place repository/filter, location, map, routes, navigation launcher |
+| `lib/dao/` | DAO | Firestore read/write access — models never call Firestore directly |
+| `lib/utils/`, `lib/constants/`, `lib/theme/` | — | Milestone thresholds, formula constants, app theme |
+| `test/` | — | Mirrors `lib/`: `test/controllers/`, `test/models/`, `test/views/`, `test/reward/` |
 
 ## Coding Standards
 
@@ -70,3 +87,5 @@ Arrange–Act–Assert. Minimum coverage before a PR is opened:
 - Empty-state handling for the journal and dashboard
 
 ```bash
+flutter test
+```
