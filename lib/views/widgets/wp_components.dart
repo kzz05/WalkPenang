@@ -2,94 +2,37 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
 
-/// 🧱 The shared vocabulary of the WalkPenang UI kit.
-///
-/// Every screen is assembled from these pieces so that a change to a corner
-/// radius or a button height happens once, here, instead of eight times.
+/// Shared building blocks for every screen — the "WalkPenang design system".
+/// Screens compose these instead of hand-rolling Material widgets, so a
+/// token change in [AppColors]/[AppType]/[AppRadius] updates the whole app.
 
-// ── Layout ────────────────────────────────────────────────────────────────
-
-/// Cream page with the standard 24pt gutters and a scrollable body.
+/// Full-screen wrapper: cream background, safe area, scrollable padding.
+/// Used by screens that are one long vertical form (edit profile, settings,
+/// OTP) instead of a custom `Scaffold`.
 class WpScreen extends StatelessWidget {
   final List<Widget> children;
-  final EdgeInsets padding;
-  final Widget? bottomBar;
 
-  const WpScreen({
-    super.key,
-    required this.children,
-    this.padding = const EdgeInsets.fromLTRB(24, 8, 24, 32),
-    this.bottomBar,
-  });
+  const WpScreen({super.key, required this.children});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView(padding: padding, children: children),
-            ),
-            if (bottomBar != null) bottomBar!,
-          ],
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children,
+          ),
         ),
       ),
     );
   }
 }
 
-// ── Type helpers ──────────────────────────────────────────────────────────
-
-/// The uppercase IBM Plex Mono micro-label used all over the design.
-class WpMonoLabel extends StatelessWidget {
-  final String text;
-  final Color? color;
-  final double? size;
-  final TextAlign? align;
-
-  const WpMonoLabel(
-      this.text, {
-        super.key,
-        this.color,
-        this.size,
-        this.align,
-      });
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text.toUpperCase(),
-      textAlign: align,
-      style: AppType.mono.copyWith(color: color, fontSize: size),
-    );
-  }
-}
-
-/// Page title + mono strapline, the header on every full-page screen.
-class WpPageTitle extends StatelessWidget {
-  final String title;
-  final String? caption;
-
-  const WpPageTitle(this.title, {super.key, this.caption});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: AppType.display),
-        if (caption != null) ...[
-          const SizedBox(height: 6),
-          WpMonoLabel(caption!),
-        ],
-      ],
-    );
-  }
-}
-
-/// "< BACK" on the left with an optional mono action on the right.
+/// Circular back button, with an optional right-aligned text action
+/// (e.g. "save") next to it.
 class WpBackBar extends StatelessWidget {
   final VoidCallback onBack;
   final String? actionLabel;
@@ -107,154 +50,129 @@ class WpBackBar extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        GestureDetector(
+        InkWell(
           onTap: onBack,
-          behavior: HitTestBehavior.opaque,
-          child: const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: WpMonoLabel('< back', size: 11),
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.outline),
+            ),
+            child: const Icon(
+              Icons.arrow_back,
+              size: 18,
+              color: AppColors.onPrimary,
+            ),
           ),
         ),
         if (actionLabel != null)
-          GestureDetector(
-            onTap: onAction,
-            behavior: HitTestBehavior.opaque,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: WpMonoLabel(
-                actionLabel!,
-                size: 11,
-                color: AppColors.onPrimary,
-              ),
-            ),
-          ),
+          TextButton(
+            onPressed: onAction,
+            child: WpMonoLabel(actionLabel!, color: AppColors.onPrimary),
+          )
+        else
+          const SizedBox(width: 40),
       ],
     );
   }
 }
 
-// ── Buttons ───────────────────────────────────────────────────────────────
+/// The small uppercase IBM Plex Mono label used throughout the app — status
+/// tags, captions, section headers.
+class WpMonoLabel extends StatelessWidget {
+  final String text;
+  final double size;
+  final Color color;
+  final TextAlign align;
 
-/// Filled sand-coloured pill — the primary action on every screen.
-class WpPrimaryButton extends StatelessWidget {
-  final String label;
-  final VoidCallback? onPressed;
-
-  const WpPrimaryButton({super.key, required this.label, this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 58,
-      width: double.infinity,
-      child: FilledButton(
-        onPressed: onPressed,
-        style: FilledButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: AppColors.onPrimary,
-          disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.45),
-          disabledForegroundColor: AppColors.onPrimary.withValues(alpha: 0.45),
-          elevation: 0,
-          shape: const RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
-        ),
-        child: Text(label.toUpperCase(), style: AppType.button),
-      ),
-    );
-  }
-}
-
-/// Black-outlined pill — the secondary action (Google, log out, cancel).
-class WpOutlineButton extends StatelessWidget {
-  final String label;
-  final VoidCallback? onPressed;
-  final Widget? icon;
-
-  const WpOutlineButton({
+  const WpMonoLabel(
+    this.text, {
     super.key,
-    required this.label,
-    this.onPressed,
-    this.icon,
+    this.size = 10,
+    this.color = AppColors.muted,
+    this.align = TextAlign.left,
   });
 
   @override
   Widget build(BuildContext context) {
-    final text = Text(label.toUpperCase(), style: AppType.button);
+    return Text(
+      text.toUpperCase(),
+      textAlign: align,
+      style: AppType.mono.copyWith(fontSize: size, color: color),
+    );
+  }
+}
 
+/// Circular profile photo with a placeholder icon when there's no image,
+/// and an optional pencil badge to trigger picking a new one.
+class WpAvatar extends StatelessWidget {
+  final double radius;
+  final ImageProvider? image;
+  final Color? background;
+  final VoidCallback? onEdit;
+
+  const WpAvatar({
+    super.key,
+    required this.radius,
+    this.image,
+    this.background,
+    this.onEdit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return SizedBox(
-      height: 58,
-      width: double.infinity,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.onPrimary,
-          side: const BorderSide(color: AppColors.onPrimary, width: 1.6),
-          shape: const RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
-        ),
-        child: icon == null
-            ? text
-            : Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [icon!, const SizedBox(width: 10), text],
-        ),
+      width: radius * 2,
+      height: radius * 2,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          CircleAvatar(
+            radius: radius,
+            backgroundColor: background ?? AppColors.placeholder,
+            backgroundImage: image,
+            child: image == null
+                ? Icon(Icons.person, size: radius, color: Colors.white)
+                : null,
+          ),
+          if (onEdit != null)
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: InkWell(
+                onTap: onEdit,
+                customBorder: const CircleBorder(),
+                child: Container(
+                  width: radius * 0.6,
+                  height: radius * 0.6,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.primary,
+                  ),
+                  child: Icon(
+                    Icons.edit,
+                    size: radius * 0.32,
+                    color: AppColors.onPrimary,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
 }
 
-/// The "———— OR ————" rule between the two sign-in methods.
-class WpOrDivider extends StatelessWidget {
-  const WpOrDivider({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Row(
-      children: [
-        Expanded(child: Divider(color: AppColors.outline, thickness: 1)),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 14),
-          child: WpMonoLabel('or', size: 11),
-        ),
-        Expanded(child: Divider(color: AppColors.outline, thickness: 1)),
-      ],
-    );
-  }
-}
-
-// ── Inputs ────────────────────────────────────────────────────────────────
-
-/// Shared decoration so every input — plain, dropdown or OTP — matches.
-InputDecoration wpInputDecoration({String? hint, Widget? suffixIcon}) {
-  OutlineInputBorder border(Color color, double width) => OutlineInputBorder(
-    borderRadius: AppRadius.smAll,
-    borderSide: BorderSide(color: color, width: width),
-  );
-
-  return InputDecoration(
-    hintText: hint,
-    hintStyle: AppType.body.copyWith(color: AppColors.muted),
-    suffixIcon: suffixIcon,
-    filled: true,
-    fillColor: AppColors.border,
-    isDense: true,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
-    border: border(AppColors.outline, 1),
-    enabledBorder: border(AppColors.outline, 1),
-    focusedBorder: border(AppColors.primary, 1.8),
-    errorBorder: border(AppColors.onPrimary, 1.4),
-    focusedErrorBorder: border(AppColors.onPrimary, 1.8),
-    errorStyle: AppType.mono.copyWith(color: AppColors.onPrimary),
-  );
-}
-
-/// Mono label stacked above a white rounded input.
+/// Labeled text field: a [WpMonoLabel] caption above a white bordered box.
 class WpField extends StatelessWidget {
   final String label;
   final TextEditingController controller;
-  final String? Function(String?)? validator;
+  final FormFieldValidator<String>? validator;
   final TextInputType? keyboardType;
   final bool obscureText;
   final Widget? suffixIcon;
-  final String? hint;
 
   const WpField({
     super.key,
@@ -264,7 +182,6 @@ class WpField extends StatelessWidget {
     this.keyboardType,
     this.obscureText = false,
     this.suffixIcon,
-    this.hint,
   });
 
   @override
@@ -280,15 +197,38 @@ class WpField extends StatelessWidget {
           keyboardType: keyboardType,
           obscureText: obscureText,
           style: AppType.body,
-          cursorColor: AppColors.onPrimary,
-          decoration: wpInputDecoration(hint: hint, suffixIcon: suffixIcon),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: Colors.white,
+            suffixIcon: suffixIcon,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            border: const OutlineInputBorder(
+              borderRadius: AppRadius.smAll,
+              borderSide: BorderSide(color: AppColors.outline),
+            ),
+            enabledBorder: const OutlineInputBorder(
+              borderRadius: AppRadius.smAll,
+              borderSide: BorderSide(color: AppColors.outline),
+            ),
+            focusedBorder: const OutlineInputBorder(
+              borderRadius: AppRadius.smAll,
+              borderSide: BorderSide(color: AppColors.primary, width: 1.6),
+            ),
+            errorBorder: const OutlineInputBorder(
+              borderRadius: AppRadius.smAll,
+              borderSide: BorderSide(color: Colors.redAccent),
+            ),
+          ),
         ),
       ],
     );
   }
 }
 
-/// Mono label stacked above a white rounded dropdown.
+/// Labeled dropdown, styled the same as [WpField].
 class WpDropdownField extends StatelessWidget {
   final String label;
   final String value;
@@ -310,148 +250,88 @@ class WpDropdownField extends StatelessWidget {
       children: [
         WpMonoLabel(label),
         const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          initialValue: value,
-          style: AppType.body,
-          borderRadius: AppRadius.smAll,
-          dropdownColor: AppColors.border,
-          icon: const Icon(Icons.expand_more, size: 18, color: AppColors.muted),
-          decoration: wpInputDecoration(),
-          items: [
-            for (final entry in options.entries)
-              DropdownMenuItem(value: entry.key, child: Text(entry.value)),
-          ],
-          onChanged: onChanged,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: AppRadius.smAll,
+            border: Border.all(color: AppColors.outline),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: value,
+              isExpanded: true,
+              style: AppType.body,
+              icon: const Icon(
+                Icons.keyboard_arrow_down,
+                color: AppColors.onPrimary,
+              ),
+              items: [
+                for (final entry in options.entries)
+                  DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+              ],
+              onChanged: onChanged,
+            ),
+          ),
         ),
       ],
     );
   }
 }
 
-// ── Avatar ────────────────────────────────────────────────────────────────
+/// Full-width filled pill button — the app's primary call to action.
+class WpPrimaryButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onPressed;
 
-/// Circular avatar with the optional sand-coloured edit dot.
-class WpAvatar extends StatelessWidget {
-  final ImageProvider? image;
-  final double radius;
-  final Color background;
-  final VoidCallback? onEdit;
-
-  const WpAvatar({
-    super.key,
-    this.image,
-    this.radius = 55,
-    this.background = AppColors.placeholder,
-    this.onEdit,
-  });
+  const WpPrimaryButton({super.key, required this.label, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: radius * 2,
-      height: radius * 2,
-      child: Stack(
-        children: [
-          CircleAvatar(
-            radius: radius,
-            backgroundColor: background,
-            backgroundImage: image,
-            child: image == null
-                ? Icon(Icons.person, size: radius, color: Colors.white)
-                : null,
-          ),
-          if (onEdit != null)
-            Positioned(
-              bottom: 0,
-              right: 0,
-              child: GestureDetector(
-                onTap: onEdit,
-                child: CircleAvatar(
-                  radius: radius * 0.22,
-                  backgroundColor: AppColors.primary,
-                  child: Icon(
-                    Icons.camera_alt,
-                    size: radius * 0.22,
-                    color: AppColors.onPrimary,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Chips, tiles and cards ────────────────────────────────────────────────
-
-/// Rounded mono chip — used for the email read-out and status flags.
-class WpChip extends StatelessWidget {
-  final String text;
-  final Color background;
-  final Color? textColor;
-  final bool uppercase;
-
-  const WpChip(
-      this.text, {
-        super.key,
-        this.background = AppColors.outline,
-        this.textColor,
-        this.uppercase = false,
-      });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: AppRadius.mdAll,
-      ),
-      child: Text(
-        uppercase ? text.toUpperCase() : text,
-        style: AppType.monoValue.copyWith(
-          color: textColor ?? AppColors.onPrimary,
-          letterSpacing: uppercase ? 1.4 : 0.6,
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.onPrimary,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: const RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
+          elevation: 0,
         ),
+        child: Text(label.toUpperCase(), style: AppType.button),
       ),
     );
   }
 }
 
-/// One of the three white metric tiles under the home hero.
-class WpStatTile extends StatelessWidget {
+/// Full-width outlined pill button — the secondary action.
+class WpOutlineButton extends StatelessWidget {
   final String label;
-  final String value;
+  final VoidCallback onPressed;
 
-  const WpStatTile({super.key, required this.label, required this.value});
+  const WpOutlineButton({super.key, required this.label, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: AppRadius.smAll,
-        border: Border.all(color: AppColors.outline),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          WpMonoLabel(label),
-          const SizedBox(height: 8),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(value, style: AppType.stat),
-          ),
-        ],
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.onPrimary,
+          side: const BorderSide(color: AppColors.outline),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: const RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
+        ),
+        child: Text(label.toUpperCase(), style: AppType.button),
       ),
     );
   }
 }
 
-/// A white module row: title, mono subtitle and a trailing arrow.
+/// White card in a list — title, subtitle, chevron. Used for the home
+/// screen's module list and the account menu sheet.
 class WpModuleCard extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -469,31 +349,26 @@ class WpModuleCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Material(
-        color: AppColors.border,
+        color: Colors.white,
         borderRadius: AppRadius.smAll,
         child: InkWell(
           onTap: onTap,
           borderRadius: AppRadius.smAll,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-            decoration: BoxDecoration(
-              borderRadius: AppRadius.smAll,
-              border: Border.all(color: AppColors.outline),
-            ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: AppType.heading),
+                      Text(title, style: AppType.heading.copyWith(fontSize: 16)),
                       const SizedBox(height: 4),
                       WpMonoLabel(subtitle),
                     ],
                   ),
                 ),
-                const Icon(Icons.arrow_forward,
-                    size: 18, color: AppColors.muted),
+                const Icon(Icons.chevron_right, color: AppColors.muted),
               ],
             ),
           ),
@@ -503,39 +378,37 @@ class WpModuleCard extends StatelessWidget {
   }
 }
 
-/// A label/value row with a hairline underneath — the settings read-out.
-class WpDetailRow extends StatelessWidget {
+/// One of the three stat cards on the home screen (distance / co2 / points).
+class WpStatTile extends StatelessWidget {
   final String label;
   final String value;
 
-  const WpDetailRow({super.key, required this.label, required this.value});
+  const WpStatTile({super.key, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Row(
-            children: [
-              Expanded(child: WpMonoLabel(label)),
-              Text(
-                value,
-                style: AppType.heading,
-                textAlign: TextAlign.right,
-              ),
-            ],
-          ),
-        ),
-        const Divider(height: 1, thickness: 1, color: AppColors.outline),
-      ],
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: AppRadius.smAll,
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Text(value, style: AppType.stat),
+          const SizedBox(height: 4),
+          WpMonoLabel(label),
+        ],
+      ),
     );
   }
 }
 
-// ── Bottom navigation ─────────────────────────────────────────────────────
-
-/// The black floating pill with the sand-coloured active segment.
+/// The bottom navigation bar — home / map / walk / rewards.
 class WpBottomNav extends StatelessWidget {
   final int currentIndex;
   final List<String> items;
@@ -548,44 +421,164 @@ class WpBottomNav extends StatelessWidget {
     required this.onTap,
   });
 
+  static const _icons = {
+    'home': Icons.home_outlined,
+    'map': Icons.map_outlined,
+    'walk': Icons.directions_walk,
+    'rewards': Icons.emoji_events_outlined,
+  };
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: AppRadius.mdAll,
-        ),
-        child: Row(
-          children: [
-            for (var i = 0; i < items.length; i++)
-              Expanded(
-                child: GestureDetector(
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.outline)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              for (var i = 0; i < items.length; i++)
+                _NavItem(
+                  label: items[i],
+                  icon: _icons[items[i]] ?? Icons.circle,
+                  selected: i == currentIndex,
                   onTap: () => onTap(i),
-                  behavior: HitTestBehavior.opaque,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      color: i == currentIndex
-                          ? AppColors.primary
-                          : Colors.transparent,
-                      borderRadius: AppRadius.mdAll,
-                    ),
-                    child: WpMonoLabel(
-                      items[i],
-                      size: 11,
-                      align: TextAlign.center,
-                      color: i == currentIndex
-                          ? AppColors.onPrimary
-                          : AppColors.onSurfaceMuted,
-                    ),
-                  ),
                 ),
-              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _NavItem({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? AppColors.primary : AppColors.onSurfaceMuted;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 22, color: color),
+            const SizedBox(height: 4),
+            Text(label.toUpperCase(), style: AppType.mono.copyWith(color: color)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Small pill of text — a category tag or an inline detail like an email.
+class WpChip extends StatelessWidget {
+  final String label;
+  final Color? background;
+  final bool uppercase;
+
+  const WpChip(this.label, {super.key, this.background, this.uppercase = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: background ?? Colors.white,
+        borderRadius: AppRadius.mdAll,
+        border: background == null ? Border.all(color: AppColors.outline) : null,
+      ),
+      child: Text(
+        uppercase ? label.toUpperCase() : label,
+        style: AppType.monoValue,
+      ),
+    );
+  }
+}
+
+/// Page heading with an optional mono caption underneath — sign in / setup.
+class WpPageTitle extends StatelessWidget {
+  final String title;
+  final String? caption;
+
+  const WpPageTitle(this.title, {super.key, this.caption});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: AppType.display),
+        if (caption != null) ...[
+          const SizedBox(height: 8),
+          WpMonoLabel(caption!),
+        ],
+      ],
+    );
+  }
+}
+
+/// "── or ──" divider between sign-in options.
+class WpOrDivider extends StatelessWidget {
+  const WpOrDivider({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      children: [
+        Expanded(child: Divider(color: AppColors.outline, thickness: 1)),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12),
+          child: WpMonoLabel('or'),
+        ),
+        Expanded(child: Divider(color: AppColors.outline, thickness: 1)),
+      ],
+    );
+  }
+}
+
+/// One label/value row in a read-only summary list (Settings), with a
+/// hairline underneath separating it from the next row.
+class WpDetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const WpDetailRow({super.key, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: AppColors.outline)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          WpMonoLabel(label),
+          Flexible(
+            child: Text(value, textAlign: TextAlign.right, style: AppType.body),
+          ),
+        ],
       ),
     );
   }
