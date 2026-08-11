@@ -1,4 +1,5 @@
 import Flutter
+import GoogleMaps
 import UIKit
 
 @main
@@ -7,6 +8,9 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    // Map & GPS module: same key as android/app/src/main/AndroidManifest.xml,
+    // just the iOS-flavoured way of registering it (no .env access at this layer).
+    GMSServices.provideAPIKey("YOUR_GOOGLE_MAPS_API_KEY_HERE")
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 

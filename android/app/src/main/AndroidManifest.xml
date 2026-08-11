@@ -1,8 +1,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Map & GPS module: needed for UC-008 (live location) and UC-007 (map tiles) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:label="walkpenang"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- Google Maps SDK key — see .env.example for the Dart-side key used
+             by the Places/Directions HTTP calls. This one is for map tiles only. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyD88SdOZjLyU3T3BMH8RGz6xZIiiPWp-6w" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -41,5 +51,12 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- UC-M05: lets url_launcher detect the Google Maps app for the
+             walking-navigation deep link (Android 11+ package visibility). -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="geo"/>
+        </intent>
+        <package android:name="com.google.android.apps.maps"/>
     </queries>
 </manifest>
