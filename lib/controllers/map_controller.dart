@@ -54,15 +54,18 @@ class MapController extends ChangeNotifier {
     errorMessage = null;
     notifyListeners();
 
-    final granted = await _locationService.requestLocationPermission();
-    if (!granted) {
-      errorMessage = MapErrorMessages.locationPermissionDenied;
-      isLoading = false;
-      notifyListeners();
-      return;
-    }
-
     try {
+      // Must stay inside the try: requestPermission throws
+      // PermissionRequestInProgressException if a dialog is already open —
+      // e.g. the tourist backs out of the map and re-enters before answering.
+      // Outside it, that throw left isLoading true forever and the loading
+      // scrim covered the screen with no way back.
+      final granted = await _locationService.requestLocationPermission();
+      if (!granted) {
+        errorMessage = MapErrorMessages.locationPermissionDenied;
+        return;
+      }
+
       final location = await _locationService.getCurrentLocation();
       _applyLocation(location);
       _startLocationUpdates();
@@ -85,6 +88,10 @@ class MapController extends ChangeNotifier {
   /// UC-008 steps 4-6 / UC-009 steps 1-2: updates the marker and re-checks
   /// the Penang boundary on every fix, not just the first one.
   void _applyLocation(GpsLocation location) {
+    final isFirstFix = currentLocation == null;
+    final previousError = errorMessage;
+    final wasWithinPenang = isWithinPenang;
+
     currentLocation = location;
     isWithinPenang = _boundaryValidatorService.validateUserLocation(location);
 
@@ -95,7 +102,19 @@ class MapController extends ChangeNotifier {
     } else {
       errorMessage = null;
     }
-    notifyListeners();
+
+    // Only notify when something the UI actually renders has changed. The
+    // position stream fires on every 5 m of movement, and MapView rebuilds
+    // the GoogleMap platform view on each notification — notifying
+    // unconditionally floods the platform channel and hangs the app. The
+    // live position marker is drawn natively by myLocationEnabled, so a new
+    // fix on its own needs no rebuild; the first fix still notifies so the
+    // camera can centre once.
+    if (isFirstFix ||
+        errorMessage != previousError ||
+        isWithinPenang != wasWithinPenang) {
+      notifyListeners();
+    }
   }
 
   /// UC-007 step 4 / A2: (re)loads nearby pins for the current centre and
