@@ -47,5 +47,6 @@ app.*.map.json
 # Local drop zone for files shared with Claude (not committed)
 /_inbox/
 
-# Google Maps API key — never commit the real key, only .env.example
+# Local environment variables, incl. the Google Maps API key.
+# Never commit the real key — only .env.example.
 .env
