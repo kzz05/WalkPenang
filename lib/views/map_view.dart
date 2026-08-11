@@ -10,14 +10,36 @@ import 'route_summary_view.dart';
 /// Screen for UC-007 (nearby pins), UC-008 (live location), and UC-009
 /// (Penang boundary). Tapping a pin hands off to [RouteSummaryView] for
 /// UC-M04 / UC-M05.
-class MapView extends StatefulWidget {
+class MapView extends StatelessWidget {
   const MapView({super.key});
 
   @override
-  State<MapView> createState() => _MapViewState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        title: Text('Map & GPS', style: AppType.heading),
+        iconTheme: const IconThemeData(color: AppColors.onPrimary),
+      ),
+      body: const MapPanel(),
+    );
+  }
 }
 
-class _MapViewState extends State<MapView> {
+/// The map itself, with no Scaffold of its own — pins (UC-007), live location
+/// (UC-008) and the Penang boundary (UC-009). It owns its [MapController], so
+/// it can be dropped into any parent. HomeView embeds it directly rather than
+/// pushing a route, which is why this is split out from [MapView].
+class MapPanel extends StatefulWidget {
+  const MapPanel({super.key});
+
+  @override
+  State<MapPanel> createState() => _MapPanelState();
+}
+
+class _MapPanelState extends State<MapPanel> {
   late final MapController _controller = MapController();
   GoogleMapController? _mapController;
   bool _hasCenteredOnUser = false;
@@ -73,69 +95,60 @@ class _MapViewState extends State<MapView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        title: Text('Map & GPS', style: AppType.heading),
-        iconTheme: const IconThemeData(color: AppColors.onPrimary),
-      ),
-      body: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) {
-          return Stack(
-            children: [
-              GoogleMap(
-                initialCameraPosition: const CameraPosition(
-                  target: MapConstants.georgeTownCenter,
-                  zoom: MapConstants.defaultZoom,
-                ),
-                onMapCreated: (controller) => _mapController = controller,
-                myLocationEnabled: true,
-                myLocationButtonEnabled: true,
-                cameraTargetBounds: CameraTargetBounds(
-                  _controller.boundaryConstraint,
-                ),
-                minMaxZoomPreference: const MinMaxZoomPreference(10, 19),
-                markers: _buildMarkers(),
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        return Stack(
+          children: [
+            GoogleMap(
+              initialCameraPosition: const CameraPosition(
+                target: MapConstants.georgeTownCenter,
+                zoom: MapConstants.defaultZoom,
               ),
+              onMapCreated: (controller) => _mapController = controller,
+              myLocationEnabled: true,
+              myLocationButtonEnabled: true,
+              cameraTargetBounds: CameraTargetBounds(
+                _controller.boundaryConstraint,
+              ),
+              minMaxZoomPreference: const MinMaxZoomPreference(10, 19),
+              markers: _buildMarkers(),
+            ),
+            Positioned(
+              top: 12,
+              left: 12,
+              right: 12,
+              child: Column(
+                children: [
+                  if (_controller.errorMessage != null)
+                    _ErrorBanner(message: _controller.errorMessage!),
+                  const SizedBox(height: 8),
+                  _RadiusChips(controller: _controller),
+                ],
+              ),
+            ),
+            if (_controller.isLoading)
+              const ColoredBox(
+                color: Color(0x66000000),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            if (_controller.nearbyPlaces.isNotEmpty)
               Positioned(
-                top: 12,
-                left: 12,
-                right: 12,
-                child: Column(
-                  children: [
-                    if (_controller.errorMessage != null)
-                      _ErrorBanner(message: _controller.errorMessage!),
-                    const SizedBox(height: 8),
-                    _RadiusChips(controller: _controller),
-                  ],
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _NearbyPlacesSheet(
+                  places: _controller.nearbyPlaces,
+                  onSelected: _onPlaceSelected,
                 ),
               ),
-              if (_controller.isLoading)
-                const ColoredBox(
-                  color: Color(0x66000000),
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ),
-              if (_controller.nearbyPlaces.isNotEmpty)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: _NearbyPlacesSheet(
-                    places: _controller.nearbyPlaces,
-                    onSelected: _onPlaceSelected,
-                  ),
-                ),
-            ],
-          );
-        },
-      ),
+          ],
+        );
+      },
     );
   }
 
