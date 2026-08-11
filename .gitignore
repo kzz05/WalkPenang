@@ -54,3 +54,9 @@ app.*.map.json
 # Legacy Flutter tool output (.idea/ and /build/ are already covered above)
 .packages
 .flutter-plugins
+
+# Machine-specific tooling output — these carry absolute SDK paths from
+# whoever last ran a build, so they must never be committed.
+android/local.properties
+ios/Flutter/ephemeral/
+macos/Flutter/ephemeral/
