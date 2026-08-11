@@ -60,3 +60,8 @@ app.*.map.json
 android/local.properties
 ios/Flutter/ephemeral/
 macos/Flutter/ephemeral/
+
+# Gradle's incremental-build cache. Binary hash and lock files that every
+# build rewrites — tracking them means a dirty tree after every build and
+# binary merge conflicts nobody can resolve.
+android/.gradle/
