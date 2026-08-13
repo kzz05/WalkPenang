@@ -1,0 +1,73 @@
+rules_version = '2';
+
+// WalkPenang Firestore security rules (NFR-04 — Data Protection).
+//
+// firebase.json has always pointed at this file, but until now it did not
+// exist: the rules lived only in the Firebase console, unversioned. That is
+// how the reward module's permission-denied broke without anyone noticing —
+// see the users/ block below.
+//
+// Deploy with:
+//   firebase deploy --only firestore:rules --project walkpenang-5cefb
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // ---- Tourist profile and everything beneath it -----------------------
+    //
+    // The {document=**} suffix is load-bearing. Firestore rules do NOT
+    // cascade into subcollections: a bare `match /users/{userId}` grants the
+    // profile document alone, which is why reading the profile worked while
+    // the reward dashboard returned PERMISSION_DENIED — its badges live one
+    // level down.
+    //
+    // Covers:
+    //   users/{uid}                          profile + cumulative reward totals
+    //   users/{uid}/user_badges/{badgeId}    badges this tourist has earned
+    //   users/{uid}/points_ledger/{checkInId} award history, keyed for idempotency
+    match /users/{userId}/{document=**} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // ---- Badge catalogue -------------------------------------------------
+    //
+    // Shared reference data, not per-tourist: the definitions every gallery
+    // renders. Readable by any signed-in tourist; never written from a
+    // client, since letting a device edit badge criteria would let it mint
+    // its own achievements. Seed it from the console or an admin SDK script.
+    match /badges/{badgeId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ---- Check-ins -------------------------------------------------------
+    //
+    // Written by the Walking & Carbon module on arrival; the reward module
+    // only reads them and stamps `rewardProcessed` so points are awarded
+    // once. That write path does not exist yet, so this rule is provisional:
+    // it assumes the document carries a `userId` field, which is what
+    // CheckInResult.userId implies. Revisit when Module 4 lands its write.
+    //
+    // create is deliberately not update: a tourist may record a check-in but
+    // must not be able to rewrite its distance afterwards and farm points.
+    match /check_ins/{checkInId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // Anything not matched above is denied. Add collections explicitly as
+    // other modules start writing — the Food & Attraction module currently
+    // uses no Firestore at all (MockPlaceRepository) and needs nothing here.
+  }
+}
