@@ -1,34 +1,14 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:walkpenang/models/place.dart';
-import 'package:walkpenang/models/search_filter.dart';
+import 'package:walkpenang/models/search_filters.dart';
 import 'package:walkpenang/services/place_repository.dart';
 
-/// What the feed is currently doing. The screen switches on this rather than
-/// juggling four separate booleans.
-enum FeedStatus {
-  /// Nothing fetched yet.
-  initial,
-
-  /// First page in flight — show the full-screen spinner.
-  loading,
-
-  /// Have results, fetching the next page — show the footer spinner.
-  loadingMore,
-
-  /// Have results.
-  ready,
-
-  /// Request succeeded but matched nothing (T-FD01.3 zero-result state).
-  empty,
-
-  /// Request failed — show the retry card.
-  error,
-}
+enum FeedStatus { initial, loading, loadingMore, ready, empty, error }
 
 /// Owns the feed's data and paging cursor (T-FD02.2).
 class DiscoveryController extends ChangeNotifier {
-  DiscoveryController({required this.repository, this.pageSize = 10});
+  DiscoveryController({required this.repository, this.pageSize = 8});
 
   final PlaceRepository repository;
   final int pageSize;
@@ -38,6 +18,7 @@ class DiscoveryController extends ChangeNotifier {
   FeedStatus _status = FeedStatus.initial;
   String? _errorMessage;
   int _page = 0;
+  int _totalCount = 0;
   bool _hasMore = true;
   bool _isFetching = false;
   bool _disposed = false;
@@ -48,22 +29,21 @@ class DiscoveryController extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get hasMore => _hasMore;
 
-  /// First load, and the retry target for the error state.
+  /// Total matching the current filters, for "Nearby you (12 places)".
+  int get totalCount => _totalCount;
+
   Future<void> loadInitial() => _load(reset: true, status: FeedStatus.loading);
 
-  /// Called by the scroll listener as the user nears the bottom.
   Future<void> loadMore() async {
     if (!_hasMore || _isFetching) return;
     if (_status != FeedStatus.ready) return;
     await _load(reset: false, status: FeedStatus.loadingMore);
   }
 
-  /// Pull-to-refresh. Deliberately does NOT flip to [FeedStatus.loading] —
-  /// RefreshIndicator already draws a spinner, and blanking the list under it
-  /// makes the screen flash.
+  /// Pull-to-refresh. Deliberately keeps the current status — RefreshIndicator
+  /// already draws a spinner, and blanking the grid under it makes it flash.
   Future<void> refresh() => _load(reset: true, status: _status);
 
-  /// New filters from the search bar: reset the cursor and refetch page zero.
   Future<void> updateFilters(SearchFilters filters) async {
     if (filters == _filters) return;
     _filters = filters;
@@ -93,30 +73,29 @@ class DiscoveryController extends ChangeNotifier {
 
       // Guard against duplicates if a refresh and a page load overlap.
       final Set<String> seen = _places.map((Place p) => p.id).toSet();
-      _places.addAll(
-        result.items.where((Place p) => seen.add(p.id)),
-      );
+      _places.addAll(result.items.where((Place p) => seen.add(p.id)));
 
       _page = result.page;
       _hasMore = result.hasMore;
+      _totalCount = result.totalCount;
       _status = _places.isEmpty ? FeedStatus.empty : FeedStatus.ready;
     } on ApiTimeoutException catch (error) {
-      if (_disposed) return;
-      _errorMessage = error.message;
-      // A failed "load more" shouldn't throw away the pages already on screen.
-      _status = _places.isEmpty ? FeedStatus.error : FeedStatus.ready;
+      _handleError(error.message);
     } on ApiFailureException catch (error) {
-      if (_disposed) return;
-      _errorMessage = error.message;
-      _status = _places.isEmpty ? FeedStatus.error : FeedStatus.ready;
+      _handleError(error.message);
     } catch (_) {
-      if (_disposed) return;
-      _errorMessage = 'Something went wrong. Try again.';
-      _status = _places.isEmpty ? FeedStatus.error : FeedStatus.ready;
+      _handleError('Something went wrong. Try again.');
     } finally {
       _isFetching = false;
       _safeNotify();
     }
+  }
+
+  void _handleError(String message) {
+    if (_disposed) return;
+    _errorMessage = message;
+    // A failed "load more" shouldn't throw away pages already on screen.
+    _status = _places.isEmpty ? FeedStatus.error : FeedStatus.ready;
   }
 
   void _safeNotify() {
