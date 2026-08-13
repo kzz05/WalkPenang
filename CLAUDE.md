@@ -895,16 +895,26 @@ lib/
 
 ### 12.7 Navigation / Routing
 
-Named routes are used for screen transitions relevant to this module:
+> **Not yet implemented.** The app currently navigates entirely with
+> `Navigator.push(MaterialPageRoute(...))`; there is no `routes:` table in
+> `main.dart` and no `mapScreenRoute` constant in `lib/`. The design below is
+> the intended target, not a description of the code.
+
+Named routes for the screen transitions relevant to this module:
 
 ```dart
-static const String mapScreenRoute = '/map';
-static const String routeSummaryRoute = '/map/route-summary';
+class MapRoutes {
+  static const String mapScreen = '/map';
+  static const String routeSummary = '/map/route-summary';
+}
 
-// Registered in MaterialApp routes:
-routes: {
-  mapScreenRoute: (context) => const MapScreen(),
-  routeSummaryRoute: (context) => const RouteSummaryScreen(),
+Widget buildApp() {
+  return MaterialApp(
+    routes: {
+      MapRoutes.mapScreen: (context) => const MapScreen(),
+      MapRoutes.routeSummary: (context) => const RouteSummaryScreen(),
+    },
+  );
 }
 ```
 
