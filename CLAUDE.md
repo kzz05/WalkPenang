@@ -568,30 +568,62 @@ endif
 
 | Sprint | Story ID | Task ID | Task Description | Assigned To | Est. Hours | Priority | Status |
 |:---:|:---:|:---:|---|---|:---:|:---:|:---:|
-| 2 | US-M01 | T-M01.1 | Add google_maps_flutter, configure API key, build MapScreen centred on George Town | Tang Yue Hann | 4 | Must Have | Not Started |
-| 2 | US-M01 | T-M01.2 | Call Google Places API and render nearby results as map pins | Tang Yue Hann | 4 | Must Have | Not Started |
+| 2 | US-M01 | T-M01.1 | Add google_maps_flutter, configure API key, build MapScreen centred on George Town | Tang Yue Hann | 4 | Must Have | Done |
+| 2 | US-M01 | T-M01.2 | Call Google Places API and render nearby results as map pins | Tang Yue Hann | 4 | Must Have | Done |
 | 2 | US-M01 | T-M01.3 | Test map rendering and empty state handling across different radii | Tang Yue Hann | 2 | Should Have | Not Started |
-| 2 | US-M02 | T-M02.1 | Add geolocator, request location permission, display live position marker | Tang Yue Hann | 4 | Must Have | Not Started |
-| 2 | US-M02 | T-M02.2 | Handle GPS disabled and weak signal accuracy warnings | Tang Yue Hann | 2 | Should Have | Not Started |
+| 2 | US-M02 | T-M02.1 | Add geolocator, request location permission, display live position marker | Tang Yue Hann | 4 | Must Have | Done |
+| 2 | US-M02 | T-M02.2 | Handle GPS disabled and weak signal accuracy warnings | Tang Yue Hann | 2 | Should Have | In Progress |
 | 2 | US-M02 | T-M02.3 | Test live location updates while moving on the map screen | Tang Yue Hann | 2 | Must Have | Not Started |
-| 3 | US-M03 | T-M03.1 | Define Penang LatLngBounds and apply cameraTargetBounds | Tang Yue Hann | 3 | Must Have | Not Started |
-| 3 | US-M03 | T-M03.2 | Validate destination coordinates and show out of boundary error message | Tang Yue Hann | 3 | Must Have | Not Started |
+| 3 | US-M03 | T-M03.1 | Define Penang LatLngBounds and apply cameraTargetBounds | Tang Yue Hann | 3 | Must Have | Done |
+| 3 | US-M03 | T-M03.2 | Validate destination coordinates and show out of boundary error message | Tang Yue Hann | 3 | Must Have | Done |
 | 3 | US-M03 | T-M03.3 | Test boundary validation with coordinates inside and outside Penang | Tang Yue Hann | 2 | Should Have | Not Started |
-| 3 | US-M04 | T-M04.1 | Call Google Maps Directions API in walking mode, extract distance and duration | Tang Yue Hann | 4 | Must Have | Not Started |
-| 3 | US-M04 | T-M04.2 | Display route summary card, handle no route found or lost connection errors | Tang Yue Hann | 3 | Should Have | Not Started |
+| 3 | US-M04 | T-M04.1 | Call Google Maps Directions API in walking mode, extract distance and duration | Tang Yue Hann | 4 | Must Have | Done |
+| 3 | US-M04 | T-M04.2 | Display route summary card, handle no route found or lost connection errors | Tang Yue Hann | 3 | Should Have | Done |
 | 3 | US-M04 | T-M04.3 | Test route calculation accuracy across multiple destinations | Tang Yue Hann | 2 | Must Have | Not Started |
-| 4 | US-M05 | T-M05.1 | Add url_launcher and build the Google Maps deep link function | Tang Yue Hann | 3 | Must Have | Not Started |
-| 4 | US-M05 | T-M05.2 | Add Navigate button and handle Google Maps not installed scenario | Tang Yue Hann | 3 | Should Have | Not Started |
+| 4 | US-M05 | T-M05.1 | Add url_launcher and build the Google Maps deep link function | Tang Yue Hann | 3 | Must Have | Done |
+| 4 | US-M05 | T-M05.2 | Add Navigate button and handle Google Maps not installed scenario | Tang Yue Hann | 3 | Should Have | Done |
 | 4 | US-M05 | T-M05.3 | Test navigation launch and exit flow, returning to MapScreen without triggering check in | Tang Yue Hann | 2 | Must Have | Not Started |
+
+**Status evidence** *(as at 2026-08-13)*
+
+Every build task is complete; every test task is outstanding. The module has
+no automated tests of its own — the suite covers the discovery, walking,
+reward and auth modules only.
+
+| Task | Evidence in the repo |
+|---|---|
+| T-M01.1 | `google_maps_flutter` in `pubspec.yaml`; key in `AndroidManifest.xml`; `MapConstants.georgeTownCenter` is the initial camera target in `map_view.dart` |
+| T-M01.2 | `places_service.dart` + `map_service.dart`; `MapController.renderNearbyPins()`; `_buildMarkers()`; `noPlacesFound` empty state wired |
+| T-M01.3 | No test file exercises the map, the radius chips, or the empty state |
+| T-M02.1 | `location_service.dart` wraps Geolocator; `myLocationEnabled` gated on `hasLocationPermission` so the SDK can't throw a SecurityException |
+| T-M02.2 | Weak signal done (`checkSignalAccuracy` → `weakGpsSignal`). **GPS-disabled is not** — see the gap below |
+| T-M02.3 | No test drives `startLocationUpdates()` |
+| T-M03.1 | `MapConstants.penangBounds`; `MapController.boundaryConstraint` feeds `cameraTargetBounds` |
+| T-M03.2 | `MapController.validateDestination()` → `outsidePenangDestination` |
+| T-M03.3 | No test file for `boundary_validator_service.dart` |
+| T-M04.1 | `route_service.dart` — `calculateWalkingRoute()` and `extractDistanceAndDuration()` |
+| T-M04.2 | `route_summary_view.dart` route card; `noWalkableRoute` and `networkLostDuringRoute` both wired in `route_summary_controller.dart` |
+| T-M04.3 | No test file for `route_service.dart` |
+| T-M05.1 | `navigation_launcher_service.buildNavigationDeepLink()` via `url_launcher` |
+| T-M05.2 | `RouteSummaryController.launchNavigation()`, `redirectToPlayStore()`, `geo` scheme `<queries>` entry in the manifest |
+| T-M05.3 | No test file for `navigation_launcher_service.dart` |
+
+**Known gap — T-M02.2 (UC-008 A1).** `LocationService.requestLocationPermission()`
+returns a single `false` for both "device GPS is switched off" and "permission
+denied", so `MapController.loadMap()` shows
+`MapErrorMessages.locationPermissionDenied` in both cases.
+`MapErrorMessages.gpsDisabled` is defined but never referenced anywhere in
+`lib/`. A tourist with GPS turned off is told to change a permission that is
+already granted. Splitting the two return cases closes this.
 
 **Sprint Summary**
 
-| Sprint | Duration | User Stories | Total Est. Hours |
-|:---:|---|---|:---:|
-| Sprint 2 | Week 8 – Week 9 | US-M01, US-M02 | 18 |
-| Sprint 3 | Week 9 – Week 10 | US-M03, US-M04 | 17 |
-| Sprint 4 | Week 10 | US-M05 | 8 |
-| **Total** | **3 weeks** | **5 stories** | **43** |
+| Sprint | Duration | User Stories | Total Est. Hours | Build | Tests |
+|:---:|---|---|:---:|:---:|:---:|
+| Sprint 2 | Week 8 – Week 9 | US-M01, US-M02 | 18 | 3 done, 1 partial | 0 of 2 |
+| Sprint 3 | Week 9 – Week 10 | US-M03, US-M04 | 17 | 4 done | 0 of 2 |
+| Sprint 4 | Week 10 | US-M05 | 8 | 2 done | 0 of 1 |
+| **Total** | **3 weeks** | **5 stories** | **43** | **9 done, 1 partial** | **0 of 5** |
 
 ---
 
