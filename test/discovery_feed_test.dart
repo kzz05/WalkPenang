@@ -41,6 +41,16 @@ void main() {
       DiscoveryController controller,
       FavoritesController favorites,
       ) async {
+    // The default test surface is 800x600 — landscape, and short. The feed is
+    // a 2-column grid at childAspectRatio 0.82 built lazily, so on that surface
+    // only the first row is ever constructed and any assertion past the second
+    // card fails against a grid that is in fact laying out correctly. Pin a
+    // portrait phone instead: the shape this screen is designed for.
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(
       MaterialApp(
         theme: discoveryTheme,
@@ -194,8 +204,13 @@ void main() {
     });
 
     test('a failed load-more keeps the pages already on screen', () async {
+      // Two pages, so hasMore is true after the first load. With a single page
+      // the controller correctly refuses to load more and returns before it
+      // ever reaches the repository — the injected error would never be
+      // thrown and errorMessage would stay null.
       repository.pages = <List<Place>>[
         <Place>[makePlace(1), makePlace(2)],
+        <Place>[makePlace(3), makePlace(4)],
       ];
       final DiscoveryController controller =
       DiscoveryController(repository: repository, pageSize: 2);
