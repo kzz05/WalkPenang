@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:walkpenang/controllers/favorites_controller.dart';
 import 'package:walkpenang/models/place.dart';
 import 'package:walkpenang/services/place_repository.dart';
-import 'package:walkpenang/theme/discovery_colors.dart';
+import 'package:walkpenang/theme/app_theme.dart';
 import 'package:walkpenang/views/place_detail_view.dart';
 
 /// Screen 04 — "My Favorites" (T-FD04.2).
@@ -38,7 +38,7 @@ class FavoritesView extends StatelessWidget {
                     'My Favorites (${favorites.count})',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: DiscoveryColors.ink,
+                      color: AppColors.onPrimary,
                     ),
                   ),
                 ),
@@ -100,7 +100,7 @@ class FavoritesView extends StatelessWidget {
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 80),
         action: SnackBarAction(
           label: 'Undo',
-          textColor: DiscoveryColors.tan,
+          textColor: AppColors.primary,
           onPressed: () => favorites.add(place),
         ),
       ),
@@ -160,16 +160,16 @@ class _FavoriteTile extends StatelessWidget {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          color: DiscoveryColors.errorBg,
+          color: AppColors.dangerTint,
           borderRadius: BorderRadius.circular(14),
         ),
         child: const Icon(
           Icons.delete_outline,
-          color: DiscoveryColors.errorInk,
+          color: AppColors.danger,
         ),
       ),
       child: Material(
-        color: DiscoveryColors.creamDeep,
+        color: AppColors.backgroundDeep,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: onTap,
@@ -189,7 +189,7 @@ class _FavoriteTile extends StatelessWidget {
                         Container(
                           width: 52,
                           height: 52,
-                          color: DiscoveryColors.cream,
+                          color: AppColors.background,
                         ),
                     errorWidget:
                         (BuildContext context, String url, Object error) =>
@@ -200,7 +200,7 @@ class _FavoriteTile extends StatelessWidget {
                           child: const Icon(
                             Icons.photo_outlined,
                             size: 18,
-                            color: Colors.white70,
+                            color: AppColors.muted,
                           ),
                         ),
                   ),
@@ -221,7 +221,7 @@ class _FavoriteTile extends StatelessWidget {
                       Text(
                         _subtitle(),
                         style: theme.textTheme.labelSmall
-                            ?.copyWith(color: DiscoveryColors.inkMuted),
+                            ?.copyWith(color: AppColors.muted),
                       ),
                     ],
                   ),
@@ -229,7 +229,7 @@ class _FavoriteTile extends StatelessWidget {
                 IconButton(
                   onPressed: onRemove,
                   iconSize: 18,
-                  color: DiscoveryColors.inkMuted,
+                  color: AppColors.muted,
                   tooltip: 'Remove',
                   icon: const Icon(Icons.close),
                 ),
@@ -258,7 +258,7 @@ class _EmptyFavorites extends StatelessWidget {
             const Icon(
               Icons.favorite_border_rounded,
               size: 44,
-              color: DiscoveryColors.inkMuted,
+              color: AppColors.muted,
             ),
             const SizedBox(height: 16),
             Text('No favourites yet', style: theme.textTheme.titleMedium),
@@ -267,7 +267,7 @@ class _EmptyFavorites extends StatelessWidget {
               'Tap the heart on any place to save it here for later.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall
-                  ?.copyWith(color: DiscoveryColors.inkMuted),
+                  ?.copyWith(color: AppColors.muted),
             ),
           ],
         ),

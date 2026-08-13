@@ -44,7 +44,7 @@ void showPointsConfirmation(BuildContext context, RewardOutcome outcome) {
             Expanded(
               child: Text(
                 message,
-                style: AppType.body.copyWith(color: Colors.white),
+                style: AppType.body.copyWith(color: AppColors.onSurface),
               ),
             ),
           ],

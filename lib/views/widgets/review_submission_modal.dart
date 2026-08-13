@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:walkpenang/models/place.dart';
 import 'package:walkpenang/models/review.dart';
 import 'package:walkpenang/services/place_repository.dart';
-import 'package:walkpenang/theme/discovery_colors.dart';
+import 'package:walkpenang/theme/app_theme.dart';
 import 'package:walkpenang/views/widgets/star_rating.dart';
 
 /// T-FD05.1 — the review sheet.
@@ -169,14 +169,14 @@ class _ReviewSubmissionModalState extends State<ReviewSubmissionModal> {
                 'Write a review',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: DiscoveryColors.ink,
+                  color: AppColors.onPrimary,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 widget.place.name,
                 style: theme.textTheme.bodySmall
-                    ?.copyWith(color: DiscoveryColors.inkMuted),
+                    ?.copyWith(color: AppColors.muted),
               ),
               const SizedBox(height: 24),
 
@@ -195,7 +195,7 @@ class _ReviewSubmissionModalState extends State<ReviewSubmissionModal> {
                 child: Text(
                   ratingCaption(_rating),
                   style: theme.textTheme.bodySmall
-                      ?.copyWith(color: DiscoveryColors.inkMuted),
+                      ?.copyWith(color: AppColors.muted),
                 ),
               ),
               const SizedBox(height: 24),
@@ -233,7 +233,7 @@ class _ReviewSubmissionModalState extends State<ReviewSubmissionModal> {
                       ? '${ReviewSubmissionModal.minBodyLength - length} more characters needed'
                       : '$length / ${ReviewSubmissionModal.maxBodyLength}',
                   style: theme.textTheme.labelSmall
-                      ?.copyWith(color: DiscoveryColors.inkMuted),
+                      ?.copyWith(color: AppColors.muted),
                 ),
               ),
 
@@ -242,7 +242,7 @@ class _ReviewSubmissionModalState extends State<ReviewSubmissionModal> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: DiscoveryColors.errorBg,
+                    color: AppColors.dangerTint,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -250,7 +250,7 @@ class _ReviewSubmissionModalState extends State<ReviewSubmissionModal> {
                       const Icon(
                         Icons.error_outline,
                         size: 18,
-                        color: DiscoveryColors.errorInk,
+                        color: AppColors.danger,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -258,7 +258,7 @@ class _ReviewSubmissionModalState extends State<ReviewSubmissionModal> {
                           _error!,
                           style: const TextStyle(
                             fontSize: 12,
-                            color: DiscoveryColors.errorInk,
+                            color: AppColors.danger,
                           ),
                         ),
                       ),
@@ -276,7 +276,7 @@ class _ReviewSubmissionModalState extends State<ReviewSubmissionModal> {
                   width: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.white,
+                    color: AppColors.card,
                   ),
                 )
                     : const Text('Submit review'),

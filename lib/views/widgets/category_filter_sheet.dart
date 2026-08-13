@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:walkpenang/models/place.dart';
 import 'package:walkpenang/models/search_filters.dart';
-import 'package:walkpenang/theme/discovery_colors.dart';
+import 'package:walkpenang/theme/app_theme.dart';
 
 /// Screen 02 — "Filter by category".
 ///
@@ -55,13 +55,13 @@ class _CategoryFilterSheetState extends State<CategoryFilterSheet> {
                 'Filter by category',
                 style: text.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: DiscoveryColors.ink,
+                  color: AppColors.onPrimary,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 'Choose one or more categories to narrow results.',
-                style: text.bodySmall?.copyWith(color: DiscoveryColors.inkMuted),
+                style: text.bodySmall?.copyWith(color: AppColors.muted),
               ),
               const SizedBox(height: 16),
               Flexible(
@@ -98,8 +98,8 @@ class _CategoryFilterSheetState extends State<CategoryFilterSheet> {
                       ),
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size.fromHeight(52),
-                        foregroundColor: DiscoveryColors.ink,
-                        side: const BorderSide(color: DiscoveryColors.creamDeep),
+                        foregroundColor: AppColors.onPrimary,
+                        side: const BorderSide(color: AppColors.backgroundDeep),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(26),
                         ),
@@ -129,7 +129,7 @@ class _CategoryFilterSheetState extends State<CategoryFilterSheet> {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: selected ? DiscoveryColors.creamDeep : DiscoveryColors.cream,
+        color: selected ? AppColors.backgroundDeep : AppColors.background,
         borderRadius: BorderRadius.circular(12),
       ),
       child: CheckboxListTile(
@@ -149,11 +149,11 @@ class _CategoryFilterSheetState extends State<CategoryFilterSheet> {
           style: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
-            color: DiscoveryColors.ink,
+            color: AppColors.onPrimary,
           ),
         ),
         controlAffinity: ListTileControlAffinity.trailing,
-        activeColor: DiscoveryColors.tan,
+        activeColor: AppColors.primary,
         checkboxShape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(4),
         ),
@@ -173,10 +173,10 @@ class _CategoryFilterSheetState extends State<CategoryFilterSheet> {
         style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w500,
-          color: DiscoveryColors.ink,
+          color: AppColors.onPrimary,
         ),
       ),
-      activeThumbColor: DiscoveryColors.tan,
+      activeThumbColor: AppColors.primary,
       contentPadding: EdgeInsets.zero,
       dense: true,
     );
@@ -186,7 +186,7 @@ class _CategoryFilterSheetState extends State<CategoryFilterSheet> {
     return TextButton.icon(
       onPressed: () => setState(() => _showAdvanced = !_showAdvanced),
       style: TextButton.styleFrom(
-        foregroundColor: DiscoveryColors.tanDark,
+        foregroundColor: AppColors.primaryDeep,
         padding: EdgeInsets.zero,
       ),
       icon: Icon(
@@ -241,7 +241,7 @@ class _CategoryFilterSheetState extends State<CategoryFilterSheet> {
           min: 1,
           max: 3,
           divisions: 2,
-          activeColor: DiscoveryColors.tan,
+          activeColor: AppColors.primary,
           labels: RangeLabels(
             _draft.minPriceLevel.label,
             _draft.maxPriceLevel.label,
@@ -272,7 +272,7 @@ class _CategoryFilterSheetState extends State<CategoryFilterSheet> {
           min: 1,
           max: kMaxDistanceKm,
           divisions: 24,
-          activeColor: DiscoveryColors.tan,
+          activeColor: AppColors.primary,
           label: '${_draft.maxDistanceKm.toStringAsFixed(0)} km',
           onChanged: (double value) =>
               setState(() => _draft = _draft.copyWith(maxDistanceKm: value)),

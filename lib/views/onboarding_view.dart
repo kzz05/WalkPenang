@@ -266,7 +266,7 @@ class BmiCard extends StatelessWidget {
                 Text(
                   hasValue ? bmi.toStringAsFixed(1) : '—',
                   style: AppType.stat.copyWith(
-                    color: Colors.white,
+                    color: AppColors.onSurface,
                     fontSize: 32,
                   ),
                 ),
@@ -274,9 +274,10 @@ class BmiCard extends StatelessWidget {
             ),
           ),
           if (hasValue)
+            // A white chip, not a sand one — the card is already sand.
             WpChip(
               category,
-              background: AppColors.primary,
+              background: AppColors.card,
               uppercase: true,
             ),
         ],

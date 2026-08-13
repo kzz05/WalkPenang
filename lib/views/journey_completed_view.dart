@@ -57,27 +57,14 @@ class JourneyCompletedView extends StatelessWidget {
   }
 }
 
-class _Palette {
-  const _Palette._();
-
-  static const cardRadius = 16.0;
-  static const cardShadow = Color(0x0F000000);
-
-  static const co2TileBg = Color(0xFFF0F7F2);
-  static const kcalTileBg = Color(0xFFFFF5EE);
-  static const carbonCardBg = Color(0xFFF0F7F2);
-
-  static const rewardSuccessBg = AppColors.primary;
-  static const rewardNeutralBg = Color(0xFFF3EFE9);
-  static const rewardErrorBg = Color(0xFFFBEAEA);
-  static const rewardErrorColor = Color(0xFFC0392B);
-
-  static const labelMuted = Color(0x73111111);
+/// Presentational unit conversions for this screen. Colours and radii come
+/// from [AppColors]/[AppRadius] like every other module.
+class _Conversions {
+  const _Conversions._();
 
   /// Derived from the Figma sample (0.50 kg CO2 -> "60 phone charges"),
-  /// i.e. 120 charges per kg — a presentational unit-conversion constant
-  /// applied to the real, already-calculated carbon figure, not a reward
-  /// value.
+  /// i.e. 120 charges per kg — applied to the real, already-calculated
+  /// carbon figure, not a reward value.
   static const phoneChargesPerKg = 120.0;
 }
 
@@ -225,8 +212,8 @@ class _NeutralCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       decoration: BoxDecoration(
-        color: _Palette.rewardNeutralBg,
-        borderRadius: BorderRadius.circular(_Palette.cardRadius),
+        color: AppColors.backgroundDeep,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Row(
         children: [
@@ -270,14 +257,14 @@ class _ErrorCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       decoration: BoxDecoration(
-        color: _Palette.rewardErrorBg,
-        borderRadius: BorderRadius.circular(_Palette.cardRadius),
+        color: AppColors.dangerTint,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Icon(Icons.error_outline,
-              size: 24, color: _Palette.rewardErrorColor),
+              size: 24, color: AppColors.danger),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -286,12 +273,12 @@ class _ErrorCard extends StatelessWidget {
                 Text(
                   'Reward error',
                   style: AppType.heading
-                      .copyWith(fontSize: 14, color: _Palette.rewardErrorColor),
+                      .copyWith(fontSize: 14, color: AppColors.danger),
                 ),
                 const SizedBox(height: 2),
                 Text(message,
                     style: AppType.body.copyWith(
-                        fontSize: 12, color: const Color(0xB3111111))),
+                        fontSize: 12, color: AppColors.muted)),
                 if (onRetry != null) ...[
                   const SizedBox(height: 10),
                   InkWell(
@@ -301,7 +288,7 @@ class _ErrorCard extends StatelessWidget {
                       style: AppType.body.copyWith(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: _Palette.rewardErrorColor,
+                        color: AppColors.danger,
                       ),
                     ),
                   ),
@@ -329,8 +316,8 @@ class _SuccessCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       decoration: BoxDecoration(
-        color: _Palette.rewardSuccessBg,
-        borderRadius: BorderRadius.circular(_Palette.cardRadius),
+        color: AppColors.primary,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -350,7 +337,7 @@ class _SuccessCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: const BoxDecoration(
-                      color: Colors.white, borderRadius: AppRadius.mdAll),
+                      color: AppColors.card, borderRadius: AppRadius.mdAll),
                   child: Text(
                     'NEW',
                     style:
@@ -365,7 +352,7 @@ class _SuccessCard extends StatelessWidget {
               'This journey already earned ${reward.pointsAwarded} points — no new '
               'reward for completing it again.',
               style: AppType.body
-                  .copyWith(fontSize: 12, color: const Color(0xCC111111)),
+                  .copyWith(fontSize: 12, color: AppColors.muted),
             ),
           ],
           if (hasNewBadges) ...[
@@ -375,7 +362,7 @@ class _SuccessCard extends StatelessWidget {
               runSpacing: 8,
               children: [
                 for (final name in reward.newlyEarnedBadgeNames)
-                  WpChip(name, background: Colors.white),
+                  WpChip(name, background: AppColors.card),
               ],
             ),
           ],
@@ -430,19 +417,19 @@ class _SummaryGrid extends StatelessWidget {
             children: [
               Expanded(
                 child: _StatTile(
-                  dotColor: const Color(0xFF3E8E5A),
+                  dotColor: AppColors.carbon,
                   value: data.carbonSavedKg?.toStringAsFixed(2),
                   label: 'KG CO₂ SAVED',
-                  background: _Palette.co2TileBg,
+                  background: AppColors.successTint,
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: _StatTile(
-                  dotColor: const Color(0xFFE0713C),
+                  dotColor: AppColors.calories,
                   value: data.caloriesBurned?.round().toString(),
                   label: 'KCAL BURNED',
-                  background: _Palette.kcalTileBg,
+                  background: AppColors.warningTint,
                 ),
               ),
             ],
@@ -463,7 +450,7 @@ class _StatTile extends StatelessWidget {
     required this.dotColor,
     required this.value,
     required this.label,
-    this.background = Colors.white,
+    this.background = AppColors.card,
   });
 
   @override
@@ -472,10 +459,10 @@ class _StatTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(_Palette.cardRadius),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
         boxShadow: const [
           BoxShadow(
-              color: _Palette.cardShadow, blurRadius: 8, offset: Offset(0, 2)),
+              color: AppColors.cardShadow, blurRadius: 8, offset: Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -493,7 +480,7 @@ class _StatTile extends StatelessWidget {
           const SizedBox(height: 4),
           Text(label,
               style: AppType.mono
-                  .copyWith(fontSize: 10, color: _Palette.labelMuted)),
+                  .copyWith(fontSize: 10, color: AppColors.muted)),
         ],
       ),
     );
@@ -507,13 +494,13 @@ class _CarbonContextCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final charges = (carbonSavedKg * _Palette.phoneChargesPerKg).round();
+    final charges = (carbonSavedKg * _Conversions.phoneChargesPerKg).round();
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-          color: _Palette.carbonCardBg,
-          borderRadius: BorderRadius.circular(_Palette.cardRadius)),
+          color: AppColors.successTint,
+          borderRadius: BorderRadius.circular(AppRadius.sm)),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -523,7 +510,7 @@ class _CarbonContextCard extends StatelessWidget {
               width: 8,
               height: 8,
               decoration: const BoxDecoration(
-                  color: Color(0xFF3E8E5A), shape: BoxShape.circle),
+                  color: AppColors.carbon, shape: BoxShape.circle),
             ),
           ),
           const SizedBox(width: 10),
@@ -532,7 +519,7 @@ class _CarbonContextCard extends StatelessWidget {
               'By walking instead of driving, you saved ${carbonSavedKg.toStringAsFixed(2)} kg '
               'CO₂ — equivalent to charging a phone $charges times.',
               style: AppType.body
-                  .copyWith(fontSize: 12, color: const Color(0xCC111111)),
+                  .copyWith(fontSize: 12, color: AppColors.muted),
             ),
           ),
         ],
@@ -559,7 +546,7 @@ class _Footer extends StatelessWidget {
         const SizedBox(height: 10),
         _PillButton(
             label: 'View Journey',
-            background: const Color(0xFFFAEBDC),
+            background: AppColors.backgroundDeep,
             onPressed: onViewRewards),
       ],
     );

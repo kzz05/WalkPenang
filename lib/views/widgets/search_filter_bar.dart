@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:walkpenang/models/place.dart';
 import 'package:walkpenang/models/search_filters.dart';
-import 'package:walkpenang/theme/discovery_colors.dart';
+import 'package:walkpenang/theme/app_theme.dart';
 import 'package:walkpenang/views/widgets/category_filter_sheet.dart';
 
 /// T-FD01.1 — keyword field plus the All/Food/Heritage/Nature chip row from
@@ -129,7 +129,7 @@ class _SearchFilterBarState extends State<SearchFilterBar> {
                         prefixIcon: const Icon(
                           Icons.search,
                           size: 20,
-                          color: DiscoveryColors.inkMuted,
+                          color: AppColors.muted,
                         ),
                         suffixIcon: value.text.isEmpty
                             ? null
@@ -149,15 +149,15 @@ class _SearchFilterBarState extends State<SearchFilterBar> {
               const SizedBox(width: 8),
               Badge(
                 isLabelVisible: sheetOnlyCount > 0,
-                backgroundColor: DiscoveryColors.tanDark,
+                backgroundColor: AppColors.primaryDeep,
                 label: Text('$sheetOnlyCount'),
                 child: Material(
-                  color: DiscoveryColors.surface,
+                  color: AppColors.card,
                   shape: const CircleBorder(),
                   child: IconButton(
                     onPressed: _openSheet,
                     icon: const Icon(Icons.tune, size: 20),
-                    color: DiscoveryColors.ink,
+                    color: AppColors.onPrimary,
                     tooltip: 'Filter by category',
                   ),
                 ),

@@ -472,7 +472,7 @@ class _MessageState extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.card,
                   borderRadius: AppRadius.smAll,
                   border: Border.all(color: AppColors.outline),
                 ),

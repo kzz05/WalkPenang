@@ -143,13 +143,13 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
                 padding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: const BoxDecoration(
-                  color: AppColors.surface,
+                  color: AppColors.dangerTint,
                   borderRadius: AppRadius.smAll,
                 ),
                 child: WpMonoLabel(
                   error,
                   size: 11,
-                  color: Colors.white,
+                  color: AppColors.danger,
                   align: TextAlign.center,
                 ),
               ),
@@ -215,6 +215,12 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
             showCursor: false,
             decoration: const InputDecoration(
               counterText: '',
+              // This field is a transparent hit target laid over the six
+              // painted boxes, so it must opt out of the app-wide filled
+              // input style — otherwise the theme's white fill covers them.
+              filled: false,
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,
@@ -239,7 +245,7 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
       child: Container(
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: AppColors.border,
+          color: AppColors.card,
           borderRadius: AppRadius.smAll,
           border: Border.all(
             color: isNext ? AppColors.primary : AppColors.outline,

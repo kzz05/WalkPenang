@@ -121,7 +121,7 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
         children: [
           Text(
             widget.destination.name,
-            style: AppType.heading.copyWith(color: Colors.white),
+            style: AppType.heading.copyWith(color: AppColors.onSurface),
           ),
           const SizedBox(height: 12),
           Row(
@@ -153,7 +153,7 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
                   ),
                   child: Text(
                     'Cancel',
-                    style: AppType.button.copyWith(color: Colors.white),
+                    style: AppType.button.copyWith(color: AppColors.onSurface),
                   ),
                 ),
               ),
@@ -194,22 +194,24 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
   Widget _buildErrorCard(BuildContext context, String message) {
     return Container(
       padding: const EdgeInsets.all(20),
+      // A failure reads as an error panel rather than the sand emphasis fill,
+      // matching how every other module surfaces one.
       decoration: const BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.dangerTint,
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.md)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(message, style: AppType.body.copyWith(color: Colors.white)),
+          Text(message, style: AppType.body.copyWith(color: AppColors.danger)),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton(
               onPressed: () => Navigator.of(context).pop(),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.border),
+                side: const BorderSide(color: AppColors.danger),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: const RoundedRectangleBorder(
                   borderRadius: AppRadius.mdAll,
@@ -217,7 +219,7 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
               ),
               child: Text(
                 'Back to map',
-                style: AppType.button.copyWith(color: Colors.white),
+                style: AppType.button.copyWith(color: AppColors.danger),
               ),
             ),
           ),
@@ -243,7 +245,7 @@ class _StatBlock extends StatelessWidget {
           style: AppType.mono.copyWith(color: AppColors.onSurfaceMuted),
         ),
         const SizedBox(height: 4),
-        Text(value, style: AppType.stat.copyWith(color: Colors.white)),
+        Text(value, style: AppType.stat.copyWith(color: AppColors.onSurface)),
       ],
     );
   }

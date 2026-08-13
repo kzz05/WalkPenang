@@ -5,7 +5,7 @@ import 'package:walkpenang/controllers/favorites_controller.dart';
 import 'package:walkpenang/models/place.dart';
 import 'package:walkpenang/models/search_filters.dart';
 import 'package:walkpenang/services/place_repository.dart';
-import 'package:walkpenang/theme/discovery_colors.dart';
+import 'package:walkpenang/theme/app_theme.dart';
 import 'package:walkpenang/views/place_detail_view.dart';
 import 'package:walkpenang/views/widgets/place_grid_card.dart';
 import 'package:walkpenang/views/widgets/search_filter_bar.dart';
@@ -118,7 +118,7 @@ class _DiscoveryFeedViewState extends State<DiscoveryFeedView> {
                 const SizedBox(height: 12),
                 Expanded(
                   child: RefreshIndicator(
-                    color: DiscoveryColors.tanDark,
+                    color: AppColors.primaryDeep,
                     onRefresh: controller.refresh,
                     child: _buildBody(context, controller),
                   ),
@@ -136,7 +136,7 @@ class _DiscoveryFeedViewState extends State<DiscoveryFeedView> {
       case FeedStatus.initial:
       case FeedStatus.loading:
         return const Center(
-          child: CircularProgressIndicator(color: DiscoveryColors.tan),
+          child: CircularProgressIndicator(color: AppColors.primary),
         );
 
       case FeedStatus.error:
@@ -185,7 +185,7 @@ class _DiscoveryFeedViewState extends State<DiscoveryFeedView> {
                   'place${controller.totalCount == 1 ? '' : 's'})',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w700,
-                color: DiscoveryColors.ink,
+                color: AppColors.onPrimary,
               ),
             ),
           ),
@@ -251,7 +251,7 @@ class _FeedFooter extends StatelessWidget {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
         child: Center(
-          child: CircularProgressIndicator(color: DiscoveryColors.tan),
+          child: CircularProgressIndicator(color: AppColors.primary),
         ),
       );
     }
@@ -277,7 +277,7 @@ class _FeedFooter extends StatelessWidget {
           style: Theme.of(context)
               .textTheme
               .bodySmall
-              ?.copyWith(color: DiscoveryColors.inkMuted),
+              ?.copyWith(color: AppColors.muted),
         ),
       ),
     );
@@ -317,7 +317,7 @@ class _ScrollableMessage extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    Icon(icon, size: 44, color: DiscoveryColors.inkMuted),
+                    Icon(icon, size: 44, color: AppColors.muted),
                     const SizedBox(height: 16),
                     Text(title, style: theme.textTheme.titleMedium),
                     const SizedBox(height: 8),
@@ -325,7 +325,7 @@ class _ScrollableMessage extends StatelessWidget {
                       message,
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodySmall
-                          ?.copyWith(color: DiscoveryColors.inkMuted),
+                          ?.copyWith(color: AppColors.muted),
                     ),
                     const SizedBox(height: 20),
                     SizedBox(

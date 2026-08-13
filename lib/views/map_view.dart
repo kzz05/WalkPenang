@@ -138,7 +138,7 @@ class _MapPanelState extends State<MapPanel> {
             ),
             if (_controller.isLoading)
               const ColoredBox(
-                color: Color(0x66000000),
+                color: AppColors.scrim,
                 child: Center(
                   child: CircularProgressIndicator(
                     color: AppColors.primary,
@@ -191,12 +191,12 @@ class _ErrorBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: const BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.dangerTint,
         borderRadius: AppRadius.smAll,
       ),
       child: Text(
         message,
-        style: AppType.body.copyWith(color: Colors.white, fontSize: 13),
+        style: AppType.body.copyWith(color: AppColors.danger, fontSize: 13),
       ),
     );
   }
@@ -218,7 +218,7 @@ class _RadiusChips extends StatelessWidget {
               label: Text('${radius.toStringAsFixed(0)} km'),
               selected: controller.searchRadiusKm == radius,
               selectedColor: AppColors.primary,
-              backgroundColor: Colors.white,
+              backgroundColor: AppColors.card,
               labelStyle: AppType.monoValue,
               onSelected: (_) => controller.setSearchRadius(radius),
             ),
@@ -268,7 +268,7 @@ class _PlaceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: AppColors.card,
       borderRadius: AppRadius.smAll,
       child: InkWell(
         onTap: onTap,
