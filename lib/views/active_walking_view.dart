@@ -56,33 +56,6 @@ class ActiveWalkingView extends StatelessWidget {
   }
 }
 
-/// Page-local design constants — values this frame needs that the shared
-/// token set (`AppColors`/`AppType`/`AppRadius`) doesn't define, following
-/// the same per-screen `_Palette` pattern as `walking_view.dart` and
-/// `pre_walk_summary_view.dart`.
-class _Palette {
-  const _Palette._();
-
-  static const heroRadius = 20.0;
-  static const tileRadius = 16.0;
-  static const cardShadow = Color(0x0F000000);
-
-  static const statusActiveBg = Color(0xFFF0F7F2);
-  static const statusActiveText = Color(0xFF4A7C59);
-
-  static const secondaryButtonBg = Color(0xFFFAEBDC);
-
-  static const co2TileBg = Color(0xFFF0F7F2);
-  static const kcalTileBg = Color(0xFFFFF5EE);
-
-  static const distanceDot = AppColors.primary;
-  static const co2Dot = Color(0xFF3E8E5A);
-  static const kcalDot = Color(0xFFE0713C);
-
-  static const labelMuted = Color(0x73111111);
-  static const trackBg = Color(0x1A111111);
-}
-
 class _Header extends StatelessWidget {
   final VoidCallback? onBack;
 
@@ -114,7 +87,7 @@ class _Header extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: const BoxDecoration(
-            color: _Palette.statusActiveBg,
+            color: AppColors.successTint,
             borderRadius: AppRadius.mdAll,
           ),
           child: Row(
@@ -124,7 +97,7 @@ class _Header extends StatelessWidget {
                 width: 8,
                 height: 8,
                 decoration: const BoxDecoration(
-                  color: _Palette.statusActiveText,
+                  color: AppColors.success,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -134,7 +107,7 @@ class _Header extends StatelessWidget {
                 style: AppType.mono.copyWith(
                   fontSize: 11,
                   letterSpacing: 1,
-                  color: _Palette.statusActiveText,
+                  color: AppColors.success,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -182,11 +155,11 @@ class _ElapsedTimeCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(_Palette.heroRadius),
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
         boxShadow: const [
           BoxShadow(
-            color: _Palette.cardShadow,
+            color: AppColors.cardShadow,
             blurRadius: 8,
             offset: Offset(0, 2),
           ),
@@ -199,7 +172,7 @@ class _ElapsedTimeCard extends StatelessWidget {
             style: AppType.mono.copyWith(
               fontSize: 10,
               letterSpacing: 1.2,
-              color: const Color(0x73111111),
+              color: AppColors.muted,
             ),
           ),
           const SizedBox(height: 6),
@@ -224,7 +197,7 @@ class _ElapsedTimeCard extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               WpMonoLabel(data.destinationName,
-                  size: 10, color: const Color(0x8C111111)),
+                  size: 10, color: AppColors.muted),
             ],
           ),
           const SizedBox(height: 6),
@@ -234,7 +207,7 @@ class _ElapsedTimeCard extends StatelessWidget {
               builder: (context, constraints) {
                 return Stack(
                   children: [
-                    Container(height: 4, color: _Palette.trackBg),
+                    Container(height: 4, color: AppColors.placeholder),
                     Container(
                       height: 4,
                       width: constraints.maxWidth * data.progressFraction,
@@ -253,13 +226,13 @@ class _ElapsedTimeCard extends StatelessWidget {
                   style: AppType.mono.copyWith(
                       fontSize: 9,
                       letterSpacing: 0.8,
-                      color: _Palette.labelMuted)),
+                      color: AppColors.muted)),
               Text(
                 '${data.plannedDistanceKm.toStringAsFixed(1)} KM',
                 style: AppType.mono.copyWith(
                     fontSize: 9,
                     letterSpacing: 0.8,
-                    color: _Palette.labelMuted),
+                    color: AppColors.muted),
               ),
             ],
           ),
@@ -284,7 +257,7 @@ class _LiveStatsGrid extends StatelessWidget {
             children: [
               Expanded(
                 child: _StatTile(
-                  dotColor: _Palette.distanceDot,
+                  dotColor: AppColors.primary,
                   value: data.kmCovered?.toStringAsFixed(1),
                   label: 'KM COVERED',
                 ),
@@ -292,7 +265,7 @@ class _LiveStatsGrid extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: _StatTile(
-                  dotColor: _Palette.distanceDot,
+                  dotColor: AppColors.primary,
                   value: data.minutesRemaining?.toString(),
                   label: 'MIN REMAINING',
                 ),
@@ -307,19 +280,19 @@ class _LiveStatsGrid extends StatelessWidget {
             children: [
               Expanded(
                 child: _StatTile(
-                  dotColor: _Palette.co2Dot,
+                  dotColor: AppColors.carbon,
                   value: data.carbonSavedKg?.toStringAsFixed(2),
                   label: 'KG CO₂ SAVED',
-                  background: _Palette.co2TileBg,
+                  background: AppColors.successTint,
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: _StatTile(
-                  dotColor: _Palette.kcalDot,
+                  dotColor: AppColors.calories,
                   value: data.caloriesBurned?.round().toString(),
                   label: 'KCAL BURNED',
-                  background: _Palette.kcalTileBg,
+                  background: AppColors.warningTint,
                 ),
               ),
             ],
@@ -343,7 +316,7 @@ class _StatTile extends StatelessWidget {
     required this.dotColor,
     required this.value,
     required this.label,
-    this.background = Colors.white,
+    this.background = AppColors.card,
   });
 
   @override
@@ -352,10 +325,10 @@ class _StatTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(_Palette.tileRadius),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
         boxShadow: const [
           BoxShadow(
-            color: _Palette.cardShadow,
+            color: AppColors.cardShadow,
             blurRadius: 8,
             offset: Offset(0, 2),
           ),
@@ -379,7 +352,7 @@ class _StatTile extends StatelessWidget {
           Text(
             label,
             style:
-                AppType.mono.copyWith(fontSize: 10, color: _Palette.labelMuted),
+                AppType.mono.copyWith(fontSize: 10, color: AppColors.muted),
           ),
         ],
       ),
@@ -407,7 +380,7 @@ class _Footer extends StatelessWidget {
       children: [
         _PillButton(
           label: 'Open Navigation',
-          background: _Palette.secondaryButtonBg,
+          background: AppColors.backgroundDeep,
           onPressed: busy ? null : onOpenNavigation,
         ),
         const SizedBox(height: 10),

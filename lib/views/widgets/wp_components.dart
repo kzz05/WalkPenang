@@ -136,7 +136,7 @@ class WpAvatar extends StatelessWidget {
             backgroundColor: background ?? AppColors.placeholder,
             backgroundImage: image,
             child: image == null
-                ? Icon(Icons.person, size: radius, color: Colors.white)
+                ? Icon(Icons.person, size: radius, color: AppColors.muted)
                 : null,
           ),
           if (onEdit != null)
@@ -201,7 +201,7 @@ class WpField extends StatelessWidget {
           style: AppType.body,
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white,
+            fillColor: AppColors.card,
             suffixIcon: suffixIcon,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -221,7 +221,7 @@ class WpField extends StatelessWidget {
             ),
             errorBorder: const OutlineInputBorder(
               borderRadius: AppRadius.smAll,
-              borderSide: BorderSide(color: Colors.redAccent),
+              borderSide: BorderSide(color: AppColors.danger),
             ),
           ),
         ),
@@ -355,7 +355,7 @@ class WpDropdownField extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppColors.card,
             borderRadius: AppRadius.smAll,
             border: Border.all(color: AppColors.outline),
           ),
@@ -451,7 +451,7 @@ class WpModuleCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Material(
-        color: Colors.white,
+        color: AppColors.card,
         borderRadius: AppRadius.smAll,
         child: InkWell(
           onTap: onTap,
@@ -493,7 +493,7 @@ class WpStatTile extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card,
         borderRadius: AppRadius.smAll,
         border: Border.all(color: AppColors.outline),
       ),
@@ -510,7 +510,13 @@ class WpStatTile extends StatelessWidget {
   }
 }
 
-/// The bottom navigation bar — home / map / walk / rewards.
+/// The bottom navigation bar — home / map / explore / walk / rewards.
+///
+/// A Material 3 [NavigationBar], the same component and styling the Discovery
+/// module's Discover/Favorites bar uses. Everything visual comes from
+/// `navigationBarTheme` in [buildAppTheme], so the two bars cannot drift:
+/// a white bar, a cream pill behind the selected item, and its icon switching
+/// from outline to filled.
 class WpBottomNav extends StatelessWidget {
   final int currentIndex;
   final List<String> items;
@@ -523,74 +529,34 @@ class WpBottomNav extends StatelessWidget {
     required this.onTap,
   });
 
-  static const _icons = {
-    'home': Icons.home_outlined,
-    'map': Icons.map_outlined,
-    'explore': Icons.explore_outlined,
-    'walk': Icons.directions_walk,
-    'rewards': Icons.emoji_events_outlined,
+  /// Outline icon for the resting state, filled for the selected one.
+  static const _icons = <String, (IconData, IconData)>{
+    'home': (Icons.home_outlined, Icons.home),
+    'map': (Icons.map_outlined, Icons.map),
+    'explore': (Icons.explore_outlined, Icons.explore),
+    'walk': (Icons.directions_walk_outlined, Icons.directions_walk),
+    'rewards': (Icons.emoji_events_outlined, Icons.emoji_events),
   };
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.outline)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              for (var i = 0; i < items.length; i++)
-                _NavItem(
-                  label: items[i],
-                  icon: _icons[items[i]] ?? Icons.circle,
-                  selected: i == currentIndex,
-                  onTap: () => onTap(i),
-                ),
-            ],
+    return NavigationBar(
+      selectedIndex: currentIndex,
+      onDestinationSelected: onTap,
+      destinations: [
+        for (final item in items)
+          NavigationDestination(
+            icon: Icon((_icons[item] ?? _fallback).$1),
+            selectedIcon: Icon((_icons[item] ?? _fallback).$2),
+            // Title case: "Explore", not "EXPLORE" — the mono uppercase
+            // treatment is for micro-labels, not navigation.
+            label: '${item[0].toUpperCase()}${item.substring(1)}',
           ),
-        ),
-      ),
+      ],
     );
   }
-}
 
-class _NavItem extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _NavItem({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = selected ? AppColors.primary : AppColors.onSurfaceMuted;
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 22, color: color),
-            const SizedBox(height: 4),
-            Text(label.toUpperCase(), style: AppType.mono.copyWith(color: color)),
-          ],
-        ),
-      ),
-    );
-  }
+  static const _fallback = (Icons.circle_outlined, Icons.circle);
 }
 
 /// Small pill of text — a category tag or an inline detail like an email.
@@ -606,7 +572,7 @@ class WpChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: background ?? Colors.white,
+        color: background ?? AppColors.card,
         borderRadius: AppRadius.mdAll,
         border: background == null ? Border.all(color: AppColors.outline) : null,
       ),

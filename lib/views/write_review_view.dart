@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:walkpenang/models/place.dart';
 import 'package:walkpenang/models/review.dart';
 import 'package:walkpenang/services/place_repository.dart';
-import 'package:walkpenang/theme/discovery_colors.dart';
+import 'package:walkpenang/theme/app_theme.dart';
 import 'package:walkpenang/views/widgets/star_rating.dart';
 
 /// Screen 05 — "Write a Review".
@@ -123,14 +123,14 @@ class _WriteReviewScreenState extends State<WriteReviewView> {
               widget.place.name,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w700,
-                color: DiscoveryColors.ink,
+                color: AppColors.onPrimary,
               ),
             ),
             const SizedBox(height: 2),
             Text(
               widget.place.address,
               style:
-              theme.textTheme.bodySmall?.copyWith(color: DiscoveryColors.inkMuted),
+              theme.textTheme.bodySmall?.copyWith(color: AppColors.muted),
             ),
             const SizedBox(height: 28),
 
@@ -147,7 +147,7 @@ class _WriteReviewScreenState extends State<WriteReviewView> {
             Text(
               ratingCaption(_rating),
               style:
-              theme.textTheme.bodySmall?.copyWith(color: DiscoveryColors.inkMuted),
+              theme.textTheme.bodySmall?.copyWith(color: AppColors.muted),
             ),
             const SizedBox(height: 28),
 
@@ -202,7 +202,7 @@ class _WriteReviewScreenState extends State<WriteReviewView> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF6D6D6),
+                  color: AppColors.dangerTint,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -210,7 +210,7 @@ class _WriteReviewScreenState extends State<WriteReviewView> {
                     const Icon(
                       Icons.error_outline,
                       size: 18,
-                      color: Color(0xFF8B3A3A),
+                      color: AppColors.danger,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -218,7 +218,7 @@ class _WriteReviewScreenState extends State<WriteReviewView> {
                         _error!,
                         style: const TextStyle(
                           fontSize: 12,
-                          color: Color(0xFF8B3A3A),
+                          color: AppColors.danger,
                         ),
                       ),
                     ),
@@ -236,7 +236,7 @@ class _WriteReviewScreenState extends State<WriteReviewView> {
                 width: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: Colors.white,
+                  color: AppColors.card,
                 ),
               )
                   : const Text('Submit review'),
@@ -281,7 +281,7 @@ class _PhotoSlot extends StatelessWidget {
         width: 64,
         height: 64,
         decoration: BoxDecoration(
-          color: filled ? DiscoveryColors.creamDeep : DiscoveryColors.cream,
+          color: filled ? AppColors.backgroundDeep : AppColors.background,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(
@@ -291,7 +291,7 @@ class _PhotoSlot extends StatelessWidget {
               ? Icons.add
               : null,
           size: 20,
-          color: DiscoveryColors.inkMuted,
+          color: AppColors.muted,
         ),
       ),
     );

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:walkpenang/theme/discovery_colors.dart';
+import 'package:walkpenang/theme/app_theme.dart';
 
 /// Read-only star row. [rating] may be fractional — halves are rendered.
 class StarRating extends StatelessWidget {
@@ -8,7 +8,7 @@ class StarRating extends StatelessWidget {
     super.key,
     required this.rating,
     this.size = 14,
-    this.color = DiscoveryColors.star,
+    this.color = AppColors.star,
   });
 
   final double rating;
@@ -63,7 +63,7 @@ class StarRatingInput extends StatelessWidget {
             icon: Icon(
               filled ? Icons.star_rounded : Icons.star_outline_rounded,
               size: size,
-              color: filled ? DiscoveryColors.star : DiscoveryColors.inkMuted,
+              color: filled ? AppColors.star : AppColors.muted,
             ),
           ),
         );

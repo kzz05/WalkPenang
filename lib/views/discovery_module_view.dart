@@ -5,7 +5,6 @@ import 'package:walkpenang/controllers/favorites_controller.dart';
 import 'package:walkpenang/main_discovery.dart' show DiscoveryShell;
 import 'package:walkpenang/services/place_repository.dart';
 import 'package:walkpenang/theme/app_theme.dart';
-import 'package:walkpenang/theme/discovery_theme.dart';
 import 'package:walkpenang/views/widgets/wp_components.dart';
 
 /// Production entry point for the Food & Attraction Discovery module
@@ -65,18 +64,14 @@ class _DiscoveryModuleViewState extends State<DiscoveryModuleView> {
               child: WpBackBar(onBack: () => Navigator.of(context).pop()),
             ),
           ),
-          // discoveryTheme is applied by MaterialApp when the module runs
-          // standalone. Pushed inside the app the ambient theme is the app's
-          // instead, so re-apply it here or the module's cards, chips and
-          // NavigationBar lose the styling they were designed against.
+          // No Theme override here any more: the module used to need its own
+          // one, but its palette, fonts and radii are now the app's, so the
+          // ambient theme is already the right one.
           Expanded(
-            child: Theme(
-              data: discoveryTheme,
-              child: DiscoveryShell(
-                discovery: _discovery,
-                favorites: _favorites,
-                repository: _repository,
-              ),
+            child: DiscoveryShell(
+              discovery: _discovery,
+              favorites: _favorites,
+              repository: _repository,
             ),
           ),
         ],

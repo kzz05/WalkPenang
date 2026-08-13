@@ -99,7 +99,10 @@ class _HomeViewState extends State<HomeView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+      // In the Scaffold's own nav slot, like the Discovery module's shell —
+      // so the bar handles its own safe-area inset and the map gets the rest.
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
             // The brand bar sits above the map rather than floating over it,
@@ -111,22 +114,22 @@ class _HomeViewState extends State<HomeView> {
             // Home *is* the map — it fills whatever is left between the brand
             // bar and the nav, so it is the first thing shown after sign-in.
             const Expanded(child: MapPanel()),
-            WpBottomNav(
-              currentIndex: 0,
-              items: const ['home', 'explore', 'walk', 'rewards'],
-              onTap: (index) {
-                switch (index) {
-                  case 1:
-                    _openDiscoveryModule();
-                  case 2:
-                    _openWalkingModule();
-                  case 3:
-                    _openRewardModule();
-                }
-              },
-            ),
           ],
         ),
+      ),
+      bottomNavigationBar: WpBottomNav(
+        currentIndex: 0,
+        items: const ['home', 'explore', 'walk', 'rewards'],
+        onTap: (index) {
+          switch (index) {
+            case 1:
+              _openDiscoveryModule();
+            case 2:
+              _openWalkingModule();
+            case 3:
+              _openRewardModule();
+          }
+        },
       ),
     );
   }

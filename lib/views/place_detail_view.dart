@@ -6,7 +6,7 @@ import 'package:walkpenang/models/place.dart';
 import 'package:walkpenang/models/rating_summary.dart';
 import 'package:walkpenang/models/review.dart';
 import 'package:walkpenang/services/place_repository.dart';
-import 'package:walkpenang/theme/discovery_colors.dart';
+import 'package:walkpenang/theme/app_theme.dart';
 import 'package:walkpenang/views/widgets/review_submission_modal.dart';
 import 'package:walkpenang/views/widgets/star_rating.dart';
 
@@ -148,7 +148,7 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
               SliverAppBar(
                 expandedHeight: 260,
                 pinned: true,
-                backgroundColor: DiscoveryColors.cream,
+                backgroundColor: AppColors.background,
                 leading: _CircleButton(
                   icon: Icons.arrow_back,
                   onPressed: () => Navigator.of(context).pop(),
@@ -158,7 +158,7 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
                     icon: isFavorite
                         ? Icons.favorite_rounded
                         : Icons.favorite_border_rounded,
-                    color: isFavorite ? Colors.redAccent : DiscoveryColors.ink,
+                    color: isFavorite ? AppColors.danger : AppColors.onPrimary,
                     onPressed: _toggleFavorite,
                   ),
                   const SizedBox(width: 8),
@@ -170,7 +170,7 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
               SliverToBoxAdapter(
                 child: Container(
                   decoration: const BoxDecoration(
-                    color: DiscoveryColors.surface,
+                    color: AppColors.card,
                     borderRadius:
                     BorderRadius.vertical(top: Radius.circular(24)),
                   ),
@@ -189,7 +189,7 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
                         place.name,
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w700,
-                          color: DiscoveryColors.ink,
+                          color: AppColors.onPrimary,
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -201,7 +201,7 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
                             '${_summary.displayAverage} '
                                 '(${Place.formatCount(_summary.count)} reviews)',
                             style: theme.textTheme.bodySmall
-                                ?.copyWith(color: DiscoveryColors.inkMuted),
+                                ?.copyWith(color: AppColors.muted),
                           ),
                         ],
                       ),
@@ -210,7 +210,7 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
                         Text(
                           place.description,
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: DiscoveryColors.inkMuted,
+                            color: AppColors.muted,
                             height: 1.5,
                           ),
                         ),
@@ -221,7 +221,7 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
                         child: Text(
                           place.address,
                           style: theme.textTheme.bodyMedium
-                              ?.copyWith(color: DiscoveryColors.inkMuted),
+                              ?.copyWith(color: AppColors.muted),
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -233,7 +233,7 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
                           child: Text(
                             place.priceRange!.display,
                             style: theme.textTheme.bodyMedium
-                                ?.copyWith(color: DiscoveryColors.inkMuted),
+                                ?.copyWith(color: AppColors.muted),
                           ),
                         ),
                       ],
@@ -270,7 +270,7 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
           child: Icon(
             Icons.photo_outlined,
             size: 44,
-            color: Colors.white70,
+            color: AppColors.muted,
           ),
         ),
       );
@@ -289,7 +289,7 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
               fit: BoxFit.cover,
               fadeInDuration: const Duration(milliseconds: 200),
               placeholder: (BuildContext context, String url) =>
-                  Container(color: DiscoveryColors.creamDeep),
+                  Container(color: AppColors.backgroundDeep),
               errorWidget: (BuildContext context, String url, Object error) =>
                   Container(
                     color: place.category.color,
@@ -297,7 +297,7 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
                       child: Icon(
                         Icons.image_not_supported_outlined,
                         size: 32,
-                        color: Colors.white70,
+                        color: AppColors.muted,
                       ),
                     ),
                   ),
@@ -341,7 +341,7 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
         child: Text(
           'Hours not available',
           style: theme.textTheme.bodyMedium
-              ?.copyWith(color: DiscoveryColors.inkMuted),
+              ?.copyWith(color: AppColors.muted),
         ),
       );
     }
@@ -356,8 +356,8 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: openNow
-                  ? DiscoveryColors.successBg
-                  : DiscoveryColors.errorBg,
+                  ? AppColors.successTint
+                  : AppColors.dangerTint,
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(
@@ -366,8 +366,8 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 color: openNow
-                    ? DiscoveryColors.successInk
-                    : DiscoveryColors.errorInk,
+                    ? AppColors.success
+                    : AppColors.danger,
               ),
             ),
           ),
@@ -375,7 +375,7 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
           Text(
             place.hours!.displayRange,
             style: theme.textTheme.bodyMedium
-                ?.copyWith(color: DiscoveryColors.inkMuted),
+                ?.copyWith(color: AppColors.muted),
           ),
         ],
       ),
@@ -411,7 +411,7 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
         child: Center(
-          child: CircularProgressIndicator(color: DiscoveryColors.tan),
+          child: CircularProgressIndicator(color: AppColors.primary),
         ),
       );
     }
@@ -431,7 +431,7 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
       return Text(
         'No reviews yet. Be the first to write one.',
         style: theme.textTheme.bodySmall
-            ?.copyWith(color: DiscoveryColors.inkMuted),
+            ?.copyWith(color: AppColors.muted),
       );
     }
 
@@ -444,7 +444,7 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
           'Reviews (${_reviews.length} of ${Place.formatCount(_summary.count)})',
           style: theme.textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.w700,
-            color: DiscoveryColors.ink,
+            color: AppColors.onPrimary,
           ),
         ),
         const SizedBox(height: 12),
@@ -470,7 +470,7 @@ class _Section extends StatelessWidget {
           title,
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.w700,
-            color: DiscoveryColors.ink,
+            color: AppColors.onPrimary,
           ),
         ),
         const SizedBox(height: 6),
@@ -490,7 +490,7 @@ class _ContactRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: <Widget>[
-        Icon(icon, size: 16, color: DiscoveryColors.inkMuted),
+        Icon(icon, size: 16, color: AppColors.muted),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
@@ -498,7 +498,7 @@ class _ContactRow extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .bodyMedium
-                ?.copyWith(color: DiscoveryColors.inkMuted),
+                ?.copyWith(color: AppColors.muted),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -525,13 +525,13 @@ class _ReviewTile extends StatelessWidget {
         children: <Widget>[
           CircleAvatar(
             radius: 16,
-            backgroundColor: DiscoveryColors.creamDeep,
+            backgroundColor: AppColors.backgroundDeep,
             child: Text(
               review.initials,
               style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: DiscoveryColors.ink,
+                color: AppColors.onPrimary,
               ),
             ),
           ),
@@ -551,7 +551,7 @@ class _ReviewTile extends StatelessWidget {
                     Text(
                       review.relativeTime(now),
                       style: theme.textTheme.labelSmall
-                          ?.copyWith(color: DiscoveryColors.inkMuted),
+                          ?.copyWith(color: AppColors.muted),
                     ),
                   ],
                 ),
@@ -561,7 +561,7 @@ class _ReviewTile extends StatelessWidget {
                 Text(
                   review.body,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: DiscoveryColors.inkMuted,
+                    color: AppColors.muted,
                     height: 1.45,
                   ),
                 ),
@@ -585,7 +585,7 @@ class _SavedBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
       decoration: BoxDecoration(
-        color: DiscoveryColors.successBg,
+        color: AppColors.successTint,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -599,7 +599,7 @@ class _SavedBanner extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: DiscoveryColors.successInk,
+                    color: AppColors.success,
                   ),
                 ),
                 SizedBox(height: 2),
@@ -607,7 +607,7 @@ class _SavedBanner extends StatelessWidget {
                   'Revisit this place anytime from the Favorites tab.',
                   style: TextStyle(
                     fontSize: 11,
-                    color: DiscoveryColors.successInk,
+                    color: AppColors.success,
                   ),
                 ),
               ],
@@ -616,7 +616,7 @@ class _SavedBanner extends StatelessWidget {
           IconButton(
             onPressed: onDismiss,
             iconSize: 16,
-            color: DiscoveryColors.successInk,
+            color: AppColors.success,
             icon: const Icon(Icons.close),
           ),
         ],
@@ -629,7 +629,7 @@ class _CircleButton extends StatelessWidget {
   const _CircleButton({
     required this.icon,
     required this.onPressed,
-    this.color = DiscoveryColors.ink,
+    this.color = AppColors.onPrimary,
   });
 
   final IconData icon;
@@ -641,7 +641,7 @@ class _CircleButton extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(6),
       child: Material(
-        color: DiscoveryColors.cream.withValues(alpha: 0.92),
+        color: AppColors.background.withValues(alpha: 0.92),
         shape: const CircleBorder(),
         child: IconButton(
           onPressed: onPressed,

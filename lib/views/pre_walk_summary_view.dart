@@ -87,30 +87,6 @@ class _PreWalkSummaryViewState extends State<PreWalkSummaryView> {
   }
 }
 
-/// Page-local design constants — values this frame needs that the shared
-/// token set (`AppColors`/`AppType`/`AppRadius`) doesn't define, following
-/// the same pattern as `walking_view.dart`'s `_Palette`.
-class _Palette {
-  const _Palette._();
-
-  static const heroRadius = 20.0;
-  static const tileRadius = 16.0;
-  static const cardShadow = Color(0x0F000000);
-
-  static const co2TileBg = Color(0xFFF0F7F2);
-  static const kcalTileBg = Color(0xFFFFF5EE);
-  static const rewardBg = Color(0xFFF6E4D2);
-  static const rewardBorder = Color(0x99E4B592);
-
-  static const distanceDot = AppColors.primary;
-  static const durationDot = AppColors.primary;
-  static const co2Dot = Color(0xFF3E8E5A);
-  static const kcalDot = Color(0xFFE0713C);
-  static const starColor = Color(0xFFC8963E);
-
-  static const valueMuted = Color(0x73111111);
-}
-
 /// Back button and the "Journey Preview" title.
 class _Header extends StatelessWidget {
   final VoidCallback onBack;
@@ -252,7 +228,7 @@ class _DestinationHero extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       decoration: BoxDecoration(
         color: AppColors.primary,
-        borderRadius: BorderRadius.circular(_Palette.heroRadius),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -261,7 +237,7 @@ class _DestinationHero extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: const BoxDecoration(
-              color: Colors.white,
+              color: AppColors.card,
               borderRadius: AppRadius.mdAll,
             ),
             child: Row(
@@ -324,7 +300,7 @@ class _StatsGrid extends StatelessWidget {
             children: [
               Expanded(
                 child: _StatTile(
-                  dotColor: _Palette.distanceDot,
+                  dotColor: AppColors.primary,
                   value: summary.distanceKm.toStringAsFixed(1),
                   label: 'KM DISTANCE',
                 ),
@@ -332,7 +308,7 @@ class _StatsGrid extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: _StatTile(
-                  dotColor: _Palette.durationDot,
+                  dotColor: AppColors.primary,
                   value: '${summary.estimatedDuration.inMinutes}',
                   label: 'MIN ESTIMATED',
                 ),
@@ -347,27 +323,27 @@ class _StatsGrid extends StatelessWidget {
             children: [
               Expanded(
                 child: _StatTile(
-                  dotColor: _Palette.co2Dot,
+                  dotColor: AppColors.carbon,
                   value: carbonSavedKg.toStringAsFixed(2),
                   label: 'KG CO₂ SAVED',
-                  background: _Palette.co2TileBg,
+                  background: AppColors.successTint,
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: caloriesBurned == null
                     ? _StatTile(
-                        dotColor: _Palette.kcalDot,
+                        dotColor: AppColors.calories,
                         value: 'Add',
                         label: 'TAP TO ADD',
-                        background: _Palette.kcalTileBg,
+                        background: AppColors.warningTint,
                         onTap: onUpdateWeight,
                       )
                     : _StatTile(
-                        dotColor: _Palette.kcalDot,
+                        dotColor: AppColors.calories,
                         value: '${caloriesBurned!.round()}',
                         label: 'KCAL BURNED',
-                        background: _Palette.kcalTileBg,
+                        background: AppColors.warningTint,
                       ),
               ),
             ],
@@ -392,7 +368,7 @@ class _StatTile extends StatelessWidget {
     required this.dotColor,
     required this.value,
     required this.label,
-    this.background = Colors.white,
+    this.background = AppColors.card,
     this.onTap,
   });
 
@@ -418,24 +394,24 @@ class _StatTile extends StatelessWidget {
         Text(
           label,
           style:
-              AppType.mono.copyWith(fontSize: 10, color: _Palette.valueMuted),
+              AppType.mono.copyWith(fontSize: 10, color: AppColors.muted),
         ),
       ],
     );
 
     return Material(
       color: background,
-      borderRadius: BorderRadius.circular(_Palette.tileRadius),
+      borderRadius: BorderRadius.circular(AppRadius.sm),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(_Palette.tileRadius),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(_Palette.tileRadius),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
             boxShadow: const [
               BoxShadow(
-                color: _Palette.cardShadow,
+                color: AppColors.cardShadow,
                 blurRadius: 8,
                 offset: Offset(0, 2),
               ),
@@ -459,9 +435,9 @@ class _RewardNote extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: _Palette.rewardBg,
-        borderRadius: BorderRadius.circular(_Palette.tileRadius),
-        border: Border.all(color: _Palette.rewardBorder),
+        color: AppColors.backgroundDeep,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: AppColors.primaryDeep),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -471,7 +447,7 @@ class _RewardNote extends StatelessWidget {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
-              color: _Palette.starColor,
+              color: AppColors.star,
             ),
           ),
           const SizedBox(width: 10),
@@ -482,7 +458,7 @@ class _RewardNote extends StatelessWidget {
               style: AppType.body.copyWith(
                 fontSize: 12,
                 fontWeight: FontWeight.w400,
-                color: const Color(0xCC111111),
+                color: AppColors.muted,
               ),
             ),
           ),

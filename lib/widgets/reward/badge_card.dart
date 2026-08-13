@@ -53,7 +53,7 @@ class BadgeCard extends StatelessWidget {
     final hue = Color(badge.hue);
 
     return Material(
-      color: Colors.white,
+      color: AppColors.card,
       borderRadius: AppRadius.smAll,
       child: InkWell(
         onTap: onTap,

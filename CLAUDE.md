@@ -622,15 +622,34 @@ Figma prototype link: **https://www.figma.com/design/sYfsMDHjHntVTV0SIqAtKa**
 
 **Design tokens used:**
 
-| Token | Value |
-|---|---|
-| Primary | `#E4B592` |
-| Background | `#FFF3EA` |
-| Surface | `#000000` |
-| On-primary | `#111111` |
-| Border | `#FFFFFF` |
-| Radius SM | 10 |
-| Radius MD | 50 |
+These are the shared tokens for **every** module — auth, map, discovery,
+walking and rewards all draw from `lib/theme/app_theme.dart`. No module
+declares a palette of its own.
+
+| Token | Value | Role |
+|---|---|---|
+| Primary | `#E4B592` | Buttons, selected chips, progress |
+| Surface | `#E4B592` | Emphasis fill — BMI card, bottom nav, stat headline |
+| Background | `#FFF3EA` | Page ground |
+| Background deep | `#F5DCC7` | Banded sections and inset wells |
+| Card | `#FFFFFF` | Cards, inputs, sheets |
+| On-primary / On-surface | `#111111` | Primary ink, incl. on sand fills |
+| Muted | `0x8A111111` | Secondary copy |
+| Subtle | `0x59111111` | Captions, disabled labels |
+| Outline | `0x1F111111` | Hairlines |
+| Border | `#FFFFFF` | Dividers on a coloured fill |
+| Card shadow | `0x0F111111` | The one card shadow |
+| Success / tint | `#3E8E5A` / `#F0F7F2` | Verified, complete, in range |
+| Warning / tint | `#D98C3F` / `#FFF5EE` | Acceptable, not recommended |
+| Danger / tint | `#C0392B` / `#FBEAEA` | Errors, blocked, out of range |
+| Star | `#E8A33D` | Ratings |
+| Radius SM | 10 | Cards, tiles, inputs |
+| Radius MD | 50 | Pills and buttons |
+
+> **Surface is no longer `#000000`.** The palette is entirely light: emphasis
+> comes from the sand fill with dark ink on top, not from a dark surface.
+> White is reserved for text sitting on a photo or on a saturated status
+> colour — never as a fill token (use *Card*).
 
 ---
 

@@ -62,23 +62,6 @@ class VerifyLocationView extends StatelessWidget {
   }
 }
 
-class _Palette {
-  const _Palette._();
-
-  static const cardRadius = 20.0;
-  static const cardShadow = Color(0x0F000000);
-  static const mapCardBg = Color(0xFFE7E1D6);
-
-  static const checkingColor = AppColors.primary;
-  static const verifiedColor = Color(0xFF3E8E5A);
-  static const blockedColor = Color(0xFFC0392B);
-
-  static const verifiedCardBg = Color(0xFFE7F3EA);
-  static const blockedCardBg = Color(0xFFFBEAEA);
-
-  static const labelMuted = Color(0x73111111);
-}
-
 String _stateLabel(VerifyLocationUiData data) => switch (data.phase) {
       VerifyLocationPhase.checking => 'STATE · CHECKING',
       VerifyLocationPhase.verified => 'STATE · VERIFIED',
@@ -136,7 +119,7 @@ class _Header extends StatelessWidget {
         Text(
           _stateLabel(data),
           style: AppType.mono.copyWith(
-              fontSize: 10, letterSpacing: 1.2, color: _Palette.labelMuted),
+              fontSize: 10, letterSpacing: 1.2, color: AppColors.muted),
         ),
       ],
     );
@@ -149,9 +132,9 @@ class _Content extends StatelessWidget {
   const _Content({required this.data});
 
   Color get _ringColor => switch (data.phase) {
-        VerifyLocationPhase.checking => _Palette.checkingColor,
-        VerifyLocationPhase.verified => _Palette.verifiedColor,
-        VerifyLocationPhase.blocked => _Palette.blockedColor,
+        VerifyLocationPhase.checking => AppColors.primary,
+        VerifyLocationPhase.verified => AppColors.success,
+        VerifyLocationPhase.blocked => AppColors.danger,
       };
 
   @override
@@ -189,8 +172,8 @@ class _RadiusZoneCard extends StatelessWidget {
     return Container(
       height: 180,
       decoration: BoxDecoration(
-        color: _Palette.mapCardBg,
-        borderRadius: BorderRadius.circular(_Palette.cardRadius),
+        color: AppColors.backgroundDeep,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -200,7 +183,7 @@ class _RadiusZoneCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: const BoxDecoration(
-                color: Colors.white, borderRadius: AppRadius.mdAll),
+                color: AppColors.card, borderRadius: AppRadius.mdAll),
             child: Text(
               '${radiusMeters.round()} M RADIUS ZONE',
               style: AppType.mono.copyWith(fontSize: 10, letterSpacing: 0.8),
@@ -290,14 +273,14 @@ class _CheckingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _StateCard(
-      background: Colors.white,
+      background: AppColors.card,
       children: [
         const SizedBox(
           width: 44,
           height: 44,
           child: CircularProgressIndicator(
             strokeWidth: 3,
-            valueColor: AlwaysStoppedAnimation(_Palette.checkingColor),
+            valueColor: AlwaysStoppedAnimation(AppColors.primary),
           ),
         ),
         const SizedBox(height: 20),
@@ -310,13 +293,13 @@ class _CheckingCard extends StatelessWidget {
         Text(
           'GPS SIGNAL ACQUIRING',
           style: AppType.mono.copyWith(
-              fontSize: 11, letterSpacing: 1, color: _Palette.labelMuted),
+              fontSize: 11, letterSpacing: 1, color: AppColors.muted),
         ),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: const BoxDecoration(
-              color: _Palette.checkingColor, borderRadius: AppRadius.mdAll),
+              color: AppColors.primary, borderRadius: AppRadius.mdAll),
           child: Text(
             '${data.destinationName.toUpperCase()} · ${data.radiusMeters.round()} M ZONE',
             style: AppType.mono.copyWith(
@@ -338,13 +321,13 @@ class _VerifiedCard extends StatelessWidget {
     final distance = data.currentDistanceMeters;
 
     return _StateCard(
-      background: _Palette.verifiedCardBg,
+      background: AppColors.successTint,
       children: [
         Container(
           width: 56,
           height: 56,
           decoration: const BoxDecoration(
-              color: _Palette.verifiedColor, shape: BoxShape.circle),
+              color: AppColors.success, shape: BoxShape.circle),
           child: const Icon(Icons.check, color: Colors.white, size: 28),
         ),
         const SizedBox(height: 16),
@@ -357,28 +340,28 @@ class _VerifiedCard extends StatelessWidget {
               ? 'WITHIN DESTINATION RANGE'
               : 'WITHIN ${distance.round()} M OF DESTINATION',
           style: AppType.mono.copyWith(
-              fontSize: 11, letterSpacing: 0.8, color: _Palette.verifiedColor),
+              fontSize: 11, letterSpacing: 0.8, color: AppColors.success),
         ),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppColors.card,
             borderRadius: AppRadius.mdAll,
             border: Border.all(
-                color: _Palette.verifiedColor.withValues(alpha: 0.4)),
+                color: AppColors.success.withValues(alpha: 0.4)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.check, size: 14, color: _Palette.verifiedColor),
+              const Icon(Icons.check, size: 14, color: AppColors.success),
               const SizedBox(width: 6),
               Text(
                 'LOCATION VERIFIED',
                 style: AppType.mono.copyWith(
                     fontSize: 10,
                     letterSpacing: 0.8,
-                    color: _Palette.verifiedColor),
+                    color: AppColors.success),
               ),
             ],
           ),
@@ -426,13 +409,13 @@ class _BlockedCard extends StatelessWidget {
     final distance = data.currentDistanceMeters;
 
     return _StateCard(
-      background: _Palette.blockedCardBg,
+      background: AppColors.dangerTint,
       children: [
         Container(
           width: 56,
           height: 56,
           decoration: const BoxDecoration(
-              color: _Palette.blockedColor, shape: BoxShape.circle),
+              color: AppColors.danger, shape: BoxShape.circle),
           child: const Icon(Icons.priority_high, color: Colors.white, size: 28),
         ),
         const SizedBox(height: 16),
@@ -445,7 +428,7 @@ class _BlockedCard extends StatelessWidget {
           Text(
             'YOU ARE ${distance.round()} M FROM DESTINATION',
             style: AppType.mono.copyWith(
-                fontSize: 11, letterSpacing: 0.8, color: _Palette.blockedColor),
+                fontSize: 11, letterSpacing: 0.8, color: AppColors.danger),
           ),
         ],
         const SizedBox(height: 12),
@@ -453,7 +436,7 @@ class _BlockedCard extends StatelessWidget {
           copy.message,
           textAlign: TextAlign.center,
           style: AppType.body
-              .copyWith(fontSize: 13, color: const Color(0xB3111111)),
+              .copyWith(fontSize: 13, color: AppColors.muted),
         ),
       ],
     );
@@ -473,10 +456,10 @@ class _StateCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(_Palette.cardRadius),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
         boxShadow: const [
           BoxShadow(
-              color: _Palette.cardShadow, blurRadius: 8, offset: Offset(0, 2)),
+              color: AppColors.cardShadow, blurRadius: 8, offset: Offset(0, 2)),
         ],
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
@@ -498,11 +481,11 @@ class _DistanceCheckCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
           BoxShadow(
-              color: _Palette.cardShadow, blurRadius: 8, offset: Offset(0, 2)),
+              color: AppColors.cardShadow, blurRadius: 8, offset: Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -510,7 +493,7 @@ class _DistanceCheckCard extends StatelessWidget {
           _DistanceRow(
             label: 'CURRENT DISTANCE',
             value: distance == null ? '—' : '${distance.round()} m',
-            valueColor: _Palette.blockedColor,
+            valueColor: AppColors.danger,
           ),
           const Divider(height: 1, color: AppColors.outline),
           _DistanceRow(
@@ -543,7 +526,7 @@ class _DistanceRow extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppType.mono.copyWith(
-                  fontSize: 11, letterSpacing: 0.6, color: _Palette.labelMuted),
+                  fontSize: 11, letterSpacing: 0.6, color: AppColors.muted),
             ),
           ),
           const SizedBox(width: 8),
@@ -582,7 +565,7 @@ class _Footer extends StatelessWidget {
           child: Text(
             'COMPLETION THRESHOLD · ${data.radiusMeters.round()} M',
             style: AppType.mono.copyWith(
-                fontSize: 10, letterSpacing: 0.8, color: _Palette.labelMuted),
+                fontSize: 10, letterSpacing: 0.8, color: AppColors.muted),
           ),
         );
       case VerifyLocationPhase.verified:
@@ -603,7 +586,7 @@ class _Footer extends StatelessWidget {
             const SizedBox(height: 10),
             _PillButton(
               label: 'Continue Walking',
-              background: const Color(0xFFFAEBDC),
+              background: AppColors.backgroundDeep,
               onPressed: onContinueWalking,
             ),
           ],

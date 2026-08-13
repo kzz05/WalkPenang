@@ -1,17 +1,17 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Color;
 
-import 'package:walkpenang/theme/discovery_colors.dart';
+import 'package:walkpenang/theme/app_theme.dart';
 
 /// Categories as they appear in the mockups: short label on the chips,
 /// long label in the filter sheet, uppercase on the card badge.
 enum PlaceCategory {
-  food('Food', 'Food & Dining', 'FOOD', DiscoveryColors.badgeFood),
+  food('Food', 'Food & Dining', 'FOOD', AppColors.badgeFood),
   heritage(
-      'Heritage', 'Heritage Sites', 'HERITAGE', DiscoveryColors.badgeHeritage),
-  nature('Nature', 'Nature & Parks', 'NATURE', DiscoveryColors.badgeNature),
-  museum('Museums', 'Museums', 'MUSEUM', DiscoveryColors.badgeMuseum),
-  shopping('Shopping', 'Shopping', 'SHOPPING', DiscoveryColors.badgeShopping);
+      'Heritage', 'Heritage Sites', 'HERITAGE', AppColors.badgeHeritage),
+  nature('Nature', 'Nature & Parks', 'NATURE', AppColors.badgeNature),
+  museum('Museums', 'Museums', 'MUSEUM', AppColors.badgeMuseum),
+  shopping('Shopping', 'Shopping', 'SHOPPING', AppColors.badgeShopping);
 
   const PlaceCategory(this.chipLabel, this.sheetLabel, this.badge, this.color);
 

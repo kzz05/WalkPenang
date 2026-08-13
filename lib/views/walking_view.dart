@@ -104,24 +104,12 @@ class _WalkingViewState extends State<WalkingView> {
   }
 }
 
-/// Design constants that sit alongside [AppColors]/[AppType]/[AppRadius] —
-/// values this frame needs that the shared token set doesn't define.
-class _Palette {
-  const _Palette._();
+/// Sizes this frame needs that the shared token set doesn't cover. Colours
+/// and corner radii come from [AppColors]/[AppRadius] like every other module.
+class _Metrics {
+  const _Metrics._();
 
-  static const cardRadius = 16.0;
   static const avatarRadius = 12.0;
-
-  static const selectedTint = Color(0xFFF6E4D2);
-  static const iconMuted = Color(0x12111111);
-  static const iconMutedText = Color(0xFF666666);
-  static const captionMuted = Color(0x59111111);
-  static const cardShadow = Color(0x0F000000);
-
-  static const carbonDot = Color(0xFF3E8E5A);
-  static const caloriesDot = Color(0xFFE0713C);
-  static const completionDot = Color(0xFF5B7FDB);
-  static const rewardsDot = Color(0xFFE0A93C);
 }
 
 /// Back button, page title, and the destination pill.
@@ -181,11 +169,11 @@ class _DestinationPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: const BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card,
         borderRadius: AppRadius.mdAll,
         boxShadow: [
           BoxShadow(
-            color: _Palette.cardShadow,
+            color: AppColors.cardShadow,
             blurRadius: 8,
             offset: Offset(0, 2),
           ),
@@ -256,15 +244,15 @@ class _TransportOptionCard extends StatelessWidget {
     final showUnavailableCaption = mode != TransportMode.walking;
 
     return Material(
-      color: selected ? _Palette.selectedTint : Colors.white,
-      borderRadius: BorderRadius.circular(_Palette.cardRadius),
+      color: selected ? AppColors.backgroundDeep : AppColors.card,
+      borderRadius: BorderRadius.circular(AppRadius.sm),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(_Palette.cardRadius),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(_Palette.cardRadius),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
             border: Border.all(
               color: selected ? AppColors.primary : AppColors.outline,
               width: selected ? 2 : 1,
@@ -273,7 +261,7 @@ class _TransportOptionCard extends StatelessWidget {
                 ? null
                 : const [
                     BoxShadow(
-                      color: _Palette.cardShadow,
+                      color: AppColors.cardShadow,
                       blurRadius: 8,
                       offset: Offset(0, 2),
                     ),
@@ -289,9 +277,9 @@ class _TransportOptionCard extends StatelessWidget {
                     height: 44,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: selected ? AppColors.primary : _Palette.iconMuted,
+                      color: selected ? AppColors.primary : AppColors.outline,
                       borderRadius:
-                          BorderRadius.circular(_Palette.avatarRadius),
+                          BorderRadius.circular(_Metrics.avatarRadius),
                     ),
                     child: Text(
                       _avatarLetter,
@@ -300,7 +288,7 @@ class _TransportOptionCard extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                         color: selected
                             ? AppColors.onPrimary
-                            : _Palette.iconMutedText,
+                            : AppColors.muted,
                       ),
                     ),
                   ),
@@ -342,13 +330,13 @@ class _TransportOptionCard extends StatelessWidget {
                   runSpacing: 6,
                   children: [
                     _FeatureChip(
-                        dotColor: _Palette.carbonDot, label: 'CARBON SAVINGS'),
+                        dotColor: AppColors.carbon, label: 'CARBON SAVINGS'),
                     _FeatureChip(
-                        dotColor: _Palette.caloriesDot, label: 'CALORIES'),
+                        dotColor: AppColors.calories, label: 'CALORIES'),
                     _FeatureChip(
-                        dotColor: _Palette.completionDot, label: 'COMPLETION'),
+                        dotColor: AppColors.completion, label: 'COMPLETION'),
                     _FeatureChip(
-                        dotColor: _Palette.rewardsDot, label: 'REWARDS'),
+                        dotColor: AppColors.rewards, label: 'REWARDS'),
                   ],
                 ),
               ] else if (showUnavailableCaption) ...[
@@ -356,7 +344,7 @@ class _TransportOptionCard extends StatelessWidget {
                 Text(
                   'CARBON · CALORIES · REWARDS NOT AVAILABLE',
                   style: AppType.mono
-                      .copyWith(fontSize: 10, color: _Palette.captionMuted),
+                      .copyWith(fontSize: 10, color: AppColors.subtle),
                 ),
               ],
             ],
@@ -379,7 +367,7 @@ class _FeatureChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: const BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card,
         borderRadius: AppRadius.mdAll,
       ),
       child: Row(

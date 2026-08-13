@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:walkpenang/controllers/discovery_controller.dart';
 import 'package:walkpenang/controllers/favorites_controller.dart';
 import 'package:walkpenang/services/place_repository.dart';
-import 'package:walkpenang/theme/discovery_colors.dart';
+import 'package:walkpenang/theme/app_theme.dart';
 import 'package:walkpenang/theme/discovery_theme.dart';
 import 'package:walkpenang/views/discovery_feed_view.dart';
 import 'package:walkpenang/views/favorites_view.dart';
@@ -111,13 +111,12 @@ class _DiscoveryShellState extends State<DiscoveryShell> {
       bottomNavigationBar: ListenableBuilder(
         listenable: widget.favorites,
         builder: (BuildContext context, _) {
+          // Styling comes from `navigationBarTheme` in buildAppTheme, the same
+          // source HomeView's WpBottomNav renders from.
           return NavigationBar(
             selectedIndex: _index,
             onDestinationSelected: (int value) =>
                 setState(() => _index = value),
-            backgroundColor: DiscoveryColors.surface,
-            indicatorColor: DiscoveryColors.creamDeep,
-            height: 64,
             destinations: <Widget>[
               const NavigationDestination(
                 icon: Icon(Icons.explore_outlined),
@@ -127,7 +126,7 @@ class _DiscoveryShellState extends State<DiscoveryShell> {
               NavigationDestination(
                 icon: Badge(
                   isLabelVisible: widget.favorites.count > 0,
-                  backgroundColor: DiscoveryColors.tanDark,
+                  backgroundColor: AppColors.primaryDeep,
                   label: Text('${widget.favorites.count}'),
                   child: const Icon(Icons.favorite_border),
                 ),

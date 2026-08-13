@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import 'package:walkpenang/models/place.dart';
-import 'package:walkpenang/theme/discovery_colors.dart';
+import 'package:walkpenang/theme/app_theme.dart';
 import 'package:walkpenang/views/widgets/star_rating.dart';
 
 /// T-FD02.1 — one tile in the discovery grid (screen 01).
@@ -48,7 +48,7 @@ class PlaceGridCard extends StatelessWidget {
                   fadeInDuration: const Duration(milliseconds: 200),
                   placeholder: (BuildContext context, String url) => Container(
                     height: imageHeight,
-                    color: DiscoveryColors.creamDeep,
+                    color: AppColors.backgroundDeep,
                   ),
                   errorWidget:
                       (BuildContext context, String url, Object error) =>
@@ -58,7 +58,7 @@ class PlaceGridCard extends StatelessWidget {
                         child: const Center(
                           child: Icon(
                             Icons.photo_outlined,
-                            color: Colors.white70,
+                            color: AppColors.muted,
                             size: 22,
                           ),
                         ),
@@ -84,9 +84,9 @@ class PlaceGridCard extends StatelessWidget {
                         isFavorite
                             ? Icons.favorite_rounded
                             : Icons.favorite_border_rounded,
-                        color: isFavorite ? Colors.redAccent : Colors.white,
+                        color: isFavorite ? AppColors.danger : AppColors.card,
                         shadows: const <Shadow>[
-                          Shadow(blurRadius: 4, color: Colors.black38),
+                          Shadow(blurRadius: 4, color: AppColors.scrim),
                         ],
                       ),
                     ),
@@ -102,7 +102,7 @@ class PlaceGridCard extends StatelessWidget {
                     place.name,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: DiscoveryColors.ink,
+                      color: AppColors.onPrimary,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -111,7 +111,7 @@ class PlaceGridCard extends StatelessWidget {
                   Text(
                     '${place.distanceLabel} · ${openNow ? 'Open now' : 'Closed'}',
                     style: theme.textTheme.labelSmall?.copyWith(
-                      color: openNow ? DiscoveryColors.inkMuted : Colors.redAccent,
+                      color: openNow ? AppColors.muted : AppColors.danger,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -124,7 +124,7 @@ class PlaceGridCard extends StatelessWidget {
                       Text(
                         place.rating.toStringAsFixed(1),
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: DiscoveryColors.inkMuted,
+                          color: AppColors.muted,
                         ),
                       ),
                     ],
@@ -158,7 +158,7 @@ class _CategoryBadge extends StatelessWidget {
           fontSize: 8,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.6,
-          color: DiscoveryColors.ink,
+          color: AppColors.onPrimary,
         ),
       ),
     );

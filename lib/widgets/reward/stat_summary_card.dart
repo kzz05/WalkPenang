@@ -53,7 +53,7 @@ class PointsBalanceCard extends StatelessWidget {
               Text(
                 '$totalPoints',
                 style: AppType.display.copyWith(
-                  color: Colors.white,
+                  color: AppColors.onSurface,
                   fontSize: 44,
                 ),
               ),
@@ -97,7 +97,7 @@ class StatSummaryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card,
         borderRadius: AppRadius.smAll,
         border: Border.all(color: AppColors.outline),
       ),
