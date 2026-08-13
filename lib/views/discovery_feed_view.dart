@@ -4,9 +4,9 @@ import 'package:walkpenang/controllers/discovery_controller.dart';
 import 'package:walkpenang/controllers/favorites_controller.dart';
 import 'package:walkpenang/models/place.dart';
 import 'package:walkpenang/models/search_filters.dart';
-import 'package:walkpenang/views/place_detail_view.dart';
 import 'package:walkpenang/services/place_repository.dart';
 import 'package:walkpenang/theme/discovery_colors.dart';
+import 'package:walkpenang/views/place_detail_view.dart';
 import 'package:walkpenang/views/widgets/place_grid_card.dart';
 import 'package:walkpenang/views/widgets/search_filter_bar.dart';
 
@@ -24,10 +24,10 @@ class DiscoveryFeedView extends StatefulWidget {
   final PlaceRepository repository;
 
   @override
-  State<DiscoveryFeedView> createState() => _DiscoveryFeedScreenState();
+  State<DiscoveryFeedView> createState() => _DiscoveryFeedViewState();
 }
 
-class _DiscoveryFeedScreenState extends State<DiscoveryFeedView> {
+class _DiscoveryFeedViewState extends State<DiscoveryFeedView> {
   final ScrollController _scrollController = ScrollController();
 
   /// Start fetching this far from the bottom so the next page is usually
@@ -38,6 +38,7 @@ class _DiscoveryFeedScreenState extends State<DiscoveryFeedView> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    widget.controller.addListener(_onPlacesChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.controller.loadInitial();
     });
@@ -47,7 +48,14 @@ class _DiscoveryFeedScreenState extends State<DiscoveryFeedView> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    widget.controller.removeListener(_onPlacesChanged);
     super.dispose();
+  }
+
+  /// T-FD04.1 — attaches Place objects to favourite IDs restored from disk,
+  /// so a saved place shows its heart filled as soon as it appears.
+  void _onPlacesChanged() {
+    widget.favorites.hydrate(widget.controller.places);
   }
 
   void _onScroll() {
@@ -76,12 +84,16 @@ class _DiscoveryFeedScreenState extends State<DiscoveryFeedView> {
   void _toggleFavorite(Place place) {
     final bool added = widget.favorites.toggle(place);
     ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
+    // clearSnackBars drops the whole queue, not just the visible one, so
+    // rapid taps can't stack up into a toast that seems to never leave.
+      ..clearSnackBars()
       ..showSnackBar(
         SnackBar(
           content: Text(added ? 'Added to Favorites' : 'Removed from Favorites'),
           duration: const Duration(seconds: 2),
-          width: 260,
+          // Lifts it clear of the bottom navigation bar. Note margin and
+          // width are mutually exclusive on a floating SnackBar.
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 80),
         ),
       );
   }
@@ -181,13 +193,12 @@ class _DiscoveryFeedScreenState extends State<DiscoveryFeedView> {
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           sliver: SliverGrid(
-            gridDelegate:
-            const SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
-              // Tuned so the 96px image plus three text rows fit without
-              // overflow at typical phone widths.
+              // Tuned so the image plus three text rows fit without overflow
+              // at typical phone widths.
               childAspectRatio: 0.82,
             ),
             // builder only creates visible tiles — the lazy-loading half of

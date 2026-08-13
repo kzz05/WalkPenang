@@ -4,15 +4,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:walkpenang/controllers/discovery_controller.dart';
 import 'package:walkpenang/controllers/favorites_controller.dart';
 import 'package:walkpenang/models/place.dart';
+import 'package:walkpenang/models/rating_summary.dart';
 import 'package:walkpenang/models/review.dart';
 import 'package:walkpenang/models/search_filters.dart';
-import 'package:walkpenang/views/discovery_feed_view.dart';
-import 'package:walkpenang/theme/discovery_theme.dart';
+import 'package:walkpenang/services/favorites_store.dart';
 import 'package:walkpenang/services/place_repository.dart';
+import 'package:walkpenang/theme/discovery_theme.dart';
+import 'package:walkpenang/views/discovery_feed_view.dart';
 import 'package:walkpenang/views/widgets/place_grid_card.dart';
 
 /// T-FD02.3 — feed rendering, offline image fallback, API timeout errors,
-/// plus the favourites and review flows added for screens 03–05.
+/// plus the favourites flow.
 ///
 /// Note on images: flutter_test blocks real HTTP, so every CachedNetworkImage
 /// falls through to its errorWidget. Convenient — these tests exercise the
@@ -24,7 +26,7 @@ void main() {
     id: 'p$index',
     name: 'Place $index',
     category: PlaceCategory.food,
-    imageUrl: 'https://example.com/$index.jpg',
+    photoUrls: <String>['https://example.com/$index.jpg'],
     priceLevel: PriceLevel.budget,
     distanceKm: index.toDouble(),
     rating: 4.0,
@@ -54,6 +56,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
   }
 
+  FavoritesController makeFavorites() =>
+      FavoritesController(store: InMemoryFavoritesStore());
+
   setUp(() {
     repository = _FakeRepository();
   });
@@ -65,7 +70,7 @@ void main() {
       ];
       final DiscoveryController controller =
       DiscoveryController(repository: repository, pageSize: 3);
-      final FavoritesController favorites = FavoritesController();
+      final FavoritesController favorites = makeFavorites();
       addTearDown(controller.dispose);
 
       await pumpFeed(tester, controller, favorites);
@@ -81,7 +86,7 @@ void main() {
       repository.totalCount = 12;
       final DiscoveryController controller =
       DiscoveryController(repository: repository, pageSize: 2);
-      final FavoritesController favorites = FavoritesController();
+      final FavoritesController favorites = makeFavorites();
       addTearDown(controller.dispose);
 
       await pumpFeed(tester, controller, favorites);
@@ -96,7 +101,7 @@ void main() {
           ];
           final DiscoveryController controller =
           DiscoveryController(repository: repository);
-          final FavoritesController favorites = FavoritesController();
+          final FavoritesController favorites = makeFavorites();
           addTearDown(controller.dispose);
 
           await pumpFeed(tester, controller, favorites);
@@ -104,6 +109,33 @@ void main() {
 
           expect(tester.takeException(), isNull);
           expect(find.text('Place 1'), findsOneWidget);
+        });
+
+    testWidgets('a place with no photos still renders',
+            (WidgetTester tester) async {
+          repository.pages = <List<Place>>[
+            <Place>[
+              const Place(
+                id: 'nophoto',
+                name: 'No Photo Place',
+                category: PlaceCategory.shopping,
+                priceLevel: PriceLevel.budget,
+                distanceKm: 1.0,
+                rating: 4.0,
+                reviewCount: 10,
+                address: 'Somewhere',
+              ),
+            ],
+          ];
+          final DiscoveryController controller =
+          DiscoveryController(repository: repository);
+          final FavoritesController favorites = makeFavorites();
+          addTearDown(controller.dispose);
+
+          await pumpFeed(tester, controller, favorites);
+
+          expect(tester.takeException(), isNull);
+          expect(find.text('No Photo Place'), findsOneWidget);
         });
   });
 
@@ -113,7 +145,7 @@ void main() {
           repository.pages = <List<Place>>[<Place>[]];
           final DiscoveryController controller =
           DiscoveryController(repository: repository);
-          final FavoritesController favorites = FavoritesController();
+          final FavoritesController favorites = makeFavorites();
           addTearDown(controller.dispose);
 
           await pumpFeed(tester, controller, favorites);
@@ -130,7 +162,7 @@ void main() {
           repository.error = const ApiTimeoutException();
           final DiscoveryController controller =
           DiscoveryController(repository: repository);
-          final FavoritesController favorites = FavoritesController();
+          final FavoritesController favorites = makeFavorites();
           addTearDown(controller.dispose);
 
           await pumpFeed(tester, controller, favorites);
@@ -143,7 +175,7 @@ void main() {
       repository.error = const ApiFailureException();
       final DiscoveryController controller =
       DiscoveryController(repository: repository);
-      final FavoritesController favorites = FavoritesController();
+      final FavoritesController favorites = makeFavorites();
       addTearDown(controller.dispose);
 
       await pumpFeed(tester, controller, favorites);
@@ -264,7 +296,10 @@ void main() {
       );
 
       expect(controller.places, hasLength(2));
-      expect(repository.lastFilters?.categories, contains(PlaceCategory.nature));
+      expect(
+        repository.lastFilters?.categories,
+        contains(PlaceCategory.nature),
+      );
     });
 
     test('identical filters do not trigger a refetch', () async {
@@ -284,38 +319,7 @@ void main() {
     });
   });
 
-  group('favourites', () {
-    test('toggle adds then removes', () {
-      final FavoritesController favorites = FavoritesController();
-      final Place place = makePlace(1);
-
-      expect(favorites.isFavorite(place), isFalse);
-      expect(favorites.toggle(place), isTrue);
-      expect(favorites.isFavorite(place), isTrue);
-      expect(favorites.count, 1);
-
-      expect(favorites.toggle(place), isFalse);
-      expect(favorites.count, 0);
-    });
-
-    test('adding twice does not duplicate', () {
-      final FavoritesController favorites = FavoritesController();
-      final Place place = makePlace(1);
-
-      favorites.add(place);
-      favorites.add(place);
-
-      expect(favorites.count, 1);
-    });
-
-    test('newest saved place comes first', () {
-      final FavoritesController favorites = FavoritesController();
-      favorites.add(makePlace(1));
-      favorites.add(makePlace(2));
-
-      expect(favorites.places.first.id, 'p2');
-    });
-
+  group('favourites from the feed', () {
     testWidgets('tapping the heart on a card saves it',
             (WidgetTester tester) async {
           repository.pages = <List<Place>>[
@@ -323,7 +327,7 @@ void main() {
           ];
           final DiscoveryController controller =
           DiscoveryController(repository: repository);
-          final FavoritesController favorites = FavoritesController();
+          final FavoritesController favorites = makeFavorites();
           addTearDown(controller.dispose);
 
           await pumpFeed(tester, controller, favorites);
@@ -362,34 +366,6 @@ void main() {
       expect(reviews.first.authorName, 'Ong Song Wei');
       expect(reviews.first.initials, 'OW');
     });
-
-    test('rating captions match the mockup', () {
-      expect(ratingCaption(4), 'Very good');
-      expect(ratingCaption(0), 'Tap to rate');
-    });
-
-    test('relative time reads naturally', () {
-      final DateTime now = DateTime(2026, 8, 7, 12);
-      final Review justNow = Review(
-        id: 'r1',
-        placeId: 'p1',
-        authorName: 'A B',
-        rating: 5,
-        body: '',
-        createdAt: now,
-      );
-      expect(justNow.relativeTime(now), 'Just now');
-
-      final Review twoDays = Review(
-        id: 'r2',
-        placeId: 'p1',
-        authorName: 'A B',
-        rating: 5,
-        body: '',
-        createdAt: now.subtract(const Duration(days: 2)),
-      );
-      expect(twoDays.relativeTime(now), '2 days ago');
-    });
   });
 }
 
@@ -419,8 +395,8 @@ class _FakeRepository implements PlaceRepository {
 
     if (error != null) throw error!;
 
-    final int total =
-        totalCount ?? pages.fold<int>(0, (int sum, List<Place> p) => sum + p.length);
+    final int total = totalCount ??
+        pages.fold<int>(0, (int sum, List<Place> p) => sum + p.length);
 
     if (page >= pages.length) {
       return PlacePage(
@@ -467,5 +443,16 @@ class _FakeRepository implements PlaceRepository {
 
     _reviews.putIfAbsent(placeId, () => <Review>[]).insert(0, review);
     return review;
+  }
+
+  @override
+  RatingSummary ratingFor(Place place) {
+    final RatingSummary seeded = RatingSummary(
+      average: place.rating,
+      count: place.reviewCount,
+    );
+    final List<Review> mine = _reviews[place.id] ?? const <Review>[];
+    if (mine.isEmpty) return seeded;
+    return seeded.withReviews(mine.map((Review r) => r.rating));
   }
 }

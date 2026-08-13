@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:walkpenang/models/place.dart';
+import 'package:walkpenang/models/rating_summary.dart';
 import 'package:walkpenang/models/review.dart';
 import 'package:walkpenang/models/search_filters.dart';
 import 'package:walkpenang/services/place_filter.dart';
@@ -62,6 +63,10 @@ abstract class PlaceRepository {
     required String authorName,
     int photoCount,
   });
+
+  /// T-FD05.2 — the place's rating after any reviews submitted this session
+  /// have been folded in.
+  RatingSummary ratingFor(Place place);
 }
 
 /// Stands in for the real API. Filtering happens server-side in production,
@@ -81,6 +86,17 @@ class MockPlaceRepository implements PlaceRepository {
 
   /// Reviews submitted this session, newest first, keyed by place.
   final Map<String, List<Review>> _submitted = <String, List<Review>>{};
+
+  @override
+  RatingSummary ratingFor(Place place) {
+    final RatingSummary seeded = RatingSummary(
+      average: place.rating,
+      count: place.reviewCount,
+    );
+    final List<Review> mine = _submitted[place.id] ?? const <Review>[];
+    if (mine.isEmpty) return seeded;
+    return seeded.withReviews(mine.map((Review r) => r.rating));
+  }
 
   @override
   Future<PlacePage> fetchPlaces({
@@ -179,171 +195,211 @@ const OpeningHours _lateHours = OpeningHours(opensAtHour: 11, closesAtHour: 23);
 const OpeningHours _morningHours =
 OpeningHours(opensAtHour: 7, closesAtHour: 16);
 
+/// Trades past midnight — exercises the wrapping branch of isOpenAt.
+const OpeningHours _nightHours = OpeningHours(opensAtHour: 18, closesAtHour: 2);
+
+/// Three photos each so the detail carousel has something to page through.
+List<String> _photos(String seed) => <String>[
+  'https://picsum.photos/seed/$seed/600/400',
+  'https://picsum.photos/seed/${seed}b/600/400',
+  'https://picsum.photos/seed/${seed}c/600/400',
+];
+
 /// Sample Penang data. Image URLs point at a placeholder service so the
 /// caching and error paths get exercised for real.
 final List<Place> _seed = <Place>[
-  const Place(
+  Place(
     id: 'p01',
     name: 'Nasi Kandar Line Clear',
     category: PlaceCategory.food,
-    imageUrl: 'https://picsum.photos/seed/lineclear/600/400',
+    photoUrls: _photos('lineclear'),
     priceLevel: PriceLevel.budget,
     distanceKm: 0.3,
     rating: 4.5,
     reviewCount: 1820,
     address: '177 Jalan Penang, George Town, 10000 Penang',
-    hours: _lateHours,
-    dietaryTags: <DietaryPreference>{
+    hours: _nightHours,
+    contact: const ContactInfo(phone: '+60 4-261 4849'),
+    priceRange: const PriceRange(minRm: 8, maxRm: 20),
+    dietaryTags: const <DietaryPreference>{
       DietaryPreference.halal,
       DietaryPreference.noPork,
     },
     description: 'Late-night nasi kandar institution down a narrow alley.',
   ),
-  const Place(
+  Place(
     id: 'p02',
     name: 'Fort Cornwallis',
     category: PlaceCategory.heritage,
-    imageUrl: 'https://picsum.photos/seed/cornwallis/600/400',
+    photoUrls: _photos('cornwallis'),
     priceLevel: PriceLevel.budget,
     distanceKm: 0.7,
     rating: 4.7,
     reviewCount: 2340,
     address: 'Jalan Light, George Town, 10200 Penang',
     hours: _dayHours,
+    contact: const ContactInfo(
+      phone: '+60 4-263 9855',
+      website: 'https://www.penangmuseum.gov.my',
+    ),
+    priceRange: const PriceRange(minRm: 20, maxRm: 40, unit: 'entry'),
     description:
     'Star-shaped colonial fort on the waterfront, the largest intact '
         'fort in Malaysia.',
   ),
-  const Place(
+  Place(
     id: 'p03',
     name: 'Penang Hill',
     category: PlaceCategory.nature,
-    imageUrl: 'https://picsum.photos/seed/penanghill/600/400',
+    photoUrls: _photos('penanghill'),
     priceLevel: PriceLevel.moderate,
     distanceKm: 1.2,
     rating: 4.6,
     reviewCount: 3105,
     address: 'Jalan Stesen Bukit Bendera, Air Itam, 11300 Penang',
     hours: _morningHours,
+    contact: const ContactInfo(
+      phone: '+60 4-828 8880',
+      website: 'https://www.penanghill.gov.my',
+    ),
+    priceRange: const PriceRange(minRm: 30, maxRm: 80, unit: 'return ticket'),
     description: 'Funicular railway up to cooler air and a view of the strait.',
   ),
-  const Place(
+  Place(
     id: 'p04',
     name: 'Kek Lok Si Temple',
     category: PlaceCategory.heritage,
-    imageUrl: 'https://picsum.photos/seed/keklokdsi/600/400',
+    photoUrls: _photos('keklokdsi'),
     priceLevel: PriceLevel.budget,
     distanceKm: 2.1,
     rating: 4.8,
     reviewCount: 4210,
     address: 'Jalan Balik Pulau, Air Itam, 11500 Penang',
     hours: _dayHours,
-    dietaryTags: <DietaryPreference>{DietaryPreference.vegetarian},
+    contact: const ContactInfo(phone: '+60 4-828 3317'),
+    dietaryTags: const <DietaryPreference>{DietaryPreference.vegetarian},
     description: 'Hillside temple complex with a towering Guanyin statue.',
   ),
-  const Place(
+  Place(
     id: 'p05',
     name: 'China House',
     category: PlaceCategory.food,
-    imageUrl: 'https://picsum.photos/seed/chinahouse/600/400',
+    photoUrls: _photos('chinahouse'),
     priceLevel: PriceLevel.moderate,
     distanceKm: 0.9,
     rating: 4.4,
     reviewCount: 1560,
     address: '153 Lebuh Pantai, George Town, 10300 Penang',
     hours: _lateHours,
-    dietaryTags: <DietaryPreference>{DietaryPreference.vegetarian},
+    contact: const ContactInfo(
+      phone: '+60 4-263 7299',
+      website: 'https://www.chinahouse.com.my',
+    ),
+    priceRange: const PriceRange(minRm: 25, maxRm: 70),
+    dietaryTags: const <DietaryPreference>{DietaryPreference.vegetarian},
     description: 'Long shophouse cafe known for its cake counter.',
   ),
-  const Place(
+  Place(
     id: 'p06',
     name: 'Pinang Peranakan Mansion',
     category: PlaceCategory.museum,
-    imageUrl: 'https://picsum.photos/seed/peranakan/600/400',
+    photoUrls: _photos('peranakan'),
     priceLevel: PriceLevel.moderate,
     distanceKm: 1.0,
     rating: 4.5,
     reviewCount: 1980,
     address: '29 Church Street, George Town, 10200 Penang',
     hours: _dayHours,
+    contact: const ContactInfo(phone: '+60 4-264 2929'),
+    priceRange: const PriceRange(minRm: 25, maxRm: 25, unit: 'entry'),
     description: 'Baba-Nyonya antiques inside a restored emerald mansion.',
   ),
-  const Place(
+  Place(
     id: 'p07',
     name: 'Gurney Plaza',
     category: PlaceCategory.shopping,
-    imageUrl: 'https://picsum.photos/seed/gurneyplaza/600/400',
+    photoUrls: _photos('gurneyplaza'),
     priceLevel: PriceLevel.moderate,
     distanceKm: 3.9,
     rating: 4.2,
     reviewCount: 2870,
     address: '170 Persiaran Gurney, 10250 Penang',
     hours: _lateHours,
-    dietaryTags: <DietaryPreference>{DietaryPreference.halal},
+    contact: const ContactInfo(website: 'https://www.gurneyplaza.com.my'),
+    dietaryTags: const <DietaryPreference>{DietaryPreference.halal},
     description: 'Seafront mall with a food court on the top floor.',
   ),
-  const Place(
+  // No hours, no contact, no price range — exercises the T-FD03.3 paths.
+  Place(
     id: 'p08',
     name: 'Chulia Street Night Hawkers',
     category: PlaceCategory.food,
-    imageUrl: 'https://picsum.photos/seed/chulia/600/400',
+    photoUrls: _photos('chulia'),
     priceLevel: PriceLevel.budget,
     distanceKm: 0.6,
     rating: 4.3,
     reviewCount: 940,
     address: 'Lebuh Chulia, George Town, 10200 Penang',
-    hours: _lateHours,
-    dietaryTags: <DietaryPreference>{DietaryPreference.noBeef},
+    dietaryTags: const <DietaryPreference>{DietaryPreference.noBeef},
     description: 'Char kway teow and wan tan mee from dusk onwards.',
   ),
-  const Place(
+  Place(
     id: 'p09',
     name: 'Khoo Kongsi Clan House',
     category: PlaceCategory.heritage,
-    imageUrl: 'https://picsum.photos/seed/khookongsi/600/400',
+    photoUrls: _photos('khookongsi'),
     priceLevel: PriceLevel.budget,
     distanceKm: 1.4,
     rating: 4.6,
     reviewCount: 1730,
     address: '18 Cannon Square, George Town, 10200 Penang',
     hours: _dayHours,
+    contact: const ContactInfo(phone: '+60 4-261 4609'),
+    priceRange: const PriceRange(minRm: 15, maxRm: 15, unit: 'entry'),
     description: 'Ornate clan temple at the heart of the George Town core.',
   ),
-  const Place(
+  Place(
     id: 'p10',
     name: 'Tropical Spice Garden',
     category: PlaceCategory.nature,
-    imageUrl: 'https://picsum.photos/seed/spicegarden/600/400',
+    photoUrls: _photos('spicegarden'),
     priceLevel: PriceLevel.moderate,
     distanceKm: 11.2,
     rating: 4.4,
     reviewCount: 1120,
     address: 'Lot 595 Jalan Teluk Bahang, 11100 Penang',
     hours: _dayHours,
-    dietaryTags: <DietaryPreference>{
+    contact: const ContactInfo(
+      phone: '+60 4-881 1797',
+      website: 'https://tropicalspicegarden.com',
+    ),
+    priceRange: const PriceRange(minRm: 28, maxRm: 28, unit: 'entry'),
+    dietaryTags: const <DietaryPreference>{
       DietaryPreference.vegetarian,
       DietaryPreference.vegan,
     },
     description: 'Terraced jungle garden with a cooking school.',
   ),
-  const Place(
+  Place(
     id: 'p11',
     name: 'Penang State Museum',
     category: PlaceCategory.museum,
-    imageUrl: 'https://picsum.photos/seed/statemuseum/600/400',
+    photoUrls: _photos('statemuseum'),
     priceLevel: PriceLevel.budget,
     distanceKm: 1.3,
     rating: 4.0,
     reviewCount: 680,
     address: 'Lebuh Farquhar, George Town, 10200 Penang',
     hours: _dayHours,
+    contact: const ContactInfo(phone: '+60 4-226 1461'),
+    priceRange: const PriceRange(minRm: 1, maxRm: 1, unit: 'entry'),
     description: 'Colonial-era building tracing the island settlement story.',
   ),
+  // No photos at all — the grid card and carousel must fall back cleanly.
   const Place(
     id: 'p12',
     name: 'Hin Bus Depot',
     category: PlaceCategory.shopping,
-    imageUrl: 'https://picsum.photos/seed/hinbus/600/400',
     priceLevel: PriceLevel.moderate,
     distanceKm: 1.7,
     rating: 4.3,
