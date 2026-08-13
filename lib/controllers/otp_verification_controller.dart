@@ -6,6 +6,7 @@ import '../models/user_profile.dart';
 import '../services/auth_service.dart';
 import '../services/otp_service.dart';
 import '../services/profile_store.dart';
+import '../utils/validators.dart';
 
 /// Where the view should go once verification finishes.
 enum OtpNext {
@@ -66,8 +67,7 @@ class OtpVerificationController extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   String get email => _service.currentEmail;
 
-  String? validateOtp(String? v) =>
-      (v == null || v.trim().length != 6) ? 'Enter all 6 digits' : null;
+  String? validateOtp(String? v) => Validators.otp(v);
 
   /// Sends the first code when the screen opens.
   ///

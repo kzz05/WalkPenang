@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/user_profile.dart';
 import '../services/auth_service.dart';
 import '../services/profile_store.dart';
+import '../utils/validators.dart';
 
 /// Controller for the edit-profile screen.
 ///
@@ -51,11 +52,17 @@ class EditProfileController extends ChangeNotifier {
     _safeNotify();
   }
 
-  String? validateRequired(String? v, String message) =>
-      (v == null || v.trim().isEmpty) ? message : null;
+  // ── Validation rules ──────────────────────────────────────────────────────
+  // Same rules the sign-up form applies, so a profile that was valid at
+  // registration can't be edited into an invalid one.
 
-  String? validateMeasurement(String? v, String message) =>
-      (double.tryParse(v ?? '') ?? 0) <= 0 ? message : null;
+  String? validateNickname(String? v) => Validators.nickname(v);
+
+  String? validatePhone(String? v) => Validators.phone(v);
+
+  String? validateHeight(String? v) => Validators.heightCm(v);
+
+  String? validateWeight(String? v) => Validators.weightKg(v);
 
   Future<void> pickImage() async {
     final picked = await ImagePicker().pickImage(

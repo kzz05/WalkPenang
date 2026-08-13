@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../constants/validation_messages.dart';
+import '../../models/password_strength.dart';
 import '../../theme/app_theme.dart';
 
 /// Shared building blocks for every screen — the "WalkPenang design system".
@@ -222,6 +224,106 @@ class WpField extends StatelessWidget {
               borderSide: BorderSide(color: Colors.redAccent),
             ),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Four-segment strength meter with a requirement checklist, shown directly
+/// under the password field while the user types.
+///
+/// Purely presentational — the grading lives in [PasswordStrength] so it can
+/// be unit-tested without a widget binding.
+class WpPasswordStrengthMeter extends StatelessWidget {
+  final PasswordStrength strength;
+
+  const WpPasswordStrengthMeter({super.key, required this.strength});
+
+  static const _segments = 4;
+
+  Color get _color => switch (strength.level) {
+        PasswordStrengthLevel.empty => AppColors.placeholder,
+        PasswordStrengthLevel.weak => AppColors.danger,
+        PasswordStrengthLevel.fair => AppColors.warning,
+        PasswordStrengthLevel.good ||
+        PasswordStrengthLevel.strong =>
+          AppColors.success,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    // 0.25 → 1 segment, 1.0 → 4 segments.
+    final filled = (strength.fraction * _segments).round();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            for (var i = 0; i < _segments; i++) ...[
+              if (i > 0) const SizedBox(width: 6),
+              Expanded(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: i < filled ? _color : AppColors.placeholder,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // The "12+ characters recommended" nudge retires once earned.
+            if (strength.level != PasswordStrengthLevel.strong)
+              const Flexible(child: WpMonoLabel(ValidationMessages.strengthHint))
+            else
+              const SizedBox.shrink(),
+            if (strength.label.isNotEmpty)
+              WpMonoLabel(strength.label, color: _color),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 14,
+          runSpacing: 6,
+          children: [
+            for (final requirement in strength.requirements)
+              _RequirementPip(requirement: requirement),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// One tick/dot + label pair in the password checklist.
+class _RequirementPip extends StatelessWidget {
+  final PasswordRequirement requirement;
+
+  const _RequirementPip({required this.requirement});
+
+  @override
+  Widget build(BuildContext context) {
+    final met = requirement.met;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          met ? Icons.check_circle : Icons.circle_outlined,
+          size: 13,
+          color: met ? AppColors.success : AppColors.muted,
+        ),
+        const SizedBox(width: 5),
+        WpMonoLabel(
+          requirement.label,
+          color: met ? AppColors.success : AppColors.muted,
         ),
       ],
     );
