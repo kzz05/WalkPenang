@@ -1,318 +1,330 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:walkpenang/controllers/discovery_controller.dart';
 import 'package:walkpenang/models/place.dart';
-import 'package:walkpenang/models/search_filter.dart';
-import 'package:walkpenang/views/discovery_feed_screen.dart';
-import 'package:walkpenang/services/place_repository.dart';
-import 'package:walkpenang/views/widgets/place_card.dart';
+import 'package:walkpenang/models/search_filters.dart';
+import 'package:walkpenang/services/place_filter.dart';
 
-/// T-FD02.3 — feed rendering, offline image fallback, API timeout errors.
-///
-/// Note on images: flutter_test blocks real HTTP, so every CachedNetworkImage
-/// falls through to its errorWidget. That's convenient — it means these tests
-/// exercise the offline fallback path by default.
+/// T-FD01.3 — keyword queries, zero-result states, filter reset.
 void main() {
-  /// Fake repository with no real latency, so tests stay fast and predictable.
-  late _FakeRepository repository;
+  const OpeningHours dayHours = OpeningHours(opensAtHour: 8, closesAtHour: 19);
+  const OpeningHours eveningHours =
+  OpeningHours(opensAtHour: 18, closesAtHour: 23);
 
-  Place makePlace(int index) => Place(
-    id: 'p$index',
-    name: 'Place $index',
-    category: 'Cafe',
-    imageUrl: 'https://example.com/$index.jpg',
-    priceLevel: PriceLevel.budget,
-    distanceKm: index.toDouble(),
-    rating: 4.0,
-    description: 'Description $index',
-  );
+  final List<Place> fixtures = <Place>[
+    const Place(
+      id: 'a',
+      name: 'Nasi Kandar Line Clear',
+      category: PlaceCategory.food,
+      priceLevel: PriceLevel.budget,
+      distanceKm: 0.3,
+      rating: 4.5,
+      reviewCount: 1820,
+      address: '177 Jalan Penang, George Town',
+      hours: eveningHours,
+      dietaryTags: <DietaryPreference>{
+        DietaryPreference.halal,
+        DietaryPreference.noPork,
+      },
+      description: 'Late-night nasi kandar off Penang Road.',
+    ),
+    const Place(
+      id: 'b',
+      name: 'Fort Cornwallis',
+      category: PlaceCategory.heritage,
+      priceLevel: PriceLevel.moderate,
+      distanceKm: 0.7,
+      rating: 4.7,
+      reviewCount: 2340,
+      address: 'Jalan Light, George Town',
+      hours: dayHours,
+      description: 'Star-shaped colonial fort on the waterfront.',
+    ),
+    const Place(
+      id: 'c',
+      name: 'Tropical Spice Garden',
+      category: PlaceCategory.nature,
+      priceLevel: PriceLevel.premium,
+      distanceKm: 14.0,
+      rating: 4.4,
+      reviewCount: 1120,
+      address: 'Jalan Teluk Bahang',
+      hours: dayHours,
+      dietaryTags: <DietaryPreference>{
+        DietaryPreference.vegetarian,
+        DietaryPreference.vegan,
+      },
+      description: 'Terraced jungle garden with a cooking school.',
+    ),
+  ];
 
-  Future<void> pumpFeed(
-      WidgetTester tester,
-      DiscoveryController controller,
-      ) async {
-    await tester.pumpWidget(
-      MaterialApp(home: DiscoveryFeedScreen(controller: controller)),
-    );
-    // One pump runs the post-frame loadInitial, the next settles the result.
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
-  }
+  /// Midday, so day-hours places are open and evening-only ones are not.
+  final DateTime noon = DateTime(2026, 8, 7, 12);
 
-  setUp(() {
-    repository = _FakeRepository();
-  });
-
-  group('feed rendering', () {
-    testWidgets('renders a card per place', (WidgetTester tester) async {
-      // ListView.builder only creates visible rows, so the default 800x600
-      // surface fits two cards. Give it room for all three.
-      tester.view.physicalSize = const Size(1000, 2400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-
-      repository.pages = <List<Place>>[
-        <Place>[makePlace(1), makePlace(2), makePlace(3)],
-      ];
-      final DiscoveryController controller =
-      DiscoveryController(repository: repository, pageSize: 3);
-      addTearDown(controller.dispose);
-
-      await pumpFeed(tester, controller);
-
-      expect(find.byType(PlaceCard), findsNWidgets(3));
-      expect(find.text('Place 1'), findsOneWidget);
+  group('keyword search', () {
+    test('empty keyword returns everything', () {
+      expect(applyFilters(fixtures, const SearchFilters()), hasLength(3));
     });
 
-    testWidgets('shows a spinner before the first page arrives',
-            (WidgetTester tester) async {
-          repository.pages = <List<Place>>[
-            <Place>[makePlace(1)],
-          ];
-          repository.latency = const Duration(seconds: 1);
-          final DiscoveryController controller =
-          DiscoveryController(repository: repository);
-          addTearDown(controller.dispose);
-
-          await tester.pumpWidget(
-            MaterialApp(home: DiscoveryFeedScreen(controller: controller)),
-          );
-          await tester.pump();
-
-          expect(find.byType(CircularProgressIndicator), findsWidgets);
-
-          await tester.pump(const Duration(seconds: 1));
-          expect(find.byType(PlaceCard), findsOneWidget);
-        });
-
-    testWidgets('falls back gracefully when images cannot load',
-            (WidgetTester tester) async {
-          // No network in tests, so the errorWidget renders. The card must still
-          // lay out and show its text rather than throwing.
-          repository.pages = <List<Place>>[
-            <Place>[makePlace(1)],
-          ];
-          final DiscoveryController controller =
-          DiscoveryController(repository: repository);
-          addTearDown(controller.dispose);
-
-          await pumpFeed(tester, controller);
-          await tester.pump(const Duration(milliseconds: 300));
-
-          expect(tester.takeException(), isNull);
-          expect(find.text('Place 1'), findsOneWidget);
-        });
-  });
-
-  group('zero-result state', () {
-    testWidgets('shows the empty state with a clear-filters action',
-            (WidgetTester tester) async {
-          repository.pages = <List<Place>>[<Place>[]];
-          final DiscoveryController controller =
-          DiscoveryController(repository: repository);
-          addTearDown(controller.dispose);
-
-          await pumpFeed(tester, controller);
-
-          expect(find.text('No matches'), findsOneWidget);
-          expect(find.byType(PlaceCard), findsNothing);
-          expect(find.widgetWithText(FilledButton, 'Clear filters'), findsWidgets);
-        });
-  });
-
-  group('API errors', () {
-    testWidgets('timeout shows the error state with a retry',
-            (WidgetTester tester) async {
-          repository.error = const ApiTimeoutException();
-          final DiscoveryController controller =
-          DiscoveryController(repository: repository);
-          addTearDown(controller.dispose);
-
-          await pumpFeed(tester, controller);
-
-          expect(find.text('Feed unavailable'), findsOneWidget);
-          expect(find.text('Try again'), findsOneWidget);
-        });
-
-    testWidgets('retry refetches and recovers', (WidgetTester tester) async {
-      repository.error = const ApiFailureException();
-      final DiscoveryController controller =
-      DiscoveryController(repository: repository);
-      addTearDown(controller.dispose);
-
-      await pumpFeed(tester, controller);
-      expect(find.text('Feed unavailable'), findsOneWidget);
-
-      // Backend comes back up.
-      repository.error = null;
-      repository.pages = <List<Place>>[
-        <Place>[makePlace(1)],
-      ];
-
-      await tester.tap(find.text('Try again'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
-
-      expect(find.byType(PlaceCard), findsOneWidget);
+    test('matches on name, case-insensitively', () {
+      final List<Place> result =
+      applyFilters(fixtures, const SearchFilters(keyword: 'cornwallis'));
+      expect(result.single.id, 'b');
     });
 
-    test('a failed load-more keeps the pages already on screen', () async {
-      repository.pages = <List<Place>>[
-        <Place>[makePlace(1), makePlace(2)],
-        // A second page, so hasMore stays true and loadMore actually fetches.
-        <Place>[makePlace(3), makePlace(4)],
-      ];
-      final DiscoveryController controller =
-      DiscoveryController(repository: repository, pageSize: 2);
-      addTearDown(controller.dispose);
+    test('matches on description and address too', () {
+      expect(
+        applyFilters(fixtures, const SearchFilters(keyword: 'jungle'))
+            .single
+            .id,
+        'c',
+      );
+      expect(
+        applyFilters(fixtures, const SearchFilters(keyword: 'teluk'))
+            .single
+            .id,
+        'c',
+      );
+    });
 
-      await controller.loadInitial();
-      expect(controller.places, hasLength(2));
+    test('all terms must match, not just one', () {
+      expect(
+        applyFilters(fixtures, const SearchFilters(keyword: 'nasi')),
+        hasLength(1),
+      );
+      expect(
+        applyFilters(fixtures, const SearchFilters(keyword: 'nasi sushi')),
+        isEmpty,
+      );
+    });
 
-      repository.error = const ApiTimeoutException();
-      await controller.loadMore();
-
-      expect(controller.places, hasLength(2));
-      expect(controller.status, FeedStatus.ready);
-      expect(controller.errorMessage, isNotNull);
+    test('surrounding whitespace is ignored', () {
+      final List<Place> result =
+      applyFilters(fixtures, const SearchFilters(keyword: '  fort  '));
+      expect(result.single.id, 'b');
     });
   });
 
-  group('pagination', () {
-    test('loadMore appends the next page', () async {
-      repository.pages = <List<Place>>[
-        <Place>[makePlace(1), makePlace(2)],
-        <Place>[makePlace(3), makePlace(4)],
-      ];
-      final DiscoveryController controller =
-      DiscoveryController(repository: repository, pageSize: 2);
-      addTearDown(controller.dispose);
-
-      await controller.loadInitial();
-      expect(controller.places, hasLength(2));
-
-      await controller.loadMore();
-      expect(controller.places, hasLength(4));
-      expect(controller.places.last.id, 'p4');
+  group('zero-result states', () {
+    test('unmatched keyword yields an empty list, not an error', () {
+      expect(
+        applyFilters(fixtures, const SearchFilters(keyword: 'zzzzz')),
+        isEmpty,
+      );
     });
 
-    test('stops fetching once the last page is reached', () async {
-      repository.pages = <List<Place>>[
-        <Place>[makePlace(1)],
-      ];
-      final DiscoveryController controller =
-      DiscoveryController(repository: repository, pageSize: 1);
-      addTearDown(controller.dispose);
-
-      await controller.loadInitial();
-      expect(controller.hasMore, isFalse);
-
-      final int callsBefore = repository.callCount;
-      await controller.loadMore();
-      expect(repository.callCount, callsBefore);
+    test('impossible filter combination yields empty', () {
+      final List<Place> result = applyFilters(
+        fixtures,
+        const SearchFilters(
+          minPriceLevel: PriceLevel.premium,
+          maxDistanceKm: 1.0,
+        ),
+      );
+      expect(result, isEmpty);
     });
 
-    test('never adds the same place twice', () async {
-      repository.pages = <List<Place>>[
-        <Place>[makePlace(1), makePlace(2)],
-        // Backend accidentally repeats an item across page boundaries.
-        <Place>[makePlace(2), makePlace(3)],
-      ];
-      final DiscoveryController controller =
-      DiscoveryController(repository: repository, pageSize: 2);
-      addTearDown(controller.dispose);
-
-      await controller.loadInitial();
-      await controller.loadMore();
-
-      expect(controller.places.map((Place p) => p.id).toSet(), hasLength(3));
-    });
-
-    test('refresh resets to page zero', () async {
-      repository.pages = <List<Place>>[
-        <Place>[makePlace(1), makePlace(2)],
-        <Place>[makePlace(3), makePlace(4)],
-      ];
-      final DiscoveryController controller =
-      DiscoveryController(repository: repository, pageSize: 2);
-      addTearDown(controller.dispose);
-
-      await controller.loadInitial();
-      await controller.loadMore();
-      expect(controller.places, hasLength(4));
-
-      await controller.refresh();
-      expect(controller.places, hasLength(2));
-    });
-
-    test('changing filters resets the cursor', () async {
-      repository.pages = <List<Place>>[
-        <Place>[makePlace(1), makePlace(2)],
-        <Place>[makePlace(3), makePlace(4)],
-      ];
-      final DiscoveryController controller =
-      DiscoveryController(repository: repository, pageSize: 2);
-      addTearDown(controller.dispose);
-
-      await controller.loadInitial();
-      await controller.loadMore();
-
-      await controller.updateFilters(const SearchFilters(keyword: 'cafe'));
-
-      expect(controller.places, hasLength(2));
-      expect(repository.lastFilters?.keyword, 'cafe');
-    });
-
-    test('identical filters do not trigger a refetch', () async {
-      repository.pages = <List<Place>>[
-        <Place>[makePlace(1)],
-      ];
-      final DiscoveryController controller =
-      DiscoveryController(repository: repository);
-      addTearDown(controller.dispose);
-
-      await controller.loadInitial();
-      final int callsBefore = repository.callCount;
-
-      await controller.updateFilters(const SearchFilters());
-
-      expect(repository.callCount, callsBefore);
+    test('conflicting dietary tags yield empty', () {
+      final List<Place> result = applyFilters(
+        fixtures,
+        const SearchFilters(
+          dietary: <DietaryPreference>{
+            DietaryPreference.halal,
+            DietaryPreference.vegan,
+          },
+        ),
+      );
+      expect(result, isEmpty);
     });
   });
-}
 
-/// Scriptable stand-in for the API: hand it pages, or an error to throw.
-class _FakeRepository implements PlaceRepository {
-  List<List<Place>> pages = <List<Place>>[];
-  Exception? error;
-  Duration latency = Duration.zero;
-  int callCount = 0;
-  SearchFilters? lastFilters;
+  group('category, dietary, price, distance', () {
+    test('no categories selected means All', () {
+      expect(applyFilters(fixtures, const SearchFilters()), hasLength(3));
+    });
 
-  @override
-  Future<PlacePage> fetchPlaces({
-    required SearchFilters filters,
-    required int page,
-    int pageSize = 10,
-  }) async {
-    callCount++;
-    lastFilters = filters;
+    test('single category narrows correctly', () {
+      final List<Place> result = applyFilters(
+        fixtures,
+        const SearchFilters(categories: <PlaceCategory>{PlaceCategory.food}),
+      );
+      expect(result.single.id, 'a');
+    });
 
-    if (latency > Duration.zero) {
-      await Future<void>.delayed(latency);
-    }
+    test('multiple categories are an OR', () {
+      final List<Place> result = applyFilters(
+        fixtures,
+        const SearchFilters(categories: <PlaceCategory>{
+          PlaceCategory.food,
+          PlaceCategory.nature,
+        }),
+      );
+      expect(result.map((Place p) => p.id), containsAll(<String>['a', 'c']));
+      expect(result, hasLength(2));
+    });
 
-    if (error != null) throw error!;
+    test('dietary filter is AND, not OR', () {
+      final List<Place> result = applyFilters(
+        fixtures,
+        const SearchFilters(dietary: <DietaryPreference>{
+          DietaryPreference.vegetarian,
+          DietaryPreference.vegan,
+        }),
+      );
+      expect(result.single.id, 'c');
+    });
 
-    if (page >= pages.length) {
-      return PlacePage(items: const <Place>[], page: page, hasMore: false);
-    }
+    test('price range is inclusive at both ends', () {
+      final List<Place> result = applyFilters(
+        fixtures,
+        const SearchFilters(
+          minPriceLevel: PriceLevel.moderate,
+          maxPriceLevel: PriceLevel.premium,
+        ),
+      );
+      expect(result.map((Place p) => p.id), containsAll(<String>['b', 'c']));
+      expect(result.map((Place p) => p.id), isNot(contains('a')));
+    });
 
-    return PlacePage(
-      items: pages[page],
-      page: page,
-      hasMore: page + 1 < pages.length,
-    );
-  }
+    test('distance filter excludes anything further out', () {
+      final List<Place> result =
+      applyFilters(fixtures, const SearchFilters(maxDistanceKm: 1.0));
+      expect(result.map((Place p) => p.id), <String>['a', 'b']);
+    });
+  });
+
+  group('open now', () {
+    test('excludes places closed at the given time', () {
+      final List<Place> result = applyFilters(
+        fixtures,
+        const SearchFilters(openNowOnly: true),
+        now: noon,
+      );
+      // The evening-only nasi kandar drops out at midday.
+      expect(result.map((Place p) => p.id), <String>['b', 'c']);
+    });
+
+    test('includes everything when the toggle is off', () {
+      final List<Place> result =
+      applyFilters(fixtures, const SearchFilters(), now: noon);
+      expect(result, hasLength(3));
+    });
+
+    test('a place with no published hours is excluded by open-now', () {
+      const Place unknown = Place(
+        id: 'd',
+        name: 'Mystery Stall',
+        category: PlaceCategory.food,
+        priceLevel: PriceLevel.budget,
+        distanceKm: 0.5,
+        rating: 4.0,
+        reviewCount: 12,
+        address: 'Lebuh Chulia',
+      );
+
+      final List<Place> result = applyFilters(
+        <Place>[unknown],
+        const SearchFilters(openNowOnly: true),
+        now: noon,
+      );
+      expect(result, isEmpty);
+
+      // But it still shows when the toggle is off.
+      expect(
+        applyFilters(<Place>[unknown], const SearchFilters(), now: noon),
+        hasLength(1),
+      );
+    });
+  });
+
+  group('sorting', () {
+    test('nearest first', () {
+      final List<Place> result = applyFilters(
+        fixtures,
+        const SearchFilters(sortBy: SortOption.distance),
+      );
+      expect(result.map((Place p) => p.id), <String>['a', 'b', 'c']);
+    });
+
+    test('top rated first', () {
+      final List<Place> result = applyFilters(
+        fixtures,
+        const SearchFilters(sortBy: SortOption.rating),
+      );
+      expect(result.first.id, 'b');
+    });
+
+    test('price low to high', () {
+      final List<Place> result = applyFilters(
+        fixtures,
+        const SearchFilters(sortBy: SortOption.priceLowToHigh),
+      );
+      expect(result.map((Place p) => p.id), <String>['a', 'b', 'c']);
+    });
+  });
+
+  group('filter reset', () {
+    test('cleared() restores the default state', () {
+      const SearchFilters busy = SearchFilters(
+        keyword: 'fort',
+        categories: <PlaceCategory>{PlaceCategory.heritage},
+        dietary: <DietaryPreference>{DietaryPreference.vegetarian},
+        maxDistanceKm: 2,
+        openNowOnly: true,
+        sortBy: SortOption.rating,
+      );
+
+      expect(busy.isEmpty, isFalse);
+      expect(busy.cleared(), const SearchFilters());
+      expect(busy.cleared().isEmpty, isTrue);
+    });
+
+    test('reset brings back every result', () {
+      const SearchFilters narrow = SearchFilters(keyword: 'zzzzz');
+      expect(applyFilters(fixtures, narrow), isEmpty);
+      expect(applyFilters(fixtures, narrow.cleared()), hasLength(3));
+    });
+
+    test('activeCount reflects how many filters are narrowing results', () {
+      const SearchFilters filters = SearchFilters(
+        keyword: 'fort',
+        categories: <PlaceCategory>{
+          PlaceCategory.heritage,
+          PlaceCategory.museum,
+        },
+        dietary: <DietaryPreference>{DietaryPreference.vegetarian},
+        openNowOnly: true,
+      );
+      // 1 keyword + 2 categories + 1 dietary + 1 open-now
+      expect(filters.activeCount, 5);
+      expect(const SearchFilters().activeCount, 0);
+    });
+
+    test('equal filters compare equal, so no redundant refetch fires', () {
+      const SearchFilters a = SearchFilters(
+        keyword: 'nasi',
+        categories: <PlaceCategory>{PlaceCategory.food, PlaceCategory.nature},
+      );
+      const SearchFilters b = SearchFilters(
+        keyword: 'nasi',
+        // Same set, different insertion order.
+        categories: <PlaceCategory>{PlaceCategory.nature, PlaceCategory.food},
+      );
+      expect(a, b);
+      expect(a.hashCode, b.hashCode);
+    });
+  });
+
+  group('display helpers', () {
+    test('review counts get thousands separators', () {
+      expect(fixtures[1].reviewCountLabel, '2,340');
+    });
+
+    test('distance label is one decimal place', () {
+      expect(fixtures[0].distanceLabel, '0.3 km');
+    });
+
+    test('opening hours render as a 12-hour range', () {
+      expect(dayHours.displayRange, '8:00 AM - 7:00 PM');
+    });
+  });
 }
