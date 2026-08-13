@@ -424,6 +424,7 @@ class WpBottomNav extends StatelessWidget {
   static const _icons = {
     'home': Icons.home_outlined,
     'map': Icons.map_outlined,
+    'explore': Icons.explore_outlined,
     'walk': Icons.directions_walk,
     'rewards': Icons.emoji_events_outlined,
   };
