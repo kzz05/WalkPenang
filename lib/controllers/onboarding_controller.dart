@@ -4,9 +4,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../models/password_strength.dart';
 import '../models/user_profile.dart';
 import '../services/auth_service.dart';
 import '../services/profile_store.dart';
+import '../utils/validators.dart';
 
 /// What the view should do once an onboarding step finishes.
 enum OnboardingNext {
@@ -40,6 +42,7 @@ class OnboardingController extends ChangeNotifier {
   OnboardingController({User? existingUser}) {
     weightCtrl.addListener(_recalculateBmi);
     heightCtrl.addListener(_recalculateBmi);
+    passwordCtrl.addListener(_recalculatePasswordStrength);
 
     if (existingUser != null) {
       _authenticatedUser = existingUser;
@@ -72,6 +75,7 @@ class OnboardingController extends ChangeNotifier {
   bool _obscurePassword = true;
   double _bmi = 0.0;
   String _bmiCategory = '';
+  PasswordStrength _passwordStrength = PasswordStrength.of('');
   bool _disposed = false;
 
   /// True once the user is signed in — the view swaps to the metrics form.
@@ -82,6 +86,10 @@ class OnboardingController extends ChangeNotifier {
   bool get obscurePassword => _obscurePassword;
   double get bmi => _bmi;
   String get bmiCategory => _bmiCategory;
+
+  /// Live grading of whatever is currently in the password field, driving the
+  /// strength meter under it.
+  PasswordStrength get passwordStrength => _passwordStrength;
 
   void togglePasswordVisibility() {
     _obscurePassword = !_obscurePassword;
@@ -94,19 +102,39 @@ class OnboardingController extends ChangeNotifier {
   }
 
   // ── Validation rules ──────────────────────────────────────────────────────
+  // Thin delegates to Validators so the view never imports it directly and
+  // the same rules apply on the edit-profile screen.
 
-  String? validateEmail(String? v) =>
-      (v == null || !v.contains('@')) ? 'Provide a valid email' : null;
+  String? validateEmail(String? v) => Validators.email(v);
 
-  String? validatePassword(String? v) => (v == null || v.length < 6)
-      ? 'Password must be at least 6 characters'
-      : null;
+  String? validatePassword(String? v) => Validators.password(v);
 
-  String? validateRequired(String? v, String message) =>
-      (v == null || v.trim().isEmpty) ? message : null;
+  String? validateNickname(String? v) => Validators.nickname(v);
 
-  String? validateMeasurement(String? v) =>
-      (double.tryParse(v ?? '') ?? 0) <= 0 ? 'Invalid' : null;
+  String? validatePhone(String? v) => Validators.phone(v);
+
+  String? validateHeight(String? v) => Validators.heightCm(v);
+
+  String? validateWeight(String? v) => Validators.weightKg(v);
+
+  // ── Live password strength ────────────────────────────────────────────────
+
+  void _recalculatePasswordStrength() {
+    final next = PasswordStrength.of(passwordCtrl.text);
+    // Most keystrokes leave the meter looking identical — don't rebuild the
+    // whole form for those.
+    if (_looksTheSame(next, _passwordStrength)) return;
+    _passwordStrength = next;
+    _safeNotify();
+  }
+
+  static bool _looksTheSame(PasswordStrength a, PasswordStrength b) {
+    if (a.level != b.level) return false;
+    for (var i = 0; i < a.requirements.length; i++) {
+      if (a.requirements[i].met != b.requirements[i].met) return false;
+    }
+    return true;
+  }
 
   // ── Live BMI preview ──────────────────────────────────────────────────────
 
@@ -259,6 +287,7 @@ class OnboardingController extends ChangeNotifier {
     _disposed = true;
     weightCtrl.removeListener(_recalculateBmi);
     heightCtrl.removeListener(_recalculateBmi);
+    passwordCtrl.removeListener(_recalculatePasswordStrength);
     emailCtrl.dispose();
     passwordCtrl.dispose();
     nicknameCtrl.dispose();

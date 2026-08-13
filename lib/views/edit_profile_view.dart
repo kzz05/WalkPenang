@@ -93,21 +93,22 @@ class _EditProfileViewState extends State<EditProfileView> {
             const SizedBox(height: 28),
             Form(
               key: _controller.formKey,
+              // Errors appear as soon as the user has touched a field, rather
+              // than waiting for the save tap.
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               child: Column(
                 children: [
                   WpField(
                     label: 'nickname',
                     controller: _controller.nicknameCtrl,
-                    validator: (v) => _controller.validateRequired(
-                        v, 'Name cannot be empty'),
+                    validator: _controller.validateNickname,
                   ),
                   const SizedBox(height: 20),
                   WpField(
                     label: 'contact number',
                     controller: _controller.phoneCtrl,
                     keyboardType: TextInputType.phone,
-                    validator: (v) => _controller.validateRequired(
-                        v, 'Contact number cannot be empty'),
+                    validator: _controller.validatePhone,
                   ),
                   const SizedBox(height: 20),
                   Row(
@@ -119,8 +120,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                           controller: _controller.heightCtrl,
                           keyboardType: const TextInputType.numberWithOptions(
                               decimal: true),
-                          validator: (v) => _controller.validateMeasurement(
-                              v, 'Invalid height'),
+                          validator: _controller.validateHeight,
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -130,8 +130,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                           controller: _controller.weightCtrl,
                           keyboardType: const TextInputType.numberWithOptions(
                               decimal: true),
-                          validator: (v) => _controller.validateMeasurement(
-                              v, 'Invalid weight'),
+                          validator: _controller.validateWeight,
                         ),
                       ),
                     ],

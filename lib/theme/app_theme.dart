@@ -27,6 +27,19 @@ class AppColors {
 
   /// Empty-avatar and progress-track fill.
   static const placeholder = Color(0xFFCFD5D0);
+
+  // ── Semantic status shades ──────────────────────────────────────────────
+  // Muted to sit alongside the sand palette rather than shout over it. Used
+  // by the password strength meter and any other pass/warn/fail read-out.
+
+  /// Failing state — a rejected field or a weak password.
+  static const danger = Color(0xFFC0492F);
+
+  /// Halfway state — acceptable but not recommended.
+  static const warning = Color(0xFFD98C3F);
+
+  /// Passing state — every requirement met.
+  static const success = Color(0xFF3F7D58);
 }
 
 /// Corner radii — SM 10 for cards and inputs, MD 50 for pills.

@@ -101,6 +101,9 @@ class _OnboardingViewState extends State<OnboardingView> {
       const SizedBox(height: 40),
       Form(
         key: _controller.authFormKey,
+        // Errors appear as soon as the user has touched a field, rather than
+        // waiting for the submit tap.
+        autovalidateMode: AutovalidateMode.onUserInteraction,
         child: Column(
           children: [
             WpField(
@@ -126,6 +129,8 @@ class _OnboardingViewState extends State<OnboardingView> {
                 onPressed: _controller.togglePasswordVisibility,
               ),
             ),
+            const SizedBox(height: 12),
+            WpPasswordStrengthMeter(strength: _controller.passwordStrength),
           ],
         ),
       ),
@@ -166,21 +171,20 @@ class _OnboardingViewState extends State<OnboardingView> {
       const SizedBox(height: 28),
       Form(
         key: _controller.profileFormKey,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
         child: Column(
           children: [
             WpField(
               label: 'display name / nickname',
               controller: _controller.nicknameCtrl,
-              validator: (v) =>
-                  _controller.validateRequired(v, 'Name required'),
+              validator: _controller.validateNickname,
             ),
             const SizedBox(height: 20),
             WpField(
               label: 'contact number',
               controller: _controller.phoneCtrl,
               keyboardType: TextInputType.phone,
-              validator: (v) =>
-                  _controller.validateRequired(v, 'Contact details required'),
+              validator: _controller.validatePhone,
             ),
             const SizedBox(height: 20),
             Row(
@@ -192,7 +196,7 @@ class _OnboardingViewState extends State<OnboardingView> {
                     controller: _controller.heightCtrl,
                     keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                    validator: _controller.validateMeasurement,
+                    validator: _controller.validateHeight,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -202,7 +206,7 @@ class _OnboardingViewState extends State<OnboardingView> {
                     controller: _controller.weightCtrl,
                     keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                    validator: _controller.validateMeasurement,
+                    validator: _controller.validateWeight,
                   ),
                 ),
               ],
