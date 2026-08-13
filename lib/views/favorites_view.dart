@@ -1,14 +1,15 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import 'package:walkpenang/controllers/favorites_controller.dart';
 import 'package:walkpenang/models/place.dart';
-import 'package:walkpenang/models/review.dart';
-import 'package:walkpenang/views/place_detail_view.dart';
 import 'package:walkpenang/services/place_repository.dart';
 import 'package:walkpenang/theme/discovery_colors.dart';
+import 'package:walkpenang/views/place_detail_view.dart';
 
-/// Screen 04 — "My Favorites".
+/// Screen 04 — "My Favorites" (T-FD04.2).
 class FavoritesView extends StatelessWidget {
   const FavoritesView({
     super.key,
@@ -47,7 +48,8 @@ class FavoritesView extends StatelessWidget {
                       : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                     itemCount: places.length,
-                    separatorBuilder: (BuildContext context, int index) =>
+                    separatorBuilder:
+                        (BuildContext context, int index) =>
                     const SizedBox(height: 10),
                     itemBuilder: (BuildContext context, int index) {
                       final Place place = places[index];
@@ -80,18 +82,32 @@ class FavoritesView extends StatelessWidget {
 
   void _remove(BuildContext context, Place place) {
     favorites.remove(place);
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('Removed ${place.name}'),
-          action: SnackBarAction(
-            label: 'Undo',
-            textColor: DiscoveryColors.tan,
-            onPressed: () => favorites.add(place),
-          ),
+
+    // Captured before the callback: reaching for ScaffoldMessenger.of inside
+    // onPressed risks a stale context once the list has rebuilt.
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+
+    messenger.clearSnackBars();
+
+    final ScaffoldFeatureController<SnackBar, SnackBarClosedReason> controller =
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('Removed ${place.name}'),
+        // Effectively disabled — the Timer below owns the lifetime instead.
+        // SnackBar's own duration is chained to its exit animation, which
+        // never fires if the device has animations turned off.
+        duration: const Duration(days: 1),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 80),
+        action: SnackBarAction(
+          label: 'Undo',
+          textColor: DiscoveryColors.tan,
+          onPressed: () => favorites.add(place),
         ),
-      );
+      ),
+    );
+
+    // Hard guarantee that it goes away, animations or not.
+    Timer(const Duration(seconds: 2), controller.close);
   }
 }
 
@@ -109,20 +125,32 @@ class _FavoriteTile extends StatelessWidget {
   final VoidCallback onRemove;
   final VoidCallback onTap;
 
+  /// 'Food · 2 days ago'. Favourites restored from disk have no real
+  /// timestamp, so they fall back to just the category.
+  String _subtitle() {
+    if (savedAt == null || savedAt!.millisecondsSinceEpoch == 0) {
+      return place.category.sheetLabel;
+    }
+    return '${place.category.chipLabel} · ${_ago(savedAt!)}';
+  }
+
+  static String _ago(DateTime time) {
+    final Duration delta = DateTime.now().difference(time);
+    if (delta.inMinutes < 1) return 'Just now';
+    if (delta.inMinutes < 60) return '${delta.inMinutes} min ago';
+    if (delta.inHours < 24) {
+      return '${delta.inHours} hour${delta.inHours == 1 ? '' : 's'} ago';
+    }
+    if (delta.inDays < 7) {
+      return '${delta.inDays} day${delta.inDays == 1 ? '' : 's'} ago';
+    }
+    final int weeks = delta.inDays ~/ 7;
+    return '$weeks week${weeks == 1 ? '' : 's'} ago';
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final String subtitle = savedAt == null
-        ? place.category.sheetLabel
-        : '${place.category.chipLabel} · '
-        '${Review(
-      id: '',
-      placeId: '',
-      authorName: '',
-      rating: 0,
-      body: '',
-      createdAt: savedAt!,
-    ).relativeTime(DateTime.now())}';
 
     return Dismissible(
       key: ValueKey<String>('dismiss-${place.id}'),
@@ -132,10 +160,13 @@ class _FavoriteTile extends StatelessWidget {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          color: const Color(0xFFF6D6D6),
+          color: DiscoveryColors.errorBg,
           borderRadius: BorderRadius.circular(14),
         ),
-        child: const Icon(Icons.delete_outline, color: Color(0xFF8B3A3A)),
+        child: const Icon(
+          Icons.delete_outline,
+          color: DiscoveryColors.errorInk,
+        ),
       ),
       child: Material(
         color: DiscoveryColors.creamDeep,
@@ -155,7 +186,11 @@ class _FavoriteTile extends StatelessWidget {
                     height: 52,
                     fit: BoxFit.cover,
                     placeholder: (BuildContext context, String url) =>
-                        Container(width: 52, height: 52, color: DiscoveryColors.cream),
+                        Container(
+                          width: 52,
+                          height: 52,
+                          color: DiscoveryColors.cream,
+                        ),
                     errorWidget:
                         (BuildContext context, String url, Object error) =>
                         Container(
@@ -184,7 +219,7 @@ class _FavoriteTile extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        subtitle,
+                        _subtitle(),
                         style: theme.textTheme.labelSmall
                             ?.copyWith(color: DiscoveryColors.inkMuted),
                       ),
