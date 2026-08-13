@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../controllers/home_controller.dart';
 import '../models/user_profile.dart';
 import '../theme/app_theme.dart';
+import 'discovery_module_view.dart';
 import 'edit_profile_view.dart';
 import 'map_view.dart';
 import 'reward/stats_dashboard_screen.dart';
@@ -10,10 +11,10 @@ import 'settings_view.dart';
 import 'walking_view.dart';
 import 'widgets/wp_components.dart';
 
-/// Screen 06 · Home — brand bar over a full-height map, with the walk and
-/// rewards modules reached from the bottom nav and the account screens from
-/// the hamburger. The map is embedded rather than pushed so it is the first
-/// thing a tourist sees after signing in.
+/// Screen 06 · Home — brand bar over a full-height map, with the explore,
+/// walk and rewards modules reached from the bottom nav and the account
+/// screens from the hamburger. The map is embedded rather than pushed so it
+/// is the first thing a tourist sees after signing in.
 class HomeView extends StatefulWidget {
   final UserProfile profile;
 
@@ -67,6 +68,17 @@ class _HomeViewState extends State<HomeView> {
     if (updated != null) _controller.updateProfile(updated);
   }
 
+  /// US-FD01 / US-FD02 — the Food & Attraction Discovery module. Pushed rather
+  /// than embedded: it brings its own Discover / Favorites tabs, which would
+  /// otherwise sit under this screen's nav and give the tourist two nav bars.
+  Future<void> _openDiscoveryModule() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const DiscoveryModuleView(),
+      ),
+    );
+  }
+
   Future<void> _openWalkingModule() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -101,12 +113,14 @@ class _HomeViewState extends State<HomeView> {
             const Expanded(child: MapPanel()),
             WpBottomNav(
               currentIndex: 0,
-              items: const ['home', 'walk', 'rewards'],
+              items: const ['home', 'explore', 'walk', 'rewards'],
               onTap: (index) {
                 switch (index) {
                   case 1:
-                    _openWalkingModule();
+                    _openDiscoveryModule();
                   case 2:
+                    _openWalkingModule();
+                  case 3:
                     _openRewardModule();
                 }
               },
