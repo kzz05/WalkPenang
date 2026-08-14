@@ -69,3 +69,8 @@ android/.gradle/
 # Build transcripts. Large binary-ish logs that get regenerated on every build
 # and are meaningless to anyone but the machine that produced them.
 build_log.txt
+
+# Gradle build output. /build/ above only matches the repo root, so the
+# Android module output slipped through and one generated report was tracked.
+android/build/
+android/app/build/
