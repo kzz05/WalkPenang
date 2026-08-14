@@ -14,6 +14,7 @@
 // consumes them and must never recompute or re-verify any of them.
 
 import '../utils/reward_constants.dart';
+import 'transport_mode.dart';
 
 class CheckInResult {
   /// Firestore document ID of the verified check-in.
@@ -40,6 +41,19 @@ class CheckInResult {
   /// When the check-in was verified.
   final DateTime checkInTime;
 
+  /// How the tourist travelled. Chosen before departure on the journey screen.
+  ///
+  /// Module 5 reads this to decide whether the check-in earns points at all —
+  /// only [TransportMode.walking] does. This completes a rule the Walking
+  /// module already applies to its other benefits: [WalkingController]
+  /// reports 0.0 carbon saved and a null calorie estimate for every
+  /// non-walking mode, so points were the last thing a driven journey could
+  /// still collect.
+  ///
+  /// Defaults to [TransportMode.walking] so existing call sites and every
+  /// check-in written before modes existed keep their current behaviour.
+  final TransportMode transportMode;
+
   const CheckInResult({
     required this.checkInId,
     required this.userId,
@@ -48,7 +62,11 @@ class CheckInResult {
     required this.carbonSavedKg,
     required this.caloriesBurned,
     required this.checkInTime,
+    this.transportMode = TransportMode.walking,
   });
+
+  /// Whether this journey qualifies for points (FR-R01).
+  bool get earnsPoints => transportMode.earnsPoints;
 
   /// Distance in whole metres.
   ///
@@ -65,6 +83,7 @@ class CheckInResult {
       carbonSavedKg: (map['carbonSavedKg'] as num?)?.toDouble() ?? 0.0,
       caloriesBurned: (map['caloriesBurned'] as num?)?.toDouble() ?? 0.0,
       checkInTime: map['checkInTime'] as DateTime,
+      transportMode: TransportMode.fromId(map['transportMode'] as String?),
     );
   }
 
@@ -77,6 +96,7 @@ class CheckInResult {
       'carbonSavedKg': carbonSavedKg,
       'caloriesBurned': caloriesBurned,
       'checkInTime': checkInTime,
+      'transportMode': transportMode.name,
     };
   }
 

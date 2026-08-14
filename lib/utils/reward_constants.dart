@@ -13,7 +13,10 @@
 //
 // This file must stay free of package:flutter and package:cloud_firestore so
 // that the rules can be unit tested without a Flutter binding or a live
-// Firebase project.
+// Firebase project. The one import below is pure Dart and imports nothing
+// itself, so it preserves that.
+
+import '../models/transport_mode.dart';
 
 /// Numbers fixed by the proposal and the use case description tables.
 class RewardConstants {
@@ -136,13 +139,27 @@ class RewardPoints {
   RewardPoints._();
 
   /// Points awarded for one completed check-in that covered
-  /// [distanceMetres] metres.
+  /// [distanceMetres] metres by [transportMode].
+  ///
+  /// **Only walking earns points.** WalkPenang's whole premise is walking, so
+  /// a journey completed by car, bus or bicycle records its distance and
+  /// carbon for comparison but awards nothing. Without this a tourist could
+  /// drive between destinations and out-earn someone who walked.
+  ///
+  /// The rule lives in the formula rather than in [RewardController], so that
+  /// every caller gets it — a check computed at one award site is a check the
+  /// next award site can forget.
   ///
   /// The distance bonus is computed by integer division on metres rather than
   /// `(distanceKm * 10).floor()`. The naive form is unsafe: 1.3 km is held in
   /// binary as 1.2999999999999998, so multiplying by 10 gives
   /// 12.999999999999998, which floors to 12 instead of the correct 13.
-  static int forCheckIn({required int distanceMetres}) {
+  static int forCheckIn({
+    required int distanceMetres,
+    TransportMode transportMode = TransportMode.walking,
+  }) {
+    if (!transportMode.earnsPoints) return 0;
+
     // A verified check-in always earns the flat award; only the bonus scales.
     // Negative distance cannot occur through Module 4, but clamping keeps a
     // corrupt record from subtracting from the tourist's balance.
