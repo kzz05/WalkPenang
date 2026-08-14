@@ -162,7 +162,13 @@ class RewardController extends ChangeNotifier implements RewardService {
     // Distance, carbon and calories arrive already calculated by Module 4 and
     // are never recomputed here — Module 5 begins at "receive verified
     // check-in data".
-    final points = RewardPoints.forCheckIn(distanceMetres: result.distanceMetres);
+    // Transport mode is passed through rather than branched on here: only
+    // walking earns points, and that rule lives in the formula so no award
+    // site can forget it.
+    final points = RewardPoints.forCheckIn(
+      distanceMetres: result.distanceMetres,
+      transportMode: result.transportMode,
+    );
 
     final awarded = await _rewardDao.awardForCheckIn(
       result: result,
