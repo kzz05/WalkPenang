@@ -601,13 +601,27 @@ class _RadiusChips extends StatelessWidget {
         for (final radius in MapConstants.radiusOptions)
           Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text('${radius.toStringAsFixed(0)} km'),
-              selected: controller.searchRadiusKm == radius,
-              selectedColor: AppColors.primary,
-              backgroundColor: AppColors.card,
-              labelStyle: AppType.monoValue,
-              onSelected: (_) => controller.setSearchRadius(radius),
+            child: Builder(
+              builder: (context) {
+                final isSelected = controller.searchRadiusKm == radius;
+                return ChoiceChip(
+                  label: Text('${radius.toStringAsFixed(0)} km'),
+                  selected: isSelected,
+                  selectedColor: AppColors.primary,
+                  backgroundColor: AppColors.card,
+                  // Set explicitly rather than left to the chip theme: passing
+                  // labelStyle at all overrides the theme's
+                  // secondaryLabelStyle, which is what would otherwise flip
+                  // the label to white on the indigo fill. Without this the
+                  // selected chip is dark ink on saturated indigo.
+                  labelStyle: isSelected
+                      ? AppType.monoValue
+                          .copyWith(color: AppColors.onPrimaryFill)
+                      : AppType.monoValue,
+                  checkmarkColor: AppColors.onPrimaryFill,
+                  onSelected: (_) => controller.setSearchRadius(radius),
+                );
+              },
             ),
           ),
       ],
@@ -719,7 +733,7 @@ class _StopCard extends StatelessWidget {
                 onPressed: isPreparing ? null : onProceed,
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.onPrimary,
+                  foregroundColor: AppColors.onPrimaryFill,
                   padding: const EdgeInsets.symmetric(vertical: 13),
                   shape: const StadiumBorder(),
                 ),
@@ -729,10 +743,14 @@ class _StopCard extends StatelessWidget {
                         width: 18,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: AppColors.onPrimary,
+                          color: AppColors.onPrimaryFill,
                         ),
                       )
-                    : Text('Walk here', style: AppType.body),
+                    : Text(
+                        'Walk here',
+                        style: AppType.body
+                            .copyWith(color: AppColors.onPrimaryFill),
+                      ),
               ),
             ),
           ],
@@ -763,15 +781,24 @@ class _CardAction extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 11),
         decoration: BoxDecoration(
-          color: emphasised ? AppColors.primary : AppColors.background,
+          color: emphasised ? AppColors.secondaryWash : AppColors.background,
           borderRadius: AppRadius.mdAll,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 18, color: AppColors.onPrimary),
+            Icon(
+              icon,
+              size: 18,
+              color: emphasised ? AppColors.secondaryInk : AppColors.onPrimary,
+            ),
             const SizedBox(width: 6),
-            Text(label, style: AppType.monoValue),
+            Text(
+              label,
+              style: emphasised
+                  ? AppType.monoValue.copyWith(color: AppColors.secondaryInk)
+                  : AppType.monoValue,
+            ),
           ],
         ),
       ),

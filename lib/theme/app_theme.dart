@@ -8,91 +8,133 @@ import 'package:google_fonts/google_fonts.dart';
 /// Views build widgets out of these; they never hard-code a hex value and
 /// they never declare a private palette of their own.
 ///
-/// The palette is entirely light: cream ground, white cards, sand for
-/// emphasis. There is deliberately no black or near-black fill — an element
-/// that needs to stand out uses [surface] (sand), not darkness.
+/// The palette is derived from the logo: indigo `#3F22EC`, mint `#3EFFC0`,
+/// pink `#FA66AE`, sampled from the artwork rather than eyeballed.
+///
+/// Mint and pink both fail WCAG contrast on white (1.4:1 and 2.9:1), so they
+/// never carry text, small icons or thin strokes on a light surface. Indigo
+/// passes at 9.5:1 and does the UI work; mint and pink live on the map, on
+/// tinted washes, and as fills. Where their meaning is needed *in text*, the
+/// darkened family members [success] and [secondaryInk] stand in.
+///
+/// Neutrals are cooled toward indigo so the chrome sits with the brand rather
+/// than looking like grey borrowed from elsewhere.
 class AppColors {
   const AppColors._();
 
   // ── Ground and fills ────────────────────────────────────────────────────
 
-  /// The cream page ground behind every screen.
-  static const background = Color(0xFFFFF3EA);
+  /// The page ground behind every screen.
+  static const background = Color(0xFFF7F6FD);
 
   /// A deeper tone of the ground, for banded sections and inset wells that
   /// need to separate from [background] without becoming a card.
-  static const backgroundDeep = Color(0xFFF5DCC7);
+  static const backgroundDeep = Color(0xFFEDEBF8);
 
   /// The default card, sheet and input fill.
   static const card = Color(0xFFFFFFFF);
 
-  /// Emphasis fill — the one element on a screen that should read loudest
-  /// (BMI card, bottom nav, stat headline, map overlays).
+  /// Emphasis fill — bottom nav, BMI card, stat headline, selected rows.
   ///
-  /// This was pure black until the palette was unified; it is now the sand,
-  /// so emphasis comes from warmth rather than contrast. Text on it uses
-  /// [onSurface]/[onSurfaceMuted], which are dark ink — never white.
-  static const surface = primary;
+  /// No longer an alias of [primary]. Indigo is saturated enough that it needs
+  /// white text, whereas these surfaces are full of dark body copy; the pale
+  /// indigo wash gives them separation while keeping [onSurface] ink readable.
+  static const surface = Color(0xFFEDEBF8);
 
-  /// Action fill — buttons, selected chips, the progress indicator.
-  static const primary = Color(0xFFE4B592);
+  /// Action fill — buttons, active tab, the user's location dot.
+  static const primary = Color(0xFF3F22EC);
 
-  /// A darker sand for pressed states and borders on [primary].
-  static const primaryDeep = Color(0xFFC98F5F);
+  /// Pressed and held states.
+  static const primaryDeep = Color(0xFF2A16A8);
 
   /// Empty-avatar and progress-track fill.
-  static const placeholder = Color(0xFFCFD5D0);
+  static const placeholder = Color(0xFFD9D6EC);
 
   // ── Ink ─────────────────────────────────────────────────────────────────
 
-  /// Primary text, and the ink used on top of [primary] and [surface].
-  static const onPrimary = Color(0xFF111111);
+  /// Body text — an indigo-tinted near-black, 16.4:1 on white.
+  ///
+  /// Note this is ink, *not* the colour to put on a [primary] fill. Indigo
+  /// buttons take [onPrimaryFill]. The two were the same token while [primary]
+  /// was a pale sand; a saturated primary forces them apart.
+  static const onPrimary = Color(0xFF14103A);
+
+  /// Text and icons sitting on a saturated [primary] or [primaryDeep] fill.
+  static const onPrimaryFill = Color(0xFFFFFFFF);
 
   /// Alias of [onPrimary], for reading clarity on emphasis surfaces.
   static const onSurface = onPrimary;
 
-  /// Secondary body copy on the cream ground or a white card.
-  static const muted = Color(0x8A111111);
+  /// Supporting text on the ground or a white card.
+  static const muted = Color(0xFF4A4668);
 
   /// Secondary copy sitting on an emphasis ([surface]) fill.
-  static const onSurfaceMuted = Color(0xA6111111);
+  static const onSurfaceMuted = Color(0xFF4A4668);
 
-  /// The faintest readable ink — captions and disabled labels.
-  static const subtle = Color(0x59111111);
+  /// The faintest readable ink — captions, placeholders and disabled labels.
+  static const subtle = Color(0xFF8E8AAE);
 
   // ── Lines and depth ─────────────────────────────────────────────────────
 
-  /// Hairline around white inputs and between list rows.
-  static const outline = Color(0x1F111111);
+  /// Hairline around inputs and between list rows.
+  static const outline = Color(0xFFD9D6EC);
 
   /// White, for dividers drawn on top of a coloured fill.
   static const border = Color(0xFFFFFFFF);
 
-  /// The single card shadow used app-wide. Warm ink rather than black, so it
-  /// tints with the palette instead of greying it.
-  static const cardShadow = Color(0x0F111111);
+  /// The single card shadow used app-wide. Indigo-tinted ink rather than
+  /// black, so it tints with the palette instead of greying it.
+  static const cardShadow = Color(0x1414103A);
 
-  /// Scrim over imagery, e.g. the map's attribution strip.
-  static const scrim = Color(0x66111111);
+  /// Scrim over imagery, e.g. the map's loading state.
+  static const scrim = Color(0x6614103A);
 
   // ── Semantic status ─────────────────────────────────────────────────────
   // Each state is a saturated ink plus a pale tint for its card background.
-  // Muted to sit alongside the sand palette rather than shout over it.
 
-  /// Passing state — verified, complete, within range.
-  static const success = Color(0xFF3E8E5A);
-  static const successTint = Color(0xFFF0F7F2);
+  /// Passing state — verified, complete, within range. The readable member of
+  /// the mint family, since mint itself cannot carry text.
+  static const success = Color(0xFF00875F);
+  static const successTint = Color(0xFFDFF9EE);
 
   /// Halfway state — acceptable but not recommended.
-  static const warning = Color(0xFFD98C3F);
-  static const warningTint = Color(0xFFFFF5EE);
+  static const warning = Color(0xFFFFB020);
+  static const warningTint = Color(0xFFFFF4E0);
 
   /// Failing state — rejected input, blocked check-in, out of range.
-  static const danger = Color(0xFFC0392B);
-  static const dangerTint = Color(0xFFFBEAEA);
+  ///
+  /// Warm red rather than a true red: pure red sits too close to the brand
+  /// pink at a glance, and in this app pink means "tap here, there's a mural".
+  static const danger = Color(0xFFE8384F);
+  static const dangerTint = Color(0xFFFDEAEC);
 
   /// Rating stars.
-  static const star = Color(0xFFE8A33D);
+  static const star = Color(0xFFFFB020);
+
+  // ── Brand accents ───────────────────────────────────────────────────────
+  // The two logo colours that cannot carry text, plus their readable inks.
+  // Reserved meanings: mint is always *your route*, pink is always *a place*.
+
+  /// Mint — route line, progress fill, "walking now". Fills only.
+  static const accent = Color(0xFF3EFFC0);
+
+  /// Pink — POI markers and category pills. Fills only.
+  static const secondary = Color(0xFFFA66AE);
+
+  /// The readable pink, for saved/favourite icons and text.
+  static const secondaryInk = Color(0xFFB22C72);
+
+  // Pale washes — the way a brand colour gets to fill an area behind ink
+  // without the ink losing contrast.
+
+  /// Selected rows and chip backgrounds.
+  static const primaryWash = Color(0xFFEDEBF8);
+
+  /// Success badges and completed stops.
+  static const accentWash = Color(0xFFDFF9EE);
+
+  /// Saved-list and saved-button background.
+  static const secondaryWash = Color(0xFFFFEAF4);
 
   // ── Data accents ────────────────────────────────────────────────────────
   // The dot colours that key a figure to its meaning on stat tiles. Kept
@@ -102,22 +144,22 @@ class AppColors {
   static const carbon = success;
 
   /// Calories burned.
-  static const calories = Color(0xFFE0713C);
+  static const calories = secondaryInk;
 
   /// Journey completion.
-  static const completion = Color(0xFF5B7FDB);
+  static const completion = primary;
 
   /// Points and rewards.
-  static const rewards = Color(0xFFE0A93C);
+  static const rewards = Color(0xFFFFB020);
 
   // ── Category badges ─────────────────────────────────────────────────────
-  // Soft fills keyed off a place's category, with [onPrimary] ink on top.
+  // Soft washes keyed off a place's category, with [onPrimary] ink on top.
 
-  static const badgeFood = Color(0xFFF5C99B);
-  static const badgeHeritage = Color(0xFFE8D5BC);
-  static const badgeNature = Color(0xFFC8DDB8);
-  static const badgeMuseum = Color(0xFFDCCFE4);
-  static const badgeShopping = Color(0xFFF3CFC6);
+  static const badgeFood = Color(0xFFFFEAF4);
+  static const badgeHeritage = Color(0xFFEDEBF8);
+  static const badgeNature = Color(0xFFDFF9EE);
+  static const badgeMuseum = Color(0xFFE6E3F5);
+  static const badgeShopping = Color(0xFFFFF4E0);
 }
 
 /// Corner radii — SM 10 for cards and inputs, MD 50 for pills.
@@ -209,7 +251,7 @@ ThemeData buildAppTheme() {
       brightness: Brightness.light,
     ).copyWith(
       primary: AppColors.primary,
-      onPrimary: AppColors.onPrimary,
+      onPrimary: AppColors.onPrimaryFill,
       surface: AppColors.background,
       onSurface: AppColors.onPrimary,
       error: AppColors.danger,
@@ -237,7 +279,8 @@ ThemeData buildAppTheme() {
       selectedColor: AppColors.primary,
       side: const BorderSide(color: AppColors.outline),
       labelStyle: AppType.monoValue,
-      secondaryLabelStyle: AppType.monoValue,
+      secondaryLabelStyle:
+          AppType.monoValue.copyWith(color: AppColors.onPrimaryFill),
       shape: const RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
     ),
@@ -266,7 +309,7 @@ ThemeData buildAppTheme() {
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.onPrimary,
+        foregroundColor: AppColors.onPrimaryFill,
         minimumSize: const Size.fromHeight(52),
         textStyle: AppType.button,
         shape: const RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
