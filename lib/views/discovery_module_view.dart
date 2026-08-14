@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:walkpenang/controllers/discovery_controller.dart';
 import 'package:walkpenang/controllers/favorites_controller.dart';
 import 'package:walkpenang/main_discovery.dart' show DiscoveryShell;
+import 'package:walkpenang/services/firestore_favorites_store.dart';
+import 'package:walkpenang/services/firestore_place_repository.dart';
 import 'package:walkpenang/services/place_repository.dart';
 import 'package:walkpenang/theme/app_theme.dart';
 import 'package:walkpenang/views/widgets/wp_components.dart';
@@ -24,13 +26,21 @@ class DiscoveryModuleView extends StatefulWidget {
 }
 
 class _DiscoveryModuleViewState extends State<DiscoveryModuleView> {
-  /// Seeded, in-process data. The module has no HTTP repository yet — swap
-  /// this for the real one once the Places-backed implementation lands, which
-  /// is the single change needed to put live data behind these screens.
-  late final PlaceRepository _repository = MockPlaceRepository();
+  /// Which places exist still comes from the seeded, in-process catalogue —
+  /// swap [MockPlaceRepository] for the Places-backed one when it lands.
+  /// Ratings and reviews, though, are real: [FirestorePlaceRepository] wraps
+  /// the catalogue and overlays what WalkPenang's own tourists have written.
+  late final PlaceRepository _repository = FirestorePlaceRepository(
+    catalogue: MockPlaceRepository(),
+  );
   late final DiscoveryController _discovery =
       DiscoveryController(repository: _repository);
-  final FavoritesController _favorites = FavoritesController();
+
+  /// Favourites live in Firestore so they follow the tourist between devices,
+  /// falling back to SharedPreferences when nobody is signed in.
+  final FavoritesController _favorites = FavoritesController(
+    store: FirestoreFavoritesStore(),
+  );
 
   @override
   void initState() {

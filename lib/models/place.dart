@@ -192,14 +192,14 @@ class Place {
     return buffer.toString();
   }
 
-  Place copyWith({double? rating, int? reviewCount}) {
+  Place copyWith({double? rating, int? reviewCount, double? distanceKm}) {
     return Place(
       id: id,
       name: name,
       category: category,
       photoUrls: photoUrls,
       priceLevel: priceLevel,
-      distanceKm: distanceKm,
+      distanceKm: distanceKm ?? this.distanceKm,
       rating: rating ?? this.rating,
       reviewCount: reviewCount ?? this.reviewCount,
       address: address,

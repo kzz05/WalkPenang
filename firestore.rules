@@ -58,16 +58,91 @@ service cloud.firestore {
     //
     // create is deliberately not update: a tourist may record a check-in but
     // must not be able to rewrite its distance afterwards and farm points.
+    //
+    // transportMode must be one of the known ids. Only 'walking' earns points
+    // (see RewardPoints.forCheckIn), and TransportMode.fromId falls back to
+    // 'walking' for anything it does not recognise — a fallback that is right
+    // for pre-existing records but would otherwise let any unknown string mint
+    // points. Absent is still allowed: check-ins written before modes existed
+    // carry no such field and were all walks.
     match /check_ins/{checkInId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn()
-                    && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+                    && request.resource.data.userId == request.auth.uid
+                    && (!('transportMode' in request.resource.data.keys())
+                        || request.resource.data.transportMode
+                           in ['walking', 'driving', 'publicTransport']);
+      allow update: if isSignedIn()
+                    && resource.data.userId == request.auth.uid
+                    // Mode is fixed at creation. Allowing it to change would
+                    // let a car journey be rewritten as a walk after the fact.
+                    && request.resource.data.get('transportMode', 'walk')
+                       == resource.data.get('transportMode', 'walk');
       allow delete: if false;
     }
 
+    // ---- Place ratings and reviews ---------------------------------------
+    //
+    // This collection holds NO place content — no name, address, coordinates
+    // or photos. Only the place id (as the document id) plus WalkPenang's own
+    // aggregates. Place details are fetched live from the Places API, which is
+    // both why they would go stale here and why storing them would breach
+    // Google Maps Platform Terms 3.2.3(b): a place id may be cached
+    // indefinitely, its content only for 30 days.
+    //
+    //   places/{placeId}                    ratingSum, ratingCount, reviewCount
+    //   places/{placeId}/reviews/{reviewId} authorUid, authorName, rating, body
+    //
+    // The aggregate is writable by signed-in tourists because submitting a
+    // review updates it in the same transaction, and Firestore rules cannot
+    // express "only via a transaction that also creates a review". The bounds
+    // below are what stops that being a free-for-all: counts may only ever
+    // increase, and by one at a time, so a client cannot mint a five-star
+    // average for a place it dislikes. Tightening this into a Cloud Function
+    // (client writes the review, a trigger recomputes the aggregate) is the
+    // proper fix and is worth doing before any public release.
+    match /places/{placeId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+                    && request.resource.data.ratingCount == 1
+                    && request.resource.data.ratingSum >= 1
+                    && request.resource.data.ratingSum <= 5;
+
+      allow update: if isSignedIn()
+                    && request.resource.data.ratingCount
+                       == resource.data.ratingCount + 1
+                    && request.resource.data.ratingSum
+                       >= resource.data.ratingSum + 1
+                    && request.resource.data.ratingSum
+                       <= resource.data.ratingSum + 5;
+
+      allow delete: if false;
+
+      match /reviews/{reviewId} {
+        allow read: if isSignedIn();
+
+        // Create only, never update or delete: a rating already folded into
+        // the aggregate above must not be silently rewritten afterwards, or
+        // the average stops matching the reviews listed under it. Bounds are
+        // enforced here rather than trusted from the client — the UI's 1-5
+        // star widget is not a security control.
+        allow create: if isSignedIn()
+                      && request.resource.data.authorUid == request.auth.uid
+                      && request.resource.data.rating is int
+                      && request.resource.data.rating >= 1
+                      && request.resource.data.rating <= 5
+                      && request.resource.data.body is string
+                      && request.resource.data.body.size() <= 2000;
+        allow update, delete: if false;
+      }
+    }
+
+    // Saved places (users/{uid}/favorites/{placeId}) need no rule of their own
+    // — the users/{userId}/{document=**} match above already covers them, and
+    // they too store an id and nothing else.
+
     // Anything not matched above is denied. Add collections explicitly as
-    // other modules start writing — the Food & Attraction module currently
-    // uses no Firestore at all (MockPlaceRepository) and needs nothing here.
+    // other modules start writing.
   }
 }
