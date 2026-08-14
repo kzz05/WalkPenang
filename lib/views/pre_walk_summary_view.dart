@@ -5,6 +5,7 @@ import '../models/user_profile.dart';
 import '../models/walking_route_summary.dart';
 import '../theme/app_theme.dart';
 import 'edit_profile_view.dart';
+import 'journey_flow_view.dart';
 import 'widgets/wp_components.dart';
 
 /// Screen 02 · Pre-Walk Summary (UC-W02) v2 — destination hero, walking
@@ -34,8 +35,10 @@ class _PreWalkSummaryViewState extends State<PreWalkSummaryView> {
     final controller = widget.controller;
     if (controller.journeyStartStatus == JourneyStartStatus.success) {
       controller.acknowledgeJourneyStart();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Active Walking Journey — to be built')),
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => JourneyFlowView(walkingController: controller),
+        ),
       );
     } else if (controller.journeyStartError != null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -393,8 +396,7 @@ class _StatTile extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           label,
-          style:
-              AppType.mono.copyWith(fontSize: 10, color: AppColors.muted),
+          style: AppType.mono.copyWith(fontSize: 10, color: AppColors.muted),
         ),
       ],
     );
