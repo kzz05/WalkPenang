@@ -194,6 +194,15 @@ class MapController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// UC-M04 A1: no walkable route to the place the tourist just chose.
+  ///
+  /// Surfaced on the map's own banner rather than by pushing the route screen
+  /// only to show an error on it.
+  void showRouteUnavailable() {
+    errorMessage = MapErrorMessages.noWalkableRoute;
+    notifyListeners();
+  }
+
   /// UC-007 constraint C1: the 1 / 2 / 5 km radius chips.
   Future<void> setSearchRadius(double radiusKm) async {
     searchRadiusKm = radiusKm;

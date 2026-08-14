@@ -113,7 +113,7 @@ class _HomeViewState extends State<HomeView> {
             ),
             // Home *is* the map — it fills whatever is left between the brand
             // bar and the nav, so it is the first thing shown after sign-in.
-            const Expanded(child: MapPanel()),
+            Expanded(child: MapPanel(profile: widget.profile)),
           ],
         ),
       ),

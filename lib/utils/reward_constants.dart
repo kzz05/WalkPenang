@@ -170,8 +170,14 @@ class RewardPoints {
 
   /// Convenience overload for callers holding kilometres, which is the unit
   /// Module 4 reports in. Converts to metres first, then applies the formula.
-  static int forCheckInKm({required double distanceKm}) =>
-      forCheckIn(distanceMetres: RewardConstants.metresFromKm(distanceKm));
+  static int forCheckInKm({
+    required double distanceKm,
+    TransportMode transportMode = TransportMode.walking,
+  }) =>
+      forCheckIn(
+        distanceMetres: RewardConstants.metresFromKm(distanceKm),
+        transportMode: transportMode,
+      );
 }
 
 /// Design tokens for Module 5 screens.
