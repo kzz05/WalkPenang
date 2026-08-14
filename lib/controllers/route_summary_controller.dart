@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../constants/map_error_messages.dart';
+import '../models/lat_lng.dart';
 import '../models/place_model.dart';
 import '../models/route_result.dart';
 import '../services/map_service.dart';

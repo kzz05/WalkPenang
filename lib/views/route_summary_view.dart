@@ -1,7 +1,13 @@
-import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'dart:typed_data';
 
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+
+import '../constants/map_constants.dart';
 import '../controllers/route_summary_controller.dart';
+import '../models/lat_lng.dart';
+import '../models/lat_lng_mapbox.dart';
 import '../models/place_model.dart';
 import '../theme/app_theme.dart';
 
@@ -26,17 +32,30 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
     destination: widget.destination,
   );
 
+  MapboxMap? _mapboxMap;
+  PolylineAnnotationManager? _polylineManager;
+  PointAnnotationManager? _pinManager;
+
+  /// The route is fetched once and never changes for this screen, so the
+  /// annotations only ever need drawing once — but both the controller
+  /// listener and onMapCreated can reach [_drawRoute], hence the guard.
+  bool _hasDrawnRoute = false;
+
   @override
   void initState() {
     super.initState();
+    _controller.addListener(_onRouteChanged);
     _controller.calculateRoute(widget.origin);
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_onRouteChanged);
     _controller.dispose();
     super.dispose();
   }
+
+  void _onRouteChanged() => _drawRoute();
 
   @override
   Widget build(BuildContext context) {
@@ -64,34 +83,86 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
 
   /// UC-M04 step 5: shows the walking route as a polyline once the
   /// Directions API response has been decoded.
+  ///
+  /// The same Studio style and tilt as the map screen, so moving between the
+  /// two doesn't feel like moving between two different apps.
   Widget _buildMap() {
-    final route = _controller.route;
-    final destLatLng = LatLng(
-      widget.destination.latitude,
-      widget.destination.longitude,
-    );
-
-    return GoogleMap(
-      initialCameraPosition: CameraPosition(target: widget.origin, zoom: 14),
-      polylines: route != null && route.routeFound
-          ? {
-              Polyline(
-                polylineId: const PolylineId('walking_route'),
-                points: route.polylinePoints,
-                color: AppColors.primary,
-                width: 5,
-              ),
-            }
-          : {},
-      markers: {
-        Marker(markerId: const MarkerId('origin'), position: widget.origin),
-        Marker(
-          markerId: MarkerId(widget.destination.placeId),
-          position: destLatLng,
-        ),
-      },
+    return MapWidget(
+      key: const ValueKey('walkpenang_route_map'),
+      styleUri: MapConstants.gamifiedStyleUri,
+      viewport: CameraViewportState(
+        center: widget.origin.toPoint,
+        zoom: MapConstants.defaultZoom,
+        pitch: MapConstants.gamifiedPitchDegrees,
+      ),
+      onMapCreated: _onMapCreated,
     );
   }
+
+  /// Annotations can only be created once the platform view exists, and the
+  /// Directions response may land either side of that — so both this and the
+  /// controller listener call [_drawRoute], and whichever is second wins.
+  Future<void> _onMapCreated(MapboxMap map) async {
+    _mapboxMap = map;
+    await map.gestures.updateSettings(
+      GesturesSettings(pitchEnabled: false, rotateEnabled: false),
+    );
+    _polylineManager = await map.annotations.createPolylineAnnotationManager();
+    _pinManager = await map.annotations.createPointAnnotationManager();
+    await _drawRoute();
+  }
+
+  Future<void> _drawRoute() async {
+    final polylineManager = _polylineManager;
+    final pinManager = _pinManager;
+    final route = _controller.route;
+    if (polylineManager == null || pinManager == null || _hasDrawnRoute) return;
+    if (route == null || !route.routeFound) return;
+    _hasDrawnRoute = true;
+
+    await polylineManager.create(
+      PolylineAnnotationOptions(
+        geometry: LineString(
+          coordinates: [
+            for (final point in route.polylinePoints) point.toPoint.coordinates,
+          ],
+        ),
+        // primaryDeep, not primary — primary is the building fill in the
+        // Studio style, and the route line would disappear into it.
+        lineColor: AppColors.primaryDeep.toARGB32(),
+        lineWidth: 6.0,
+        lineJoin: LineJoin.ROUND,
+      ),
+    );
+
+    await pinManager.createMulti([
+      PointAnnotationOptions(
+        geometry: widget.origin.toPoint,
+        image: await _sprite('assets/images/pin_origin.png'),
+        iconAnchor: IconAnchor.BOTTOM,
+      ),
+      PointAnnotationOptions(
+        geometry: LatLng(
+          widget.destination.latitude,
+          widget.destination.longitude,
+        ).toPoint,
+        image: await _sprite('assets/images/pin_destination.png'),
+        iconAnchor: IconAnchor.BOTTOM,
+      ),
+    ]);
+
+    await _mapboxMap?.flyTo(
+      CameraOptions(
+        center: widget.origin.toPoint,
+        zoom: MapConstants.defaultZoom,
+        pitch: MapConstants.gamifiedPitchDegrees,
+      ),
+      MapAnimationOptions(duration: 800),
+    );
+  }
+
+  Future<Uint8List> _sprite(String asset) async =>
+      (await rootBundle.load(asset)).buffer.asUint8List();
 
   Widget _buildSummaryCard(BuildContext context) {
     if (_controller.isLoading) {

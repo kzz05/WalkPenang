@@ -1,4 +1,4 @@
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'lat_lng.dart';
 
 /// Result of a walking-route calculation (UC-M04), built from a Google Maps
 /// Directions API response.

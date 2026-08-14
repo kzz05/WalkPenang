@@ -51,7 +51,7 @@ The Map & GPS Module contains six use cases. Five are tourist-facing; **Request 
 
 | FR ID | Requirement | Description |
 |---|---|---|
-| FR-M01 | Display Interactive Map | The system shall display a Google Maps interface centred on the user's current location, with nearby place pins rendered within the selected search radius. |
+| FR-M01 | Display Interactive Map | The system shall display an interactive map interface centred on the user's current location, with nearby place pins rendered within the selected search radius. |
 | FR-M02 | Detect User GPS Location | The system shall detect and continuously update the user's real-time GPS coordinates using the Flutter Geolocator package. |
 | FR-M03 | Calculate Walking Distance and Time | The system shall calculate and display the estimated walking distance and time from the user's current location to a selected destination using the Google Maps Directions API. |
 | FR-M04 | Launch Walking Navigation | The system shall allow users to launch Google Maps turn-by-turn walking navigation to a selected destination directly from within the application. |
@@ -110,7 +110,7 @@ The Map & GPS Module contains six use cases. Five are tourist-facing; **Request 
 
 | Element | Description |
 |---|---|
-| **Brief Description** | The system displays an interactive Google Maps interface centred on the tourist's current GPS location, with nearby food establishment and tourist attraction pins rendered within the selected search radius. |
+| **Brief Description** | The system displays an interactive map interface centred on the tourist's current GPS location, with nearby food establishment and tourist attraction pins rendered within the selected search radius. |
 | **Preconditions** | Tourist has opened the WalkPenang application and navigated to the map screen. Tourist has granted location permission to the application. |
 | **Postconditions** | Tourist views the interactive map with nearby place pins displayed within the selected radius. |
 
@@ -301,7 +301,7 @@ The Map & GPS Module contains six use cases. Five are tourist-facing; **Request 
 | A2: API returns empty response | System passes empty response to calling use case, which handles the empty state accordingly. Use case ends. |
 
 **Constraints**
-- C1: All Google Maps API calls require a valid API key configured in AndroidManifest.xml
+- C1: Google Places/Directions calls require `MAPS_API_KEY`, and map rendering requires `MAPBOX_ACCESS_TOKEN` — both loaded from `.env`, neither hardcoded
 - C2: This use case does not interact with the tourist directly, it serves only as a shared service layer
 
 ---
@@ -539,7 +539,7 @@ endif
 
 | No. | Sub Module | Description | Functions |
 |---|---|---|---|
-| 1 | Map Display Sub Module | Renders the Google Maps interface centred on the tourist's location, places nearby food and attraction pins within the selected radius, and keeps the map within Penang. | `loadMap()` `centreMapOnLocation()` `renderNearbyPins()` `setSearchRadius()` `applyBoundaryConstraint()` |
+| 1 | Map Display Sub Module | Renders the Mapbox map interface centred on the tourist's location, places nearby food and attraction pins within the selected radius, and keeps the map within Penang. | `loadMap()` `centreMapOnLocation()` `renderNearbyPins()` `setSearchRadius()` `applyBoundaryConstraint()` |
 | 2 | GPS Location Sub Module | Retrieves the tourist's GPS coordinates via the Flutter Geolocator package, requests location permission on startup, and updates the live position marker as the tourist moves. | `requestLocationPermission()` `getCurrentLocation()` `updateLocationMarker()` `startLocationUpdates()` `checkSignalAccuracy()` |
 | 3 | Boundary Validation Sub Module | Checks the tourist's location and selected destinations against the Penang LatLngBounds, blocks out of boundary map panning, and rejects invalid destination selections. | `validateUserLocation()` `validateDestination()` `restrictMapPanning()` `showOutOfBoundaryMessage()` |
 | 4 | Route Calculation Sub Module | Calls the Google Maps Directions API in walking mode, reads the distance and duration from the response, and displays a route summary card below the map. | `calculateWalkingRoute()` `extractDistanceAndDuration()` `displayRouteSummaryCard()` `handleNoRouteFound()` |
@@ -554,7 +554,7 @@ endif
 
 | ID | Affect | Description (User Story) | Tasks | Story Point | Difficulty |
 |---|---|---|---|:---:|:---:|
-| US-M01 | Map & GPS Module, User Interface | As a tourist, I want to see nearby food places and attractions on an interactive map so I can decide where to walk next without leaving the app. | 1. Add `google_maps_flutter`, configure API key in AndroidManifest.xml 2. Build MapScreen centred on George Town 3. Render Google Places results as map pins 4. Show "No places found nearby" if list is empty | 8 | High |
+| US-M01 | Map & GPS Module, User Interface | As a tourist, I want to see nearby food places and attractions on an interactive map so I can decide where to walk next without leaving the app. | 1. Add `mapbox_maps_flutter`, configure the access token from `.env` 2. Build MapScreen centred on George Town 3. Render Google Places results as map pins 4. Show "No places found nearby" if list is empty | 8 | High |
 | US-M02 | Map & GPS Module, User Interface | As a tourist, I want my real-time GPS location shown on the map so I always know where I am in Penang. | 1. Add geolocator, request location permission on load 2. Display live position marker using myLocationEnabled: true 3. Show "Please enable GPS" if location service is off | 5 | Medium |
 | US-M03 | Map & GPS Module, Food & Attraction Discovery Module | As the system, I want to restrict all map content to within Penang's boundary so only relevant destinations are shown. | 1. Define Penang LatLngBounds in constants file 2. Apply cameraTargetBounds to restrict map panning 3. Show "This destination is outside Penang" for invalid selections | 3 | Medium |
 | US-M04 | Map & GPS Module, Walking & Carbon Module | As a tourist, I want to see the walking distance and estimated time to a destination so I can decide whether to walk there. | 1. Call Google Maps Directions API in walking mode 2. Extract distance and duration, display on route summary card 3. Show "No walking route found" if API returns no result | 5 | Medium |
@@ -568,7 +568,7 @@ endif
 
 | Sprint | Story ID | Task ID | Task Description | Assigned To | Est. Hours | Priority | Status |
 |:---:|:---:|:---:|---|---|:---:|:---:|:---:|
-| 2 | US-M01 | T-M01.1 | Add google_maps_flutter, configure API key, build MapScreen centred on George Town | Tang Yue Hann | 4 | Must Have | Done |
+| 2 | US-M01 | T-M01.1 | Add mapbox_maps_flutter, configure access token, build MapScreen centred on George Town | Tang Yue Hann | 4 | Must Have | Done |
 | 2 | US-M01 | T-M01.2 | Call Google Places API and render nearby results as map pins | Tang Yue Hann | 4 | Must Have | Done |
 | 2 | US-M01 | T-M01.3 | Test map rendering and empty state handling across different radii | Tang Yue Hann | 2 | Should Have | Not Started |
 | 2 | US-M02 | T-M02.1 | Add geolocator, request location permission, display live position marker | Tang Yue Hann | 4 | Must Have | Done |
@@ -592,7 +592,7 @@ reward and auth modules only.
 
 | Task | Evidence in the repo |
 |---|---|
-| T-M01.1 | `google_maps_flutter` in `pubspec.yaml`; key in `AndroidManifest.xml`; `MapConstants.georgeTownCenter` is the initial camera target in `map_view.dart` |
+| T-M01.1 | `mapbox_maps_flutter` in `pubspec.yaml`; token set in `main.dart`; `MapConstants.georgeTownCenter` is the initial camera target in `map_view.dart` |
 | T-M01.2 | `places_service.dart` + `map_service.dart`; `MapController.renderNearbyPins()`; `_buildMarkers()`; `noPlacesFound` empty state wired |
 | T-M01.3 | No test file exercises the map, the radius chips, or the empty state |
 | T-M02.1 | `location_service.dart` wraps Geolocator; `myLocationEnabled` gated on `hasLocationPermission` so the SDK can't throw a SecurityException |
@@ -697,7 +697,7 @@ Add the following to `pubspec.yaml`. Versions are pinned to stable releases comp
 dependencies:
   flutter:
     sdk: flutter
-  google_maps_flutter: ^2.9.0
+  mapbox_maps_flutter: ^2.28.2
   geolocator: ^13.0.1
   geolocator_android: ^4.6.1
   url_launcher: ^6.3.1
@@ -824,7 +824,7 @@ class GpsLocation {
 **`lib/constants/map_constants.dart`**
 
 ```dart
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../models/lat_lng.dart';
 
 class MapConstants {
   // Penang geographic boundary (approximate bounding box)
@@ -845,23 +845,40 @@ class MapConstants {
 
 ### 12.5 API Key Configuration
 
-Do **not** hardcode the Google Maps API key in Dart files. Add it to the native Android manifest instead.
+Three separate credentials, none of which may be hardcoded or committed. Copy
+`.env.example` to `.env` (gitignored) for the first two:
 
-**`android/app/src/main/AndroidManifest.xml`**
+| Credential | Where | Used for |
+|---|---|---|
+| `MAPS_API_KEY` | `.env` | Google Places + Directions HTTP calls from Dart |
+| `MAPBOX_ACCESS_TOKEN` (`pk.…`) | `.env` | Map rendering — read in `main.dart` via `MapboxOptions.setAccessToken` |
+| `MAPBOX_DOWNLOADS_TOKEN` (`sk.…`) | `~/.gradle/gradle.properties` | **Build time only.** Authenticates the Mapbox maven repo in `android/build.gradle.kts` |
 
-```xml
-<application>
-    <meta-data
-        android:name="com.google.android.geo.API_KEY"
-        android:value="YOUR_GOOGLE_MAPS_API_KEY_HERE" />
-</application>
+There is no longer a native map-SDK key in `AndroidManifest.xml` — Mapbox is
+configured entirely from Dart. The `geo` scheme `<queries>` entry stays, since
+UC-M05 still deep-links to the Google Maps *app*.
+
+Confusing the two Mapbox tokens is the usual failure. A missing or wrong
+`MAPBOX_DOWNLOADS_TOKEN` fails the Android build with a 401 naming a
+`com.mapbox.*` artifact, which reads like a dependency problem rather than an
+auth one. A missing `MAPBOX_ACCESS_TOKEN` builds fine and shows a blank map.
+
+**Build gotcha — Kotlin plugin on AGP 9.** `mapbox_maps_flutter` 2.28.2 skips
+applying `kotlin-android` when AGP major is >= 9, assuming AGP 9 always brings
+built-in Kotlin. In a Flutter project it doesn't: `android/gradle.properties`
+sets `android.builtInKotlin=false` and Flutter applies Kotlin only to `:app`.
+The package's module then hits its own top-level `kotlin { compilerOptions }`
+block with no `kotlin` extension and the build dies with:
+
+```
+Could not find method kotlin() for arguments [...]
+on project ':mapbox_maps_flutter'
 ```
 
-For the Directions and Places API calls made from Dart, store the key in a `.env` file (excluded via `.gitignore`) and load it with the `flutter_dotenv` package, or pass it through `--dart-define` at build time:
-
-```bash
-flutter run --dart-define=MAPS_API_KEY=your_key_here
-```
+`android/build.gradle.kts` works around this by applying the Kotlin plugin to
+that one subproject via a `plugins.withId("com.android.library")` hook, which
+fires early enough in the package's own script. Remove the workaround once the
+package gates that block on the extension existing rather than on AGP version.
 
 ### 12.6 File and Folder Structure
 
@@ -870,7 +887,9 @@ lib/
 ├── models/
 │   ├── place_model.dart
 │   ├── route_result.dart
-│   └── gps_location.dart
+│   ├── gps_location.dart
+│   ├── lat_lng.dart                     # SDK-free coordinate types
+│   └── lat_lng_mapbox.dart              # the only LatLng -> Mapbox conversion
 ├── screens/
 │   └── map/
 │       ├── map_screen.dart              # UC-007, UC-008
@@ -953,6 +972,106 @@ class MapErrorMessages {
 }
 ```
 
+### 12.9 Map Rendering — Mapbox Studio
+
+The basemap is rendered by Mapbox, not Google, so the module can use a custom
+Mapbox Studio style. Google's Cloud styling is limited to recolouring a fixed
+list of feature types; it cannot do the building extrusions, custom sprites,
+custom fonts or camera pitch the gamified look depends on.
+
+**The style.** Authored as Style Spec JSON in `design/mapbox/walkpenang_sand.json`
+and published with `design/mapbox/upload_style.py`, rather than clicked together
+in the Studio canvas. The style is a source file like any other — reviewable in
+a PR, diffable, and not lost if someone's Studio session goes wrong. Studio can
+still open it for experimenting, but **re-running the upload overwrites whatever
+Studio saved**, so changes belong in the JSON.
+
+Validate before uploading (catches bad expressions offline):
+
+```bash
+npx -y -p @mapbox/mapbox-gl-style-spec gl-style-validate \
+  design/mapbox/walkpenang_sand.json
+```
+
+`MapConstants.gamifiedStyleUri` holds the published URL and is overridable per
+developer:
+
+```bash
+flutter run --dart-define=MAPBOX_STYLE_URI=mapbox://styles/<user>/<id>
+```
+
+It falls back to `mapbox://styles/mapbox/standard`, so the app still runs for a
+teammate who has not been added to the shared Studio account — they get a
+working but unstyled map.
+
+**Palette.** The style reuses the Section 11 design tokens so the map ground
+matches every other screen. Water is the one colour the token set had no answer
+for; `#CFE3DC` sits between `successTint` and `success`, harmonising with the
+sand while still reading unmistakably as water.
+
+| Layer | Value | Token |
+|---|---|---|
+| Background / land | `#FFF3EA` | Background |
+| Built landuse (school, hospital, industrial) | `#F5DCC7` | Background deep |
+| Parks, grass, woodland | `#CBE3BE` | new — sage green |
+| Water, waterways | `#CFE3DC` | new |
+| Road fill | `#FFFFFF` | Card |
+| Road casing | `#111111` @ 12% | Outline |
+| Footpaths, pedestrian ways | `#F5DCC7` | Background deep |
+| Buildings | `#E4B592` | Primary |
+| Settlement labels | `#111111` @ 55%, halo `#FFF3EA` | On-primary / Background |
+
+Green space gets its own sage rather than the sand used for other landuse:
+parks are a destination in a walking app, and they were invisible when they
+matched the ground. It has to be a *clearly* green sage, too — the first
+attempt (`#DFEADF`) was so close to the water colour that the Esplanade padang
+was indistinguishable from the sea.
+
+Building height is capped, not just multiplied:
+`["min", ["*", ["get","height"], 1.3], 70]`. A flat multiplier gave the
+low-rise mass a pleasant toy exaggeration but turned Komtar and the other
+towers into needles that filled the whole frame at 55° pitch. The cap keeps
+the exaggeration where it helps and stops it where it hurts.
+
+`fill-extrusion` takes a **single** colour — there is no separate top/side
+property in the spec. `fill-extrusion-vertical-gradient: true` produces the
+lighter-top/darker-side toy shading automatically from `#E4B592`.
+
+The one label layer uses Mapbox's default DIN Pro rather than the app's Jost.
+Custom fonts have to be uploaded through the Studio UI — the Styles API can't
+carry a font file — so matching Jost would mean uploading it once in Studio and
+changing `text-font` in the JSON. Low priority: at the zoom levels this style is
+used at, only a handful of settlement labels are ever on screen.
+
+**Mapbox ornaments.** The SDK draws its own scale bar, logo and attribution
+over the map. `MapView._applyMapOrnaments` disables the scale bar (it defaults
+to imperial, wrong for Malaysia, and sits under the radius chips) and lifts the
+logo and attribution clear of the nearby-places sheet. The last part is not
+cosmetic — Mapbox's terms require both to remain visible, and by default the
+sheet covers them.
+
+**Zoom is a trade-off, found on-device.** At 14 the extrusions haven't ramped
+in and the map is flat; at 16 the 55-degree pitch leaves so little ground
+visible that none of the twenty fetched place pins are on screen.
+`MapConstants.defaultZoom` is 15 as the compromise.
+
+**What carries the gamified read**, in order of payoff: camera pitch
+(`MapConstants.gamifiedPitchDegrees`, with pitch/rotate gestures disabled so it
+cannot be flattened back to 2D); stripping almost all label layers;
+`fill-extrusion` buildings, which is why `defaultZoom` is 16 rather than 14 —
+the extrusion layer's minzoom is 15; custom pin sprites in `assets/images/`;
+and the vignette overlay in `map_view.dart`.
+
+**Known constraint — Google Maps Platform Terms §3.2.3(e).** The terms bar
+displaying Places or Directions results on a non-Google map, which is exactly
+what this module now does. This is an accepted, documented decision for an
+academic prototype that will not be published, taken because Mapbox Search Box
+has materially worse POI coverage for Penang hawker stalls and heritage sites —
+the app's actual content — than Google Places. Anyone taking WalkPenang toward
+release must migrate `places_service.dart` and `route_service.dart` to Mapbox
+first. That migration would also delete `RouteService._decodePolyline`
+entirely, since Mapbox Directions returns GeoJSON geometry natively.
+
 ---
 
 ## 13. Claude Code Development Resources
@@ -973,8 +1092,13 @@ Place this at the project root so Claude Code reads it automatically at the star
   Penang bounds, radius, or check-in threshold elsewhere
 - Error strings live in lib/constants/map_error_messages.dart — always
   reference this class, never inline a string literal
-- API key: never hardcode. Android key goes in AndroidManifest.xml,
-  Dart-side key loaded via --dart-define=MAPS_API_KEY
+- Credentials: never hardcode. MAPS_API_KEY and MAPBOX_ACCESS_TOKEN load
+  from .env; MAPBOX_DOWNLOADS_TOKEN is build-time only and lives in
+  ~/.gradle/gradle.properties. See Section 12.5
+- Coordinates: use lib/models/lat_lng.dart (latitude first). Only the two
+  map views may import mapbox_maps_flutter, and every conversion to Mapbox
+  geometry goes through lib/models/lat_lng_mapbox.dart — Mapbox Position is
+  longitude first, and getting it backwards fails silently
 - Use case IDs (UC-007, UC-008, UC-009, UC-M04, UC-M05, UC-M06) should
   appear as comments above the relevant service/screen file
 ```
@@ -1010,7 +1134,8 @@ Configure these once in `.mcp.json` at the project root.
 
 | Package | Docs |
 |---|---|
-| `google_maps_flutter` | https://pub.dev/packages/google_maps_flutter |
+| `mapbox_maps_flutter` | https://pub.dev/packages/mapbox_maps_flutter |
+| Mapbox Studio (style editor) | https://docs.mapbox.com/studio-manual/guides/ |
 | `geolocator` | https://pub.dev/packages/geolocator |
 | Google Places API | https://developers.google.com/maps/documentation/places/web-service |
 | Google Directions API | https://developers.google.com/maps/documentation/directions |

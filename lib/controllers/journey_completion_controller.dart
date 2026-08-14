@@ -18,13 +18,13 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../models/active_walking_ui_data.dart';
 import '../models/badge_model.dart';
 import '../models/check_in_result.dart';
 import '../models/journey_completed_ui_data.dart';
 import '../models/journey_reward_ui_state.dart';
+import '../models/lat_lng.dart';
 import '../models/verify_location_ui_data.dart';
 import '../models/walking_route_summary.dart';
 import '../constants/map_constants.dart';

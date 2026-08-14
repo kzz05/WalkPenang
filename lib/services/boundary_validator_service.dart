@@ -1,7 +1,6 @@
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-
 import '../constants/map_constants.dart';
 import '../models/gps_location.dart';
+import '../models/lat_lng.dart';
 
 /// Boundary Validation Sub Module (UC-009). Checks GPS points against the
 /// fixed Penang [LatLngBounds] — nothing here talks to the network.

@@ -1,11 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../constants/map_constants.dart';
 import '../constants/map_error_messages.dart';
 import '../models/gps_location.dart';
+import '../models/lat_lng.dart';
 import '../models/place_model.dart';
 import '../services/boundary_validator_service.dart';
 import '../services/location_service.dart';

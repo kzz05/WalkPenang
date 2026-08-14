@@ -8,11 +8,11 @@
         android:label="walkpenang"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
-        <!-- Google Maps SDK key — see .env.example for the Dart-side key used
-             by the Places/Directions HTTP calls. This one is for map tiles only. -->
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyD88SdOZjLyU3T3BMH8RGz6xZIiiPWp-6w" />
+        <!-- No native map-SDK key here any more. Tiles are rendered by Mapbox,
+             which is configured from Dart with MAPBOX_ACCESS_TOKEN (.env) plus a
+             build-time download token in gradle.properties. The remaining Google
+             key is Dart-side only, for the Places/Directions HTTP calls — see
+             .env.example. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
