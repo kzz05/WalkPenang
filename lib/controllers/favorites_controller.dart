@@ -87,7 +87,7 @@ class FavoritesController extends ChangeNotifier {
     _saved.insert(0, place);
     _savedAt[place.id] = DateTime.now();
     notifyListeners();
-    _persist();
+    _persistOne(() => _store.addId(place.id));
   }
 
   void remove(Place place) {
@@ -96,7 +96,7 @@ class FavoritesController extends ChangeNotifier {
     _savedAt.remove(place.id);
     _pendingIds.remove(place.id);
     notifyListeners();
-    _persist();
+    _persistOne(() => _store.removeId(place.id));
   }
 
   void clear() {
@@ -111,6 +111,22 @@ class FavoritesController extends ChangeNotifier {
   /// Everything currently saved, hydrated or not.
   Set<String> get savedIds => <String>{..._savedAt.keys, ..._pendingIds};
 
+  /// Writes a single id.
+  ///
+  /// Deliberately not a whole-set write: the map screen keeps its own
+  /// favourites snapshot and writes to the same store, so replacing the set
+  /// from here would delete whatever was saved over there.
+  Future<void> _persistOne(Future<void> Function() write) async {
+    try {
+      await write();
+    } catch (error) {
+      // Persistence is best-effort; in-memory state is already correct.
+      debugPrint('Failed to persist favourite: $error');
+    }
+  }
+
+  /// Whole-set write, used only by [clear] where this controller genuinely
+  /// owns every id being removed.
   Future<void> _persist() async {
     try {
       await _store.saveIds(savedIds);

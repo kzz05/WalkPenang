@@ -8,7 +8,24 @@ import 'package:shared_preferences/shared_preferences.dart';
 abstract class FavoritesStore {
   Future<Set<String>> loadIds();
 
+  /// Replaces the entire stored set.
+  ///
+  /// **Clobbers.** Anything absent from [ids] is deleted, so this is only safe
+  /// when the caller owns the whole set — a single in-process writer, or a
+  /// deliberate wipe. Two screens each holding their own snapshot must not
+  /// both call this: the second overwrites whatever the first added. Use
+  /// [addId] / [removeId] for a single place.
   Future<void> saveIds(Set<String> ids);
+
+  /// Saves one place without touching any other.
+  ///
+  /// Exists because the map and the Discovery feed both write favourites from
+  /// independently-loaded snapshots; with [saveIds] alone, saving on one
+  /// screen deleted whatever had been saved on the other.
+  Future<void> addId(String id);
+
+  /// Unsaves one place without touching any other.
+  Future<void> removeId(String id);
 }
 
 class SharedPrefsFavoritesStore implements FavoritesStore {
@@ -26,6 +43,20 @@ class SharedPrefsFavoritesStore implements FavoritesStore {
   Future<void> saveIds(Set<String> ids) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(_key, ids.toList());
+  }
+
+  @override
+  Future<void> addId(String id) async {
+    final ids = await loadIds();
+    if (!ids.add(id)) return;
+    await saveIds(ids);
+  }
+
+  @override
+  Future<void> removeId(String id) async {
+    final ids = await loadIds();
+    if (!ids.remove(id)) return;
+    await saveIds(ids);
   }
 }
 
@@ -47,6 +78,18 @@ class InMemoryFavoritesStore implements FavoritesStore {
   @override
   Future<void> saveIds(Set<String> ids) async {
     _ids = Set<String>.of(ids);
+    saveCount++;
+  }
+
+  @override
+  Future<void> addId(String id) async {
+    _ids.add(id);
+    saveCount++;
+  }
+
+  @override
+  Future<void> removeId(String id) async {
+    _ids.remove(id);
     saveCount++;
   }
 }

@@ -310,6 +310,42 @@ void main() {
       expect(controller.errorMessage, isNull);
     });
 
+    test('tapping a valid stop does not wipe a GPS warning', () async {
+      // errorMessage is one field written by validateDestination,
+      // renderNearbyPins and _applyLocation. An unconditional clear on a
+      // valid tap silently retired a weak-signal warning the tourist still
+      // needed.
+      final controller = build();
+      await controller.loadMap();
+
+      location.accurate = false;
+      location.updates.add(fix(accuracy: 90));
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.errorMessage, MapErrorMessages.weakGpsSignal);
+
+      expect(controller.validateDestination(place('p1')), isTrue);
+      expect(controller.errorMessage, MapErrorMessages.weakGpsSignal);
+    });
+
+    test('a valid tap does clear a previous out-of-boundary rejection',
+        () async {
+      final controller = build();
+      final farAway = PlaceModel(
+        placeId: 'kl',
+        name: 'Petronas Towers',
+        category: 'heritage',
+        latitude: 3.1578,
+        longitude: 101.7117,
+      );
+
+      controller.validateDestination(farAway);
+      expect(controller.errorMessage,
+          MapErrorMessages.outsidePenangDestination);
+
+      controller.validateDestination(place('p1'));
+      expect(controller.errorMessage, isNull);
+    });
+
     test('a destination outside Penang is rejected with a message', () async {
       final controller = build();
       final farAway = PlaceModel(

@@ -284,6 +284,15 @@ class _MapPanelState extends State<MapPanel> {
     await manager.deleteAll();
     _placesByAnnotationId.clear();
     _annotationsByPlaceId.clear();
+
+    // Every marker has just been deleted, so a card left open would describe
+    // a stop that is no longer on the map. This happens on its own: walking
+    // half the search radius refetches the pins underneath an open card.
+    final selected = _selectedStop;
+    if (selected != null && !ids.contains(selected.placeId)) {
+      setState(() => _selectedStop = null);
+    }
+
     if (places.isEmpty) return;
 
     final options = <PointAnnotationOptions>[];
@@ -316,10 +325,21 @@ class _MapPanelState extends State<MapPanel> {
   /// leaves the old sprite in place while every other piece of state says
   /// "saved".
   Future<void> _toggleFavorite(PlaceModel place) async {
+    final wasSaved = _favoriteIds.contains(place.placeId);
     final next = Set<String>.of(_favoriteIds);
-    if (!next.remove(place.placeId)) next.add(place.placeId);
+    if (wasSaved) {
+      next.remove(place.placeId);
+    } else {
+      next.add(place.placeId);
+    }
     setState(() => _favoriteIds = next);
-    await _favorites.saveIds(next);
+
+    // One id, never the whole set: this screen's snapshot was loaded at init
+    // and the Discovery feed writes to the same store, so a bulk save here
+    // would delete anything saved over there since.
+    await (wasSaved
+        ? _favorites.removeId(place.placeId)
+        : _favorites.addId(place.placeId));
 
     final manager = _pinManager;
     final old = _annotationsByPlaceId[place.placeId];

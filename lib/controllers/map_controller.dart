@@ -215,7 +215,18 @@ class MapController extends ChangeNotifier {
   bool validateDestination(PlaceModel place) {
     final destination = LatLng(place.latitude, place.longitude);
     final isValid = _boundaryValidatorService.validateDestination(destination);
-    errorMessage = isValid ? null : MapErrorMessages.outsidePenangDestination;
+
+    // Clear only this method's own message. `errorMessage` is one field
+    // written by three places — here, renderNearbyPins and _applyLocation —
+    // so an unconditional `= null` on success wipes a weak-signal or
+    // outside-Penang warning simply because the tourist tapped a valid stop.
+    if (isValid) {
+      if (errorMessage == MapErrorMessages.outsidePenangDestination) {
+        errorMessage = null;
+      }
+    } else {
+      errorMessage = MapErrorMessages.outsidePenangDestination;
+    }
     notifyListeners();
     return isValid;
   }

@@ -54,9 +54,39 @@ class FirestoreFavoritesStore implements FavoritesStore {
     }
   }
 
-  /// The interface hands over the whole desired set, so this diffs it against
-  /// what is stored and writes only the difference — re-saving every id on
-  /// each toggle would cost a write per favourite every time.
+  /// Saves one place. One document write, and it cannot affect any other id —
+  /// which is what makes it safe for the map and the Discovery feed to write
+  /// from their own independently-loaded snapshots.
+  @override
+  Future<void> addId(String id) async {
+    final collection = _collection;
+    if (collection == null) return fallback.addId(id);
+    try {
+      await collection.doc(id).set(<String, dynamic>{
+        'savedAt': FieldValue.serverTimestamp(),
+      });
+      await fallback.addId(id);
+    } on Exception {
+      await fallback.addId(id);
+    }
+  }
+
+  @override
+  Future<void> removeId(String id) async {
+    final collection = _collection;
+    if (collection == null) return fallback.removeId(id);
+    try {
+      await collection.doc(id).delete();
+      await fallback.removeId(id);
+    } on Exception {
+      await fallback.removeId(id);
+    }
+  }
+
+  /// Bulk replace. See [FavoritesStore.saveIds] — this deletes anything absent
+  /// from [ids], so callers holding a partial view must use [addId] /
+  /// [removeId] instead. Kept for `clear()` and [migrateLocalFavorites],
+  /// which do own the whole set.
   @override
   Future<void> saveIds(Set<String> ids) async {
     final collection = _collection;
