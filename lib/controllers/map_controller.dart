@@ -72,10 +72,16 @@ class MapController extends ChangeNotifier {
       // e.g. the tourist backs out of the map and re-enters before answering.
       // Outside it, that throw left isLoading true forever and the loading
       // scrim covered the screen with no way back.
-      final granted = await _locationService.requestLocationPermission();
-      hasLocationPermission = granted;
-      if (!granted) {
-        errorMessage = MapErrorMessages.locationPermissionDenied;
+      final access = await _locationService.requestLocationAccess();
+      hasLocationPermission = access == LocationAccessStatus.granted;
+      if (!hasLocationPermission) {
+        // UC-M02 A1 vs UC-M01 A1: the tourist has to do something different
+        // about each, so they get different messages. Telling someone whose
+        // GPS is switched off to change a permission they already granted
+        // sends them to the wrong settings screen.
+        errorMessage = access == LocationAccessStatus.serviceDisabled
+            ? MapErrorMessages.gpsDisabled
+            : MapErrorMessages.locationPermissionDenied;
         return;
       }
 
@@ -165,6 +171,16 @@ class MapController extends ChangeNotifier {
         radiusKm: searchRadiusKm,
       );
       nearbyPlaces = results;
+
+      // Clear only the two messages this method owns. A successful refetch
+      // must retire a stale "unable to load" banner — otherwise widening the
+      // radius after a network error shows pins and the failure notice at the
+      // same time — but must not wipe a weak-signal or outside-Penang warning
+      // that _applyLocation set, since both share this one field.
+      if (errorMessage == MapErrorMessages.mapLoadFailed ||
+          errorMessage == MapErrorMessages.noPlacesFound) {
+        errorMessage = null;
+      }
       if (results.isEmpty) errorMessage = MapErrorMessages.noPlacesFound;
     } catch (_) {
       errorMessage = MapErrorMessages.mapLoadFailed;

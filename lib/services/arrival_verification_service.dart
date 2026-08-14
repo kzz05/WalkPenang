@@ -62,16 +62,17 @@ class LocationArrivalVerificationService implements ArrivalVerificationService {
     required double destinationLatitude,
     required double destinationLongitude,
   }) async {
-    final hasPermission = await _locationService.requestLocationPermission();
-    if (!hasPermission) {
-      // LocationService.requestLocationPermission() collapses "GPS service
-      // off" and "permission denied" into one false (a documented Map & GPS
-      // gap — see the module's own sprint report). Both surface here as
-      // permissionDenied until that module splits them; VerifyBlockReason
-      // has a distinct gpsDisabled state, but LocationService today gives
-      // no way to tell the two apart.
-      return const ArrivalCheckReading.failure(
-        ArrivalCheckStatus.permissionDenied,
+    final access = await _locationService.requestLocationAccess();
+    if (access != LocationAccessStatus.granted) {
+      // The Map & GPS module now distinguishes "GPS service off" from
+      // "permission denied", so this no longer has to report both as
+      // permissionDenied. gpsUnavailable is what JourneyCompletionController
+      // maps to VerifyBlockReason.gpsDisabled — the state VerifyLocationView
+      // already renders but could not previously be reached.
+      return ArrivalCheckReading.failure(
+        access == LocationAccessStatus.serviceDisabled
+            ? ArrivalCheckStatus.gpsUnavailable
+            : ArrivalCheckStatus.permissionDenied,
       );
     }
 
