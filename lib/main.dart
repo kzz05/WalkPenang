@@ -20,6 +20,21 @@ void main() async {
   // never here. Must be set before the first MapWidget is built.
   MapboxOptions.setAccessToken(dotenv.env['MAPBOX_ACCESS_TOKEN'] ?? '');
 
+  // Republishing a Studio style does not change its URI, so the SDK has no
+  // reason to refetch and keeps serving the copy in its ambient cache — the
+  // app can render an old basemap for a long time after the new one is live.
+  // Clearing is opt-in rather than automatic because doing it every launch
+  // would throw away the tile cache too, costing a fresh download (and quota)
+  // on every start:
+  //
+  //   flutter run --dart-define=MAPBOX_CLEAR_CACHE=true
+  //
+  // Only the map's own cached data goes; the session and profile are
+  // untouched.
+  if (const bool.fromEnvironment('MAPBOX_CLEAR_CACHE')) {
+    await MapboxMapsOptions.clearData();
+  }
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
