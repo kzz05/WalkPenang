@@ -65,7 +65,7 @@ class CheckInResult {
     this.transportMode = TransportMode.walking,
   });
 
-  /// Whether this journey qualifies for points (FR-R01).
+  /// Whether this journey qualifies for points (FR-W01).
   bool get earnsPoints => transportMode.earnsPoints;
 
   /// Distance in whole metres.

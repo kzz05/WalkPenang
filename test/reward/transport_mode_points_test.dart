@@ -1,4 +1,8 @@
-// Only a walked journey earns check-in points (FR-R01).
+// Only a walked journey earns check-in points.
+//
+// FR-W01 (Transport Mode Selection) is the governing requirement: walking
+// related carbon, calorie, check-in and reward features are enabled only when
+// Walking is selected. FR-R01 defines the award itself, not the gate.
 //
 // Pure Dart — RewardPoints and TransportMode both avoid Flutter and Firestore
 // deliberately, so this needs no binding and no Firebase project.
