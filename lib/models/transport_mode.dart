@@ -22,7 +22,10 @@ enum TransportMode {
 
   const TransportMode({required this.earnsPoints});
 
-  /// Whether a completed journey in this mode awards check-in points (FR-R01).
+  /// Whether a completed journey in this mode awards check-in points.
+  ///
+  /// FR-W01: "Walking-related carbon, calorie, check-in, and reward features
+  /// shall only be enabled when Walking is selected."
   final bool earnsPoints;
 
   /// Parses the value stored on a `check_ins` document.
