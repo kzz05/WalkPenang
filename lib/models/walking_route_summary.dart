@@ -18,6 +18,22 @@ class WalkingRouteSummary {
   final int rewardPoints;
   final String rewardBadgeLabel;
 
+  /// Stable destination identifier, handed straight through to
+  /// [CheckInResult.destinationId] on journey completion (US-W05) — never
+  /// derived from [destinationName], since a display label can change
+  /// without the place it refers to changing. Map & GPS integration
+  /// contract: once that module supplies a real destination, this should be
+  /// its [PlaceModel.placeId]/[Place.id], not a Walking-invented ID.
+  final String destinationId;
+
+  /// The destination's coordinates, needed to verify arrival (UC-W06)
+  /// against [MapConstants.checkInThresholdMeters] via
+  /// LocationService.distanceMeters(). Map & GPS integration contract: once
+  /// that module supplies a real destination, these come from its selected
+  /// place, not a Walking-invented value.
+  final double destinationLatitude;
+  final double destinationLongitude;
+
   const WalkingRouteSummary({
     required this.destinationName,
     required this.areaLabel,
@@ -25,6 +41,9 @@ class WalkingRouteSummary {
     required this.estimatedDuration,
     required this.rewardPoints,
     required this.rewardBadgeLabel,
+    required this.destinationId,
+    required this.destinationLatitude,
+    required this.destinationLongitude,
   });
 
   /// Whether this route has a usable distance/duration — checked before
@@ -33,7 +52,9 @@ class WalkingRouteSummary {
 
   /// Sprint 1 fallback used only until Map & GPS provides a real route —
   /// the Fort Cornwallis walk from the "02 · Pre-Walk Summary v2" Figma
-  /// prototype.
+  /// prototype. Coordinates are Fort Cornwallis's real public location in
+  /// George Town, so US-W05/UC-W06 arrival verification behaves sensibly
+  /// even while this fallback is still in use.
   static const demo = WalkingRouteSummary(
     destinationName: 'Fort Cornwallis',
     areaLabel: 'George Town Heritage Zone',
@@ -41,6 +62,9 @@ class WalkingRouteSummary {
     estimatedDuration: Duration(minutes: 32),
     rewardPoints: 15,
     rewardBadgeLabel: 'a heritage badge for Fort Cornwallis',
+    destinationId: 'demo-fort-cornwallis',
+    destinationLatitude: 5.4229,
+    destinationLongitude: 100.3402,
   );
 }
 

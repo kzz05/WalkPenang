@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
 import '../controllers/walking_controller.dart';
+import '../debug/demo_journey_flow_view.dart';
 import '../models/transport_mode.dart';
 import '../models/user_profile.dart';
 import '../models/walking_route_summary.dart';
@@ -94,6 +96,24 @@ class _WalkingViewState extends State<WalkingView> {
                     enabled: _controller.hasSelectedMode,
                     onPressed: _onContinue,
                   ),
+                  // Debug-only lecturer demo entry point (US-W05) — reuses
+                  // the real Active Walking / Verify Location / Journey
+                  // Completed views with fake GPS and reward dependencies,
+                  // never reachable in a release build. See
+                  // lib/debug/demo_journey_flow_view.dart.
+                  if (kDebugMode) ...[
+                    const SizedBox(height: 12),
+                    Center(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const DemoJourneyFlowView(),
+                          ),
+                        ),
+                        child: const Text('Demo Walking Journey (debug)'),
+                      ),
+                    ),
+                  ],
                 ],
               );
             },
@@ -286,9 +306,7 @@ class _TransportOptionCard extends StatelessWidget {
                       style: AppType.body.copyWith(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
-                        color: selected
-                            ? AppColors.onPrimary
-                            : AppColors.muted,
+                        color: selected ? AppColors.onPrimary : AppColors.muted,
                       ),
                     ),
                   ),
@@ -335,8 +353,7 @@ class _TransportOptionCard extends StatelessWidget {
                         dotColor: AppColors.calories, label: 'CALORIES'),
                     _FeatureChip(
                         dotColor: AppColors.completion, label: 'COMPLETION'),
-                    _FeatureChip(
-                        dotColor: AppColors.rewards, label: 'REWARDS'),
+                    _FeatureChip(dotColor: AppColors.rewards, label: 'REWARDS'),
                   ],
                 ),
               ] else if (showUnavailableCaption) ...[
