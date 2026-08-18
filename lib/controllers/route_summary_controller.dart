@@ -5,23 +5,17 @@ import '../constants/map_error_messages.dart';
 import '../models/place_model.dart';
 import '../models/route_result.dart';
 import '../services/map_service.dart';
-import '../services/navigation_launcher_service.dart';
 import '../services/route_service.dart';
 
-/// Drives [RouteSummaryView] — UC-M04 (distance/time) and UC-M05 (launch
-/// navigation), both of which extend UC-M06 (Request Map Service).
+/// Drives [RouteSummaryView] — UC-M04 (distance/time), which extends UC-M06
+/// (Request Map Service). "Navigate" hands the already-fetched [route] off
+/// to [NavigationController] for UC-M05's in-app turn-by-turn navigation.
 class RouteSummaryController extends ChangeNotifier {
-  RouteSummaryController({
-    required this.destination,
-    RouteService? routeService,
-    NavigationLauncherService? navigationLauncherService,
-  }) : _routeService = routeService ?? RouteService(MapService()),
-       _navigationLauncherService =
-           navigationLauncherService ?? NavigationLauncherService(MapService());
+  RouteSummaryController({required this.destination, RouteService? routeService})
+    : _routeService = routeService ?? RouteService(MapService());
 
   final PlaceModel destination;
   final RouteService _routeService;
-  final NavigationLauncherService _navigationLauncherService;
 
   RouteResult? route;
   bool isLoading = false;
@@ -47,28 +41,6 @@ class RouteSummaryController extends ChangeNotifier {
       errorMessage = MapErrorMessages.networkLostDuringRoute;
     } finally {
       isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  /// UC-M05 steps 1-4 / A1 / A3: taps "Navigate" on the route summary card.
-  Future<void> launchNavigation() async {
-    final destLatLng = LatLng(destination.latitude, destination.longitude);
-    final deepLink = _navigationLauncherService.buildNavigationDeepLink(
-      destLatLng,
-    );
-
-    final mapsInstalled = await _navigationLauncherService
-        .isGoogleMapsInstalled(destLatLng);
-    if (!mapsInstalled) {
-      await _navigationLauncherService.redirectToPlayStore();
-      return;
-    }
-
-    final launched = await _navigationLauncherService
-        .launchGoogleMapsNavigation(deepLink);
-    if (!launched) {
-      errorMessage = MapErrorMessages.navigationLaunchFailed;
       notifyListeners();
     }
   }

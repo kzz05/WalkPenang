@@ -1,6 +1,7 @@
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../models/route_result.dart';
+import '../models/route_step.dart';
 import 'map_service.dart';
 
 /// Route Calculation Sub Module (UC-M04).
@@ -43,10 +44,51 @@ class RouteService {
       distanceKm: distanceMeters / 1000,
       durationMinutes: (durationSeconds / 60).round(),
       polylinePoints: polyline,
+      steps: _extractSteps(leg['steps'] as List<dynamic>?),
     );
   }
 
   RouteResult handleNoRouteFound() => RouteResult.notFound();
+
+  /// UC-M05: turn-by-turn instructions for in-app navigation, one per
+  /// Directions API leg step.
+  List<RouteStep> _extractSteps(List<dynamic>? steps) {
+    if (steps == null) return [];
+
+    return steps.map((raw) {
+      final step = raw as Map<String, dynamic>;
+      final startLocation = step['start_location'] as Map<String, dynamic>?;
+      final endLocation = step['end_location'] as Map<String, dynamic>?;
+
+      return RouteStep(
+        instruction: _stripHtml(step['html_instructions'] as String? ?? ''),
+        maneuver: step['maneuver'] as String? ?? '',
+        distanceMeters: (step['distance']?['value'] as num?)?.toDouble() ?? 0,
+        durationSeconds: (step['duration']?['value'] as num?)?.toInt() ?? 0,
+        startLocation: LatLng(
+          (startLocation?['lat'] as num?)?.toDouble() ?? 0,
+          (startLocation?['lng'] as num?)?.toDouble() ?? 0,
+        ),
+        endLocation: LatLng(
+          (endLocation?['lat'] as num?)?.toDouble() ?? 0,
+          (endLocation?['lng'] as num?)?.toDouble() ?? 0,
+        ),
+        polylinePoints:
+            _decodePolyline(step['polyline']?['points'] as String?),
+      );
+    }).toList();
+  }
+
+  /// Directions API instructions come as HTML fragments (e.g.
+  /// `<b>Turn left</b> onto <b>Lebuh Chulia</b>`) — strips the markup down
+  /// to plain text for display in the navigation banner.
+  String _stripHtml(String html) {
+    return html
+        .replaceAll(RegExp(r'<[^>]*>'), '')
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .trim();
+  }
 
   /// Standard Google encoded-polyline decoder (5 decimal-place precision),
   /// used to draw the walking route line on the map.
