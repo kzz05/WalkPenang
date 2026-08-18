@@ -83,16 +83,6 @@ class MapService {
     });
   }
 
-  /// UC-M05: Google Maps walking-navigation deep link. Destination only —
-  /// Google Maps fills in the origin from the device's own location.
-  Uri buildDeepLinkRequest(LatLng destination) {
-    return Uri.https('www.google.com', '/maps/dir/', {
-      'api': '1',
-      'destination': '${destination.latitude},${destination.longitude}',
-      'travelmode': 'walking',
-    });
-  }
-
   /// UC-007: base endpoint for a Places API (New) `searchNearby` call. The
   /// actual search parameters go in the POST body built by [PlacesService].
   Uri buildPlacesNearbyRequest() =>

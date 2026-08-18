@@ -5,6 +5,7 @@ import '../constants/map_constants.dart';
 import '../controllers/map_controller.dart';
 import '../models/place_model.dart';
 import '../theme/app_theme.dart';
+import '../widgets/map/zoom_controls.dart';
 import 'route_summary_view.dart';
 
 /// Screen for UC-007 (nearby pins), UC-008 (live location), and UC-009
@@ -91,14 +92,20 @@ class _MapViewState extends State<MapView> {
                   target: MapConstants.georgeTownCenter,
                   zoom: MapConstants.defaultZoom,
                 ),
-                onMapCreated: (controller) => _mapController = controller,
+                onMapCreated: (controller) => setState(() => _mapController = controller),
                 myLocationEnabled: true,
                 myLocationButtonEnabled: true,
+                zoomControlsEnabled: false,
                 cameraTargetBounds: CameraTargetBounds(
                   _controller.boundaryConstraint,
                 ),
                 minMaxZoomPreference: const MinMaxZoomPreference(10, 19),
                 markers: _buildMarkers(),
+              ),
+              Positioned(
+                right: 12,
+                bottom: (_controller.nearbyPlaces.isNotEmpty ? 132 : 0) + 20,
+                child: ZoomControls(mapController: _mapController),
               ),
               Positioned(
                 top: 12,

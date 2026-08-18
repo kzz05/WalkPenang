@@ -32,10 +32,4 @@ class MapErrorMessages {
       'No walking route found for this destination. Please select a different location.';
   static const networkLostDuringRoute =
       'Unable to calculate route. Please check your internet connection.';
-
-  // UC-M05
-  static const navigationLaunchFailed =
-      'Unable to open navigation. Please try again.';
-  static const googleMapsNotInstalled =
-      'Google Maps is not installed. Redirecting to the Play Store.';
 }
