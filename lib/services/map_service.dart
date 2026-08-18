@@ -14,8 +14,9 @@ class MapServiceException implements Exception {
 }
 
 /// Map Service Sub Module (UC-M06). The single place that talks to Google's
-/// HTTP APIs — Route Calculation (UC-M04) and Navigation Launcher (UC-M05)
-/// both build their requests here rather than calling `http` directly.
+/// HTTP APIs — Route Calculation (UC-M04) builds its requests here rather
+/// than calling `http` directly; UC-M05's in-app navigation reuses whatever
+/// route UC-M04 already fetched instead of calling this service again.
 class MapService {
   static String get _apiKey => dotenv.env['MAPS_API_KEY'] ?? '';
 
@@ -70,17 +71,27 @@ class MapService {
     throw MapServiceException('Unable to reach Google Maps API: $error');
   }
 
-  /// UC-M04: Directions API request, walking mode.
+  /// UC-M04: Directions API request for the given travel mode (`walking`,
+  /// `driving`, or `transit` — see `TravelMode.apiValue`).
   Uri buildDirectionsRequest({
     required LatLng origin,
     required LatLng destination,
+    required String mode,
   }) {
-    return Uri.https('maps.googleapis.com', '/maps/api/directions/json', {
+    final params = {
       'origin': '${origin.latitude},${origin.longitude}',
       'destination': '${destination.latitude},${destination.longitude}',
-      'mode': 'walking',
+      'mode': mode,
       'key': _apiKey,
-    });
+    };
+    // Transit schedules depend on when the trip starts; Google recommends
+    // an explicit departure_time for accurate results rather than relying
+    // on its undocumented "now" default.
+    if (mode == 'transit') {
+      final nowSeconds = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      params['departure_time'] = '$nowSeconds';
+    }
+    return Uri.https('maps.googleapis.com', '/maps/api/directions/json', params);
   }
 
   /// UC-007: base endpoint for a Places API (New) `searchNearby` call. The

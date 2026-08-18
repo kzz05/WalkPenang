@@ -3,25 +3,32 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../constants/travel_mode.dart';
 import '../controllers/navigation_controller.dart';
 import '../models/place_model.dart';
 import '../models/route_result.dart';
+import '../models/route_step.dart';
+import '../models/transit_details.dart';
 import '../theme/app_theme.dart';
+import '../utils/duration_format.dart';
 import '../widgets/map/zoom_controls.dart';
 
-/// UC-M05: live turn-by-turn walking navigation, rendered entirely on
-/// WalkPenang's own map — no hand-off to an external app. Pushed from
-/// [RouteSummaryView] with the [RouteResult] already fetched for UC-M04.
+/// UC-M05: live turn-by-turn navigation for the tourist's chosen travel
+/// [mode] (walk, drive, or transit), rendered entirely on WalkPenang's own
+/// map — no hand-off to an external app. Pushed from [RouteSummaryView]
+/// with the [RouteResult] already fetched for UC-M04.
 class NavigationView extends StatefulWidget {
   final RouteResult route;
   final PlaceModel destination;
   final LatLng origin;
+  final TravelMode mode;
 
   const NavigationView({
     super.key,
     required this.route,
     required this.destination,
     required this.origin,
+    required this.mode,
   });
 
   @override
@@ -77,9 +84,23 @@ class _NavigationViewState extends State<NavigationView> {
   Future<void> _followCamera(LatLng target) async {
     _isProgrammaticCameraMove = true;
     await _mapController?.animateCamera(
-      CameraUpdate.newLatLngZoom(target, 18),
+      CameraUpdate.newLatLngZoom(target, _navigationZoom),
     );
     _isProgrammaticCameraMove = false;
+  }
+
+  /// Walking benefits from a close-in zoom to read street-level turns;
+  /// driving and transit cover more ground per screen, so they pull back a
+  /// little to keep upcoming manoeuvres/stops in view.
+  double get _navigationZoom {
+    switch (widget.mode) {
+      case TravelMode.walking:
+        return 18;
+      case TravelMode.driving:
+        return 16;
+      case TravelMode.transit:
+        return 15;
+    }
   }
 
   void _onCameraMoveStarted() {
@@ -176,7 +197,10 @@ class _NavigationViewState extends State<NavigationView> {
       body: Stack(
         children: [
           GoogleMap(
-            initialCameraPosition: CameraPosition(target: widget.origin, zoom: 18),
+            initialCameraPosition: CameraPosition(
+              target: widget.origin,
+              zoom: _navigationZoom,
+            ),
             onMapCreated: (controller) => setState(() => _mapController = controller),
             onCameraMoveStarted: _onCameraMoveStarted,
             myLocationEnabled: false,
@@ -184,7 +208,7 @@ class _NavigationViewState extends State<NavigationView> {
             zoomControlsEnabled: false,
             polylines: {
               Polyline(
-                polylineId: const PolylineId('walking_route'),
+                polylineId: const PolylineId('route'),
                 points: widget.route.polylinePoints,
                 color: AppColors.primary,
                 width: 6,
@@ -283,7 +307,8 @@ class _RecentreButton extends StatelessWidget {
   }
 }
 
-/// UC-M05 step 4: current manoeuvre + distance to it, plus the exit control.
+/// UC-M05 step 4: current manoeuvre + distance to it (or, for a `TRANSIT`
+/// step, the bus/train to board), plus the exit control.
 class _InstructionBanner extends StatelessWidget {
   final NavigationController controller;
   final VoidCallback onExit;
@@ -293,6 +318,7 @@ class _InstructionBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final step = controller.currentStep;
+    final transit = step?.transitDetails;
 
     return Container(
       width: double.infinity,
@@ -303,31 +329,16 @@ class _InstructionBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(_maneuverIcon(step?.maneuver), color: Colors.white, size: 32),
+          Icon(
+            transit != null ? _vehicleIcon(transit.vehicleType) : _maneuverIcon(step?.maneuver),
+            color: Colors.white,
+            size: 32,
+          ),
           const SizedBox(width: 14),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  step == null
-                      ? 'Head towards your destination'
-                      : '${controller.distanceToNextStepMeters.round()} m',
-                  style: AppType.stat.copyWith(color: Colors.white, fontSize: 20),
-                ),
-                if (step != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    step.instruction,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppType.body.copyWith(
-                      color: AppColors.onSurfaceMuted,
-                    ),
-                  ),
-                ],
-              ],
-            ),
+            child: transit != null
+                ? _TransitStepText(transit: transit)
+                : _ManeuverStepText(step: step, controller: controller),
           ),
           IconButton(
             onPressed: onExit,
@@ -366,6 +377,102 @@ class _InstructionBanner extends StatelessWidget {
         return Icons.straight;
     }
   }
+
+  IconData _vehicleIcon(String vehicleType) {
+    switch (vehicleType) {
+      case 'BUS':
+      case 'INTERCITY_BUS':
+      case 'TROLLEYBUS':
+        return Icons.directions_bus;
+      case 'SUBWAY':
+      case 'HEAVY_RAIL':
+      case 'RAIL':
+      case 'COMMUTER_TRAIN':
+      case 'HIGH_SPEED_TRAIN':
+        return Icons.train;
+      case 'TRAM':
+      case 'CABLE_CAR':
+      case 'GONDOLA_LIFT':
+      case 'FUNICULAR':
+        return Icons.tram;
+      case 'FERRY':
+        return Icons.directions_boat;
+      default:
+        return Icons.directions_bus;
+    }
+  }
+}
+
+/// Distance to the next manoeuvre + the turn-by-turn instruction text —
+/// UC-M05's walking/driving instruction content.
+class _ManeuverStepText extends StatelessWidget {
+  final RouteStep? step;
+  final NavigationController controller;
+
+  const _ManeuverStepText({required this.step, required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          step == null
+              ? 'Head towards your destination'
+              : '${controller.distanceToNextStepMeters.round()} m',
+          style: AppType.stat.copyWith(color: Colors.white, fontSize: 20),
+        ),
+        if (step != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            step!.instruction,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AppType.body.copyWith(color: AppColors.onSurfaceMuted),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// UC-M05 transit navigation: which line to board, where to get off, and
+/// when it departs — the bus/train equivalent of a turn instruction.
+class _TransitStepText extends StatelessWidget {
+  final TransitDetails transit;
+
+  const _TransitStepText({required this.transit});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Board ${transit.lineName}',
+          style: AppType.stat.copyWith(color: Colors.white, fontSize: 20),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          '${transit.departureStopName} → ${transit.arrivalStopName} · '
+          '${transit.numStops} stop${transit.numStops == 1 ? '' : 's'}',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: AppType.body.copyWith(color: AppColors.onSurfaceMuted),
+        ),
+        if (transit.departureTimeText.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(
+            'Departs ${transit.departureTimeText}',
+            style: AppType.mono.copyWith(
+              color: AppColors.onSurfaceMuted,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
 }
 
 /// Live remaining distance/time, reading straight off [NavigationController]
@@ -390,7 +497,7 @@ class _ProgressBar extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           _StatBlock(label: 'remaining', value: '${distanceKm.toStringAsFixed(1)} km'),
-          _StatBlock(label: 'eta', value: '$minutes min'),
+          _StatBlock(label: 'eta', value: formatEtaMinutes(minutes)),
         ],
       ),
     );
