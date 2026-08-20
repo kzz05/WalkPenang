@@ -77,11 +77,26 @@ service cloud.firestore {
     //
     // create is deliberately not update: a tourist may record a check-in but
     // must not be able to rewrite its distance afterwards and farm points.
+    // transportMode must be one of the known ids. Only walking earns points
+    // (TransportMode.earnsPoints, FR-W01), and TransportMode.fromId falls back
+    // to 'walking' for anything it does not recognise — a fallback that is
+    // right for pre-existing records but would otherwise let any unknown
+    // string mint points. Absent is still allowed: check-ins written before
+    // modes existed carry no such field and were all walks.
     match /check_ins/{checkInId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn()
-                    && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+                    && request.resource.data.userId == request.auth.uid
+                    && (!('transportMode' in request.resource.data.keys())
+                        || request.resource.data.transportMode
+                           in ['walking', 'driving', 'publicTransport']);
+      allow update: if isSignedIn()
+                    && resource.data.userId == request.auth.uid
+                    // Mode is fixed at creation. Allowing it to change would
+                    // let a car journey be rewritten as a walk after the fact
+                    // and claim a walker's points.
+                    && request.resource.data.get('transportMode', 'walking')
+                       == resource.data.get('transportMode', 'walking');
       allow delete: if false;
     }
 

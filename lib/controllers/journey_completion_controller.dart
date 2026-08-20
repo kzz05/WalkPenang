@@ -184,7 +184,7 @@ class JourneyCompletionController extends ChangeNotifier {
         case ArrivalCheckStatus.success:
           final distance = reading.distanceMeters!;
           _currentDistanceMeters = distance;
-          if (distance <= MapConstants.checkInThresholdMeters) {
+          if (MapConstants.isWithinCheckInRange(distance)) {
             _verifyPhase = VerifyLocationPhase.verified;
             _blockReason = null;
           } else {
@@ -286,6 +286,11 @@ class JourneyCompletionController extends ChangeNotifier {
       // CheckInResult.caloriesBurned is non-nullable; a missing body weight
       // (US-W04) reports 0.0 to Module 5 rather than blocking completion.
       caloriesBurned: caloriesBurned ?? 0.0,
+      // FR-W01: the reward module cannot tell a walk from a drive after the
+      // fact, so the journey has to record how it was travelled. Without
+      // this the field would silently take its walking default and a driven
+      // route would earn a walker's points.
+      transportMode: routeSummary.transportMode,
       checkInTime: DateTime.now(),
     );
     final result = _checkInResult!;

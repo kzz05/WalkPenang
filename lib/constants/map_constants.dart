@@ -31,6 +31,18 @@ class MapConstants {
   /// both modules read the same number.
   static const double checkInThresholdMeters = 100.0;
 
+  /// Whether [distanceMeters] from the destination counts as arrived
+  /// (NFR-02).
+  ///
+  /// Sharing the constant was not enough: the Map module's in-app navigation
+  /// and the Walking module's check-in verification each wrote their own
+  /// `distance <= checkInThresholdMeters`, so the two could have drifted to
+  /// different comparisons — a `<` here and a `<=` there decides whether a
+  /// tourist standing exactly 100 m away has arrived. One predicate, one
+  /// answer.
+  static bool isWithinCheckInRange(double distanceMeters) =>
+      distanceMeters <= checkInThresholdMeters;
+
   static const double defaultZoom = 14.0;
 
   /// UC-008: how far (in metres) the tourist must move before the live
