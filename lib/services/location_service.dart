@@ -68,5 +68,7 @@ class LocationService {
         longitude: position.longitude,
         accuracyMeters: position.accuracy,
         timestamp: position.timestamp,
+        headingDegrees: position.heading,
+        speedMetersPerSecond: position.speed,
       );
 }

@@ -33,15 +33,17 @@ The Map & GPS Module contains six use cases. Five are tourist-facing; **Request 
 | UC-007 | View Map With Nearby Pins | User |
 | UC-008 | View Current GPS Location | GPS Service |
 | UC-009 | Validate Penang Geographic Boundary | System |
-| UC-M04 | View Distance and Estimated Walking Time | User |
-| UC-M05 | Launch Google Maps Walking Navigation | User |
+| UC-M04 | Compare Travel Modes and Estimated Time | User |
+| UC-M05 | Navigate with In-App Directions | User |
 | UC-M06 | Request Map Service | «System» Google Maps API |
 
 **Relationships:**
 - UC-007 «include» UC-008
 - UC-008 «include» UC-009
-- UC-M04 «extends» UC-M06
-- UC-M05 «extends» UC-M06
+- UC-M04 «extends» UC-M06 — fetches Walk, Drive, and Bus (transit) routes in parallel so the tourist can compare them before picking one
+- UC-M05 reuses whichever mode's route UC-M04 already fetched via UC-M06 — it does not call UC-M06 independently
+
+**Note on scope:** Motorbike is intentionally not offered — Google's Directions API has no dedicated two-wheeler mode, only `driving`, `walking`, `bicycling`, and `transit`. Choosing a non-walking mode does not currently change GPS check-in or points logic (owned by the Walking & Carbon Module); that is left as an explicit trial to revisit once that module is built, per constraint C3 on UC-M05.
 
 ---
 
@@ -53,8 +55,8 @@ The Map & GPS Module contains six use cases. Five are tourist-facing; **Request 
 |---|---|---|
 | FR-M01 | Display Interactive Map | The system shall display a Google Maps interface centred on the user's current location, with nearby place pins rendered within the selected search radius. |
 | FR-M02 | Detect User GPS Location | The system shall detect and continuously update the user's real-time GPS coordinates using the Flutter Geolocator package. |
-| FR-M03 | Calculate Walking Distance and Time | The system shall calculate and display the estimated walking distance and time from the user's current location to a selected destination using the Google Maps Directions API. |
-| FR-M04 | Launch Walking Navigation | The system shall allow users to launch Google Maps turn-by-turn walking navigation to a selected destination directly from within the application. |
+| FR-M03 | Compare Travel Time Across Modes | The system shall calculate and display the estimated distance and time from the user's current location to a selected destination for Walking, Driving, and Bus (transit) modes, using the Google Maps Directions API, so the user can compare them before choosing one. |
+| FR-M04 | In-App Multi-Modal Navigation | The system shall provide live turn-by-turn navigation — for whichever of Walking, Driving, or Bus (transit) the user selected — rendered entirely within the application's own map, without handing off to an external navigation app. Bus navigation additionally shows the line to board, the stop to alight at, and the departure time for each transit leg. |
 | FR-M05 | Restrict Map to Penang Boundary | The system shall restrict all map exploration and place discovery features to within the geographic boundaries of Penang State, preventing results from being returned outside this area. |
 
 ---
@@ -87,8 +89,8 @@ The Map & GPS Module contains six use cases. Five are tourist-facing; **Request 
 | UC-007 | View Map With Nearby Pins | FR-M01 | NFR-01, NFR-03, NFR-06 |
 | UC-007 | View Map With Nearby Pins | FR-M05 | NFR-02, NFR-06 |
 | UC-008 | View Current GPS Location | FR-M02 | NFR-02, NFR-04 |
-| UC-M04 | View Distance and Estimated Walking Time | FR-M03 | NFR-01, NFR-03 |
-| UC-M05 | Launch Google Maps Walking Navigation | FR-M04 | NFR-03, NFR-06 |
+| UC-M04 | Compare Travel Modes and Estimated Time | FR-M03 | NFR-01, NFR-03 |
+| UC-M05 | Navigate with In-App Directions | FR-M04 | NFR-03, NFR-06 |
 
 ### 4.2 Completeness Checklist
 
@@ -207,71 +209,80 @@ The Map & GPS Module contains six use cases. Five are tourist-facing; **Request 
 
 ---
 
-### UC-M04: View Distance and Estimated Walking Time
+### UC-M04: Compare Travel Modes and Estimated Time
 
 | Element | Description |
 |---|---|
-| **Brief Description** | The system calculates and displays the estimated walking distance and time to a selected destination. Extends UC-M06 (Request Map Service). |
+| **Brief Description** | The system calculates and displays the estimated distance and time to a selected destination for Walking, Driving, and Bus (transit), fetched together so the tourist can compare them on a set of mode tabs before choosing one. Extends UC-M06 (Request Map Service). |
 | **Preconditions** | Destination selected and passed boundary validation (UC-009). Device connected to internet. |
-| **Postconditions** | Tourist views estimated walking distance and time on a route summary card. |
+| **Postconditions** | Tourist views estimated distance and time for the selected mode on a route summary card, with the other modes' ETAs available on the tabs above it. |
 
 **Basic Flow**
 
 | Step | Tourist | System Response |
 |---|---|---|
 | 1 | Taps a place pin to select a destination | |
-| 2 | | Triggers UC-M06 to call Directions API [A2] |
-| 3 | | Receives route response from UC-M06 [A1] |
-| 4 | | Extracts distance and duration from response |
-| 5 | | Displays route summary card |
-| 6 | Reviews route summary | |
-| 7 | Taps "Navigate" or cancels [A3] | |
+| 2 | | Triggers UC-M06 to call the Directions API for Walking, Driving, and Bus in parallel [A2] |
+| 3 | | Receives each mode's route response from UC-M06 independently [A1] |
+| 4 | | Extracts distance and duration for every mode that returned a route |
+| 5 | | Displays the mode tabs (Walk / Drive / Bus), each showing its own ETA, and the route summary card for the default selected mode (Walk) |
+| 6 | Taps a different mode tab [A4] | |
+| 7 | | Switches the route summary card, map polyline, and markers to the newly selected mode — no repeated API call |
+| 8 | Reviews route summary | |
+| 9 | Taps "Navigate" or cancels [A3] | |
 
 **Alternative Flow**
 
 | Flow | Description |
 |---|---|
-| A1: No walkable route available | System displays "No walking route found for this destination. Please select a different location." Use case ends. |
-| A2: Network connection lost during route calculation | System displays "Unable to calculate route. Please check your internet connection." Use case ends. |
+| A1: No route available for a mode | That mode's tab shows "--" instead of an ETA; tapping it (or the initially selected mode having no route) displays "No route found for this travel mode. Try a different mode or destination." Other modes with a valid route remain selectable. |
+| A2: Network connection lost during route calculation | System displays "Unable to calculate route. Please check your internet connection." for whichever mode failed. Use case ends if every mode fails. |
 | A3: Tourist cancels destination selection | System returns to the map screen without displaying any route summary. Use case ends. |
+| A4: Tourist switches modes after already viewing one | System re-displays the summary card and "Navigate" button state (disabled if the newly selected mode has no route) using the already-fetched result — no loading state is shown. |
 
 **Constraints**
-- C1: Distance in km, time in minutes, from Google Maps Directions API via UC-M06
-- C2: Carbon and calorie data calculated separately by the Walking and Carbon Module
+- C1: Distance in km, time in minutes (formatted as "Xh Ym" past one hour), from the Google Maps Directions API via UC-M06
+- C2: Carbon and calorie data calculated separately by the Walking and Carbon Module, and only for the Walking mode
+- C3: Motorbike is not offered as a mode — the Directions API has no dedicated two-wheeler mode
 
 ---
 
-### UC-M05: Launch Google Maps Walking Navigation
+### UC-M05: Navigate with In-App Directions
 
 | Element | Description |
 |---|---|
-| **Brief Description** | The system launches Google Maps turn-by-turn walking navigation using a deep link. Extends UC-M06 (Request Map Service). |
-| **Preconditions** | Tourist reviewed route summary from UC-M04. Device supports deep linking to Google Maps. |
-| **Postconditions** | Google Maps walking navigation launched, tourist actively navigating on foot. |
+| **Brief Description** | The system renders live turn-by-turn directions on WalkPenang's own map for whichever mode the tourist selected in UC-M04 (Walk, Drive, or Bus), following the tourist's GPS position along the already-calculated route — no hand-off to an external navigation app. Bus routes additionally surface which line to board and where to alight. |
+| **Preconditions** | Tourist reviewed route summary from UC-M04 and selected a mode with a valid route. Location permission granted (UC-008). |
+| **Postconditions** | Tourist is actively following in-app turn-by-turn directions towards the destination for the selected mode. |
 
 **Basic Flow**
 
 | Step | Tourist | System Response |
 |---|---|---|
 | 1 | Taps "Navigate" on route summary | |
-| 2 | | Triggers UC-M06 to construct and open deep link [A3] |
-| 3 | | Checks whether Google Maps is installed [A1] |
-| 4 | | Opens Google Maps with walking navigation active |
-| 5 | Follows navigation to destination [A2] | |
-| 6 | Arrives and returns to WalkPenang | |
-| 7 | | Returns tourist to map screen, passes arrival confirmation to Walking and Carbon Module |
+| 2 | | Opens the in-app navigation view with the UC-M04 route already loaded for the selected mode |
+| 3 | | Subscribes to live GPS updates (UC-008) and centres the map on the tourist, at a zoom level suited to the mode (closer for Walk, wider for Drive/Bus) |
+| 4 | | Replaces the default location dot with a directional puck marker, rotated to the tourist's live GPS course over ground and moved on every location update |
+| 5 | | For a `WALKING`/`DRIVING` step, displays the current manoeuvre and distance to the next turn; for a `TRANSIT` step [A5], displays the line to board, the boarding/alighting stops, stop count, and departure time instead |
+| 6 | Follows the in-app directions to the destination [A1] | |
+| 7 | | Advances through route steps as the tourist passes each one, mixing walking and transit steps in sequence for a Bus route |
+| 8 | | Detects arrival once within the check-in threshold of the destination [A2] |
+| 9 | | Returns tourist to map screen, passes arrival confirmation to Walking and Carbon Module |
 
 **Alternative Flow**
 
 | Flow | Description |
 |---|---|
-| A1: Google Maps not installed | System redirects to Google Play Store to install Google Maps. Use case ends. |
-| A2: Tourist exits navigation early | System returns tourist to map screen without triggering GPS check-in or awarding points. Use case ends. |
-| A3: Navigation deep link fails to launch | System displays "Unable to open navigation. Please try again." Use case ends. |
+| A1: Tourist exits navigation early | System returns tourist to map screen without triggering GPS check-in or awarding points. Use case ends. |
+| A2: Tourist arrives at destination | System shows an arrival confirmation card; tapping "Done" returns to the map screen and hands off to the Walking and Carbon Module. |
+| A3: Tourist pans the map away from their position | The camera stops auto-following; a recentre button appears (filled while following, outlined once panned away) that snaps the camera back and resumes auto-follow when tapped. |
+| A4: Tourist zooms in or out manually | On-screen `+`/`−` zoom controls are available at all times, independent of auto-follow. |
+| A5: Current step is a transit leg | The instruction banner swaps its icon to the vehicle type (bus/train/tram/ferry) and its text to "Board {line} · {from} → {to} · N stops", with the departure time shown beneath. |
 
 **Constraints**
-- C1: Navigation launched externally via deep link built from destination GPS coordinates, retrieved through UC-M06
+- C1: Turn-by-turn instructions come from the Directions API response already fetched for UC-M04 (UC-M06) for the selected mode — no repeated API calls during navigation
 - C2: GPS check-in and points awarding handled by the Walking and Carbon Module upon confirmed arrival
+- C3: Non-walking modes do not currently gate or affect check-in/points — this is an explicit interim choice (to be revisited once the Walking & Carbon Module exists) rather than a considered design decision
 
 ---
 
@@ -279,15 +290,15 @@ The Map & GPS Module contains six use cases. Five are tourist-facing; **Request 
 
 | Element | Description |
 |---|---|
-| **Brief Description** | Handles all outbound calls to the Google Maps API on behalf of other use cases. Extended by UC-M04 and UC-M05. |
-| **Preconditions** | A request triggered by UC-M04 or UC-M05. Device connected to internet. Google Maps API key configured. |
+| **Brief Description** | Handles all outbound calls to the Google Maps API on behalf of other use cases. Extended by UC-M04; UC-M05 reuses UC-M04's result rather than calling this use case again. |
+| **Preconditions** | A request triggered by UC-M04. Device connected to internet. Google Maps API key configured. |
 | **Postconditions** | Google Maps API returns requested data to the calling use case. |
 
 **Basic Flow**
 
 | Step | System Response |
 |---|---|
-| 1 | Receives a map service request from UC-M04 or UC-M05 |
+| 1 | Receives a map service request from UC-M04 |
 | 2 | Constructs the appropriate API request |
 | 3 | Sends the request to Google Maps API [A1] |
 | 4 | Google Maps API returns the response [A2] |
@@ -438,94 +449,97 @@ endif
 @enduml
 ```
 
-### UC-M04 — View Distance and Estimated Walking Time
+### UC-M04 — Compare Travel Modes and Estimated Time
 
 ```plantuml
-@startuml UC3_4_ViewDistanceAndWalkingTime
-title UC-M04 - View Distance and Estimated Walking Time
+@startuml UC3_4_CompareTravelModes
+title UC-M04 - Compare Travel Modes and Estimated Time
 
 |Tourist|
 start
 :Tap a place pin on the map to select a destination;
 
 |System|
-:Call Google Maps Directions API in walking mode\nwith tourist coordinates and destination coordinates;
+:Call Google Maps Directions API for Walk,\nDrive, and Bus (transit) in parallel;
 
 if (Internet connection available?) then (No)
   :Display "Unable to calculate route.\nPlease check your internet connection.";
   stop
 else (Yes)
   |Google Maps API|
-  :Return route response to system;
+  :Return each mode's route response independently;
 
   |System|
-  if (Valid walking route found?) then (No)
-    :Display "No walking route found for this destination.\nPlease select a different location.";
-    stop
-  else (Yes)
-    :Extract walking distance (km) and\nestimated duration (minutes) from response;
-    :Display route summary card below the map;
+  :Extract distance (km) and duration (minutes)\nfor every mode that returned a route;
+  :Display Walk / Drive / Bus tabs, each\nshowing its own ETA ("--" if none found);
+  :Display route summary card for the\ndefault selected mode (Walk);
 
-    |Tourist|
-    :Review route summary showing\ndistance and estimated walking time;
-
-    if (Tourist proceeds?) then (No / Cancels)
+  |Tourist|
+  repeat
+    if (Tourist taps a different mode tab?) then (Yes)
       |System|
-      :Return to map screen without displaying route summary;
-      stop
-    else (Yes / Taps Navigate)
-      :Proceed to UC-M05 Launch Google Maps Walking Navigation;
-      stop
+      :Switch summary card, map polyline, and\nmarkers to the newly selected mode;
+    else (No)
     endif
+  repeat while (Tourist still comparing modes?) is (Yes)
+
+  :Review route summary;
+
+  if (Tourist proceeds?) then (No / Cancels)
+    |System|
+    :Return to map screen without displaying route summary;
+    stop
+  else (Yes / Taps Navigate)
+    :Proceed to UC-M05 Navigate with In-App Directions\nfor the selected mode;
+    stop
   endif
 endif
 
 @enduml
 ```
 
-### UC-M05 — Launch Google Maps Walking Navigation
+### UC-M05 — Navigate with In-App Directions
 
 ```plantuml
-@startuml UC3_5_LaunchWalkingNavigation
-title UC-M05 - Launch Google Maps Walking Navigation
+@startuml UC3_5_InAppNavigation
+title UC-M05 - Navigate with In-App Directions
 
 |Tourist|
 start
 :Tap "Navigate" button on route summary screen;
 
 |System|
-:Construct Google Maps navigation\ndeep link URL using destination GPS coordinates;
-:Call url_launcher to open the deep link;
+:Open in-app navigation view with the\nUC-M04 route already loaded for the selected mode;
+:Subscribe to live GPS updates (UC-008);
+:Centre map on tourist at a zoom level\nsuited to the mode (closer for Walk, wider for Drive/Bus);
 
-if (url_launcher call successful?) then (No)
-  :Display "Unable to open navigation. Please try again.";
+|Tourist|
+:Follow in-app directions to destination;
+
+|System|
+if (Tourist exits navigation before arriving?) then (Yes)
+  :Return tourist to MapScreen;
+  :No GPS check-in triggered;
+  :No points awarded;
   stop
-else (Yes)
-  if (Google Maps installed on device?) then (No)
-    :Redirect tourist to Google Play Store\nto install Google Maps;
-    stop
-  else (Yes)
-    |Google Maps API|
-    :Open Google Maps with walking\nnavigation active for selected destination;
-
-    |Tourist|
-    :Follow walking navigation to destination;
-
-    if (Tourist exits navigation before arriving?) then (Yes)
-      |System|
-      :Return tourist to MapScreen;
-      :No GPS check-in triggered;
-      :No points awarded;
-      stop
-    else (No / Tourist arrives)
-      :Return to WalkPenang;
-
-      |System|
-      :Return tourist to MapScreen;
-      :Pass arrival confirmation to\nWalking and Carbon Module for GPS check-in;
-      stop
+else (No)
+  repeat
+    if (Current step is a TRANSIT leg?) then (Yes)
+      :Display line to board, boarding/alighting\nstops, stop count, and departure time;
+    else (No / WALKING or DRIVING step)
+      :Display current manoeuvre and\ndistance to the next turn;
     endif
-  endif
+    :Advance to the next route step as the\ntourist passes each manoeuvre/stop point;
+  repeat while (Within check-in threshold of destination?) is (No)
+  :Display arrival confirmation card;
+
+  |Tourist|
+  :Taps "Done";
+
+  |System|
+  :Return tourist to MapScreen;
+  :Pass arrival confirmation to\nWalking and Carbon Module for GPS check-in;
+  stop
 endif
 
 @enduml
@@ -539,12 +553,12 @@ endif
 
 | No. | Sub Module | Description | Functions |
 |---|---|---|---|
-| 1 | Map Display Sub Module | Renders the Google Maps interface centred on the tourist's location, places nearby food and attraction pins within the selected radius, and keeps the map within Penang. | `loadMap()` `centreMapOnLocation()` `renderNearbyPins()` `setSearchRadius()` `applyBoundaryConstraint()` |
+| 1 | Map Display Sub Module | Renders the Google Maps interface centred on the tourist's location, places nearby food and attraction pins within the selected radius, keeps the map within Penang, and provides on-screen zoom controls shared by the map, route summary, and navigation screens. | `loadMap()` `centreMapOnLocation()` `renderNearbyPins()` `setSearchRadius()` `applyBoundaryConstraint()` `zoomIn()` `zoomOut()` |
 | 2 | GPS Location Sub Module | Retrieves the tourist's GPS coordinates via the Flutter Geolocator package, requests location permission on startup, and updates the live position marker as the tourist moves. | `requestLocationPermission()` `getCurrentLocation()` `updateLocationMarker()` `startLocationUpdates()` `checkSignalAccuracy()` |
 | 3 | Boundary Validation Sub Module | Checks the tourist's location and selected destinations against the Penang LatLngBounds, blocks out of boundary map panning, and rejects invalid destination selections. | `validateUserLocation()` `validateDestination()` `restrictMapPanning()` `showOutOfBoundaryMessage()` |
-| 4 | Route Calculation Sub Module | Calls the Google Maps Directions API in walking mode, reads the distance and duration from the response, and displays a route summary card below the map. | `calculateWalkingRoute()` `extractDistanceAndDuration()` `displayRouteSummaryCard()` `handleNoRouteFound()` |
-| 5 | Navigation Launcher Sub Module | Builds a Google Maps deep link from the destination coordinates, opens it via url_launcher, and returns the tourist to the map screen on exit without triggering a check in. | `buildNavigationDeepLink()` `launchGoogleMapsNavigation()` `handleNavigationExit()` `redirectToPlayStore()` |
-| 6 | Map Service Sub Module | Shared layer for all Google Maps API calls from the Route Calculation and Navigation Launcher sub modules. Builds each request, gets the response, and returns the result to the calling sub module. | `sendAPIRequest()` `handleAPIResponse()` `handleAPIError()` `buildDirectionsRequest()` `buildDeepLinkRequest()` |
+| 4 | Route Calculation Sub Module | Calls the Google Maps Directions API for Walk, Drive, and Bus (transit) in parallel, reads distance/duration/turn-by-turn steps (including transit line/stop details) from each response, and displays a mode-comparison route summary card below the map. | `calculateRoute()` `extractDistanceAndDuration()` `displayRouteSummaryCard()` `handleNoRouteFound()` |
+| 5 | In-App Navigation Sub Module | Drives live turn-by-turn directions on WalkPenang's own map, for whichever mode was selected, from the route already calculated in the Route Calculation sub module — advances through route steps (walking manoeuvres or transit legs) and detects arrival from the live GPS stream, without opening an external app. | `distanceToStepEnd()` `advanceStepIndex()` `hasArrived()` |
+| 6 | Map Service Sub Module | Shared layer for Google Maps API calls made by the Route Calculation sub module, parameterised by travel mode (`walking` / `driving` / `transit`). Builds each request, gets the response, and returns the result to the calling sub module. | `sendAPIRequest()` `handleAPIResponse()` `handleAPIError()` `buildDirectionsRequest()` |
 
 ---
 
@@ -557,8 +571,8 @@ endif
 | US-M01 | Map & GPS Module, User Interface | As a tourist, I want to see nearby food places and attractions on an interactive map so I can decide where to walk next without leaving the app. | 1. Add `google_maps_flutter`, configure API key in AndroidManifest.xml 2. Build MapScreen centred on George Town 3. Render Google Places results as map pins 4. Show "No places found nearby" if list is empty | 8 | High |
 | US-M02 | Map & GPS Module, User Interface | As a tourist, I want my real-time GPS location shown on the map so I always know where I am in Penang. | 1. Add geolocator, request location permission on load 2. Display live position marker using myLocationEnabled: true 3. Show "Please enable GPS" if location service is off | 5 | Medium |
 | US-M03 | Map & GPS Module, Food & Attraction Discovery Module | As the system, I want to restrict all map content to within Penang's boundary so only relevant destinations are shown. | 1. Define Penang LatLngBounds in constants file 2. Apply cameraTargetBounds to restrict map panning 3. Show "This destination is outside Penang" for invalid selections | 3 | Medium |
-| US-M04 | Map & GPS Module, Walking & Carbon Module | As a tourist, I want to see the walking distance and estimated time to a destination so I can decide whether to walk there. | 1. Call Google Maps Directions API in walking mode 2. Extract distance and duration, display on route summary card 3. Show "No walking route found" if API returns no result | 5 | Medium |
-| US-M05 | Map & GPS Module, User Interface | As a tourist, I want to launch walking navigation from inside the app so I do not need to switch to a separate tool. | 1. Add url_launcher, build Google Maps deep link function 2. Add "Navigate" button on route summary screen 3. Return tourist to MapScreen on exit without triggering check-in | 3 | Low |
+| US-M04 | Map & GPS Module, Walking & Carbon Module | As a tourist, I want to compare walking, driving, and bus travel time to a destination so I can decide how to get there. | 1. Call Google Maps Directions API for Walk/Drive/Bus in parallel 2. Build Walk / Drive / Bus mode tabs, each showing its own ETA 3. Extract distance and duration, display on route summary card for the selected mode 4. Show "No route found for this travel mode" per-tab if a mode returns no result | 8 | High |
+| US-M05 | Map & GPS Module, User Interface | As a tourist, I want live turn-by-turn directions inside the app for whichever mode I picked — including which bus to board — so I do not need to switch to a separate navigation tool. | 1. Build NavigationView with a follow-camera GoogleMap and instruction banner 2. Advance through route steps and detect arrival from the live GPS stream 3. Add a transit-aware instruction card (vehicle icon, line, boarding/alighting stops, departure time) for `TRANSIT` steps 4. Add "Navigate" button on route summary screen; return tourist to MapScreen on exit without triggering check-in | 8 | High |
 
 ---
 
@@ -580,9 +594,11 @@ endif
 | 3 | US-M04 | T-M04.1 | Call Google Maps Directions API in walking mode, extract distance and duration | Tang Yue Hann | 4 | Must Have | Done |
 | 3 | US-M04 | T-M04.2 | Display route summary card, handle no route found or lost connection errors | Tang Yue Hann | 3 | Should Have | Done |
 | 3 | US-M04 | T-M04.3 | Test route calculation accuracy across multiple destinations | Tang Yue Hann | 2 | Must Have | Not Started |
-| 4 | US-M05 | T-M05.1 | Add url_launcher and build the Google Maps deep link function | Tang Yue Hann | 3 | Must Have | Done |
-| 4 | US-M05 | T-M05.2 | Add Navigate button and handle Google Maps not installed scenario | Tang Yue Hann | 3 | Should Have | Done |
-| 4 | US-M05 | T-M05.3 | Test navigation launch and exit flow, returning to MapScreen without triggering check in | Tang Yue Hann | 2 | Must Have | Not Started |
+| 3 | US-M04 | T-M04.4 | Generalise Directions call to Drive/Bus, fetch all three modes in parallel, build mode-comparison tabs | Tang Yue Hann | 4 | Must Have | Done |
+| 4 | US-M05 | T-M05.1 | Build NavigationController (step advancement, arrival detection) and NavigationView with a follow-camera GoogleMap | Tang Yue Hann | 5 | Must Have | Done |
+| 4 | US-M05 | T-M05.2 | Add instruction banner, remaining distance/ETA bar, and arrival confirmation card | Tang Yue Hann | 4 | Should Have | Done |
+| 4 | US-M05 | T-M05.3 | Test in-app navigation and exit flow, returning to MapScreen without triggering check in | Tang Yue Hann | 3 | Must Have | Not Started |
+| 4 | US-M05 | T-M05.4 | Parse transit steps (line, stops, departure time), add transit-aware instruction card and mode-based navigation zoom | Tang Yue Hann | 4 | Must Have | Done |
 
 **Status evidence** *(as at 2026-08-13)*
 
@@ -621,9 +637,9 @@ already granted. Splitting the two return cases closes this.
 | Sprint | Duration | User Stories | Total Est. Hours | Build | Tests |
 |:---:|---|---|:---:|:---:|:---:|
 | Sprint 2 | Week 8 – Week 9 | US-M01, US-M02 | 18 | 3 done, 1 partial | 0 of 2 |
-| Sprint 3 | Week 9 – Week 10 | US-M03, US-M04 | 17 | 4 done | 0 of 2 |
-| Sprint 4 | Week 10 | US-M05 | 8 | 2 done | 0 of 1 |
-| **Total** | **3 weeks** | **5 stories** | **43** | **9 done, 1 partial** | **0 of 5** |
+| Sprint 3 | Week 9 – Week 10 | US-M03, US-M04 | 21 | 5 done | 0 of 2 |
+| Sprint 4 | Week 10 | US-M05 | 16 | 3 done | 0 of 1 |
+| **Total** | **3 weeks** | **5 stories** | **55** | **11 done, 1 partial** | **0 of 5** |
 
 ---
 
@@ -634,9 +650,9 @@ already granted. Splitting the two return cases closes this.
 | Sprint | Duration | User Stories | Story Points | Est. Hours | Primary Owner | Supporting Member | Sprint Deliverable |
 |:---:|:---:|:---:|:---:|:---:|---|---|---|
 | 2 | Week 8 – Week 9 | US-M01, US-M02 | 10 | 18 | Tang Yue Hann | Ong Song Wei (place data handoff) | Interactive map with live GPS location and nearby place pins |
-| 3 | Week 9 – Week 10 | US-M03, US-M04 | 8 | 17 | Tang Yue Hann | — | Penang boundary validation and walking route summary with distance and time |
-| 4 | Week 10 | US-M05 | 3 | 8 | Tang Yue Hann | Poon Wei Seng (check in trigger) | Working Google Maps walking navigation with return to app flow |
-| **Total** | **3 weeks** | **5 stories** | **21** | **43** | | | |
+| 3 | Week 9 – Week 10 | US-M03, US-M04 | 11 | 21 | Tang Yue Hann | — | Penang boundary validation and Walk/Drive/Bus route comparison with distance and time |
+| 4 | Week 10 | US-M05 | 8 | 16 | Tang Yue Hann | Poon Wei Seng (check in trigger) | Live in-app turn-by-turn navigation (walk/drive/transit) with return to app flow |
+| **Total** | **3 weeks** | **5 stories** | **32** | **55** | | | |
 
 ---
 
@@ -649,8 +665,8 @@ Figma prototype link: **https://www.figma.com/design/sYfsMDHjHntVTV0SIqAtKa**
 | UC-007 | View Map With Nearby Pins | Map with nearby pins, radius chips, places list |
 | UC-008 | View Current GPS Location | GPS live location marker, coordinates card, boundary confirmation |
 | UC-009 | Validate Penang Geographic Boundary | Penang boundary box, rejected out-of-boundary pin, error banner |
-| UC-M04 | View Distance and Estimated Walking Time | Route line, distance and time cards, Navigate and Cancel buttons |
-| UC-M05 | Launch Google Maps Walking Navigation | Dark navigation mode, turn-by-turn header, ETA bar |
+| UC-M04 | Compare Travel Modes and Estimated Time | Walk / Drive / Bus mode tabs with per-mode ETA, route line, distance and time cards, Navigate and Cancel buttons |
+| UC-M05 | Navigate with In-App Directions | Dark in-app navigation mode, turn-by-turn instruction banner (or transit board/alight card for bus legs), remaining distance/ETA bar, recentre and zoom controls, arrival confirmation card |
 
 **Design tokens used:**
 
@@ -700,7 +716,6 @@ dependencies:
   google_maps_flutter: ^2.9.0
   geolocator: ^13.0.1
   geolocator_android: ^4.6.1
-  url_launcher: ^6.3.1
   http: ^1.2.2
   provider: ^6.1.2
   cloud_firestore: ^5.4.4
@@ -781,12 +796,14 @@ class RouteResult {
   final double distanceKm;
   final int durationMinutes;
   final List<LatLng> polylinePoints;
+  final List<RouteStep> steps;
   final bool routeFound;
 
   RouteResult({
     required this.distanceKm,
     required this.durationMinutes,
     required this.polylinePoints,
+    this.steps = const [],
     this.routeFound = true,
   });
 
@@ -794,8 +811,77 @@ class RouteResult {
         distanceKm: 0,
         durationMinutes: 0,
         polylinePoints: [],
+        steps: [],
         routeFound: false,
       );
+}
+```
+
+**`lib/models/route_step.dart`** — one Directions API leg step; a transit
+route mixes `WALKING` and `TRANSIT` steps in sequence.
+
+```dart
+class RouteStep {
+  final String instruction;
+  final String maneuver;
+  final double distanceMeters;
+  final int durationSeconds;
+  final LatLng startLocation;
+  final LatLng endLocation;
+  final List<LatLng> polylinePoints;
+  final String travelMode; // 'WALKING' | 'DRIVING' | 'TRANSIT'
+  final TransitDetails? transitDetails; // non-null only when travelMode == 'TRANSIT'
+
+  RouteStep({
+    required this.instruction,
+    required this.maneuver,
+    required this.distanceMeters,
+    required this.durationSeconds,
+    required this.startLocation,
+    required this.endLocation,
+    required this.polylinePoints,
+    this.travelMode = 'WALKING',
+    this.transitDetails,
+  });
+}
+```
+
+**`lib/models/transit_details.dart`** — parsed from a `TRANSIT` step's
+`transit_details` object.
+
+```dart
+class TransitDetails {
+  final String lineName;
+  final String vehicleType; // BUS, SUBWAY, TRAM, RAIL, FERRY, ...
+  final String headsign;
+  final String departureStopName;
+  final String arrivalStopName;
+  final int numStops;
+  final String departureTimeText;
+  final String arrivalTimeText;
+
+  TransitDetails({
+    required this.lineName,
+    required this.vehicleType,
+    required this.headsign,
+    required this.departureStopName,
+    required this.arrivalStopName,
+    required this.numStops,
+    required this.departureTimeText,
+    required this.arrivalTimeText,
+  });
+}
+```
+
+**`lib/constants/travel_mode.dart`** — the three modes UC-M04 compares and
+UC-M05 navigates. Motorbike is deliberately excluded (see Section 1).
+
+```dart
+enum TravelMode { walking, driving, transit }
+
+extension TravelModeApi on TravelMode {
+  String get apiValue { /* 'walking' | 'driving' | 'transit' */ }
+  String get label { /* 'Walk' | 'Drive' | 'Bus' */ }
 }
 ```
 
@@ -870,27 +956,35 @@ lib/
 ├── models/
 │   ├── place_model.dart
 │   ├── route_result.dart
+│   ├── route_step.dart                  # UC-M05 turn-by-turn step (mixes WALKING/TRANSIT for a bus route)
+│   ├── transit_details.dart             # UC-M05 transit leg (line, stops, departure time)
 │   └── gps_location.dart
 ├── screens/
 │   └── map/
 │       ├── map_screen.dart              # UC-007, UC-008
-│       └── route_summary_screen.dart    # UC-M04
+│       ├── route_summary_screen.dart    # UC-M04 (mode-comparison tabs + summary card)
+│       └── navigation_screen.dart       # UC-M05 (in-app turn-by-turn, all modes)
 ├── widgets/
 │   └── map/
 │       ├── place_pin_marker.dart
 │       ├── nearby_places_sheet.dart
-│       └── route_summary_card.dart
+│       ├── route_summary_card.dart
+│       └── zoom_controls.dart           # shared +/- zoom control (map, summary, navigation screens)
 ├── services/
 │   └── map/
 │       ├── location_service.dart        # UC-008
 │       ├── boundary_validator_service.dart  # UC-009
-│       ├── route_service.dart           # UC-M04
-│       ├── navigation_launcher_service.dart # UC-M05
+│       ├── route_service.dart           # UC-M04 (Walk/Drive/Bus Directions calls)
+│       ├── navigation_service.dart      # UC-M05 (in-app step advancement / arrival)
 │       └── map_service.dart             # UC-M06
 ├── viewmodels/
-│   └── map_view_model.dart
+│   ├── map_view_model.dart
+│   └── navigation_view_model.dart       # UC-M05 (live position/heading/step-index state)
+├── utils/
+│   └── duration_format.dart             # shared "20 min" / "1h 6m" ETA formatting
 └── constants/
-    └── map_constants.dart
+    ├── map_constants.dart
+    └── travel_mode.dart                 # UC-M04/UC-M05 mode enum (walking/driving/transit)
 ```
 
 ### 12.7 Navigation / Routing
@@ -944,12 +1038,10 @@ class MapErrorMessages {
       'You are currently outside Penang. Some features may be unavailable.';
   static const outsidePenangDestination =
       'This destination is outside Penang. Please select a location within Penang.';
-  static const noWalkableRoute =
-      'No walking route found for this destination. Please select a different location.';
+  static const noRouteFound =
+      'No route found for this travel mode. Try a different mode or destination.';
   static const networkLostDuringRoute =
       'Unable to calculate route. Please check your internet connection.';
-  static const navigationLaunchFailed =
-      'Unable to open navigation. Please try again.';
 }
 ```
 

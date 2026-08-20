@@ -5,6 +5,8 @@ import '../constants/map_constants.dart';
 import '../controllers/map_controller.dart';
 import '../models/place_model.dart';
 import '../theme/app_theme.dart';
+import '../utils/location_puck_icon.dart';
+import '../widgets/map/zoom_controls.dart';
 import 'route_summary_view.dart';
 
 /// Screen for UC-007 (nearby pins), UC-008 (live location), and UC-009
@@ -44,11 +46,29 @@ class _MapPanelState extends State<MapPanel> {
   GoogleMapController? _mapController;
   bool _hasCenteredOnUser = false;
 
+  /// Standing in for the built-in `myLocationEnabled` blue dot, which
+  /// google_maps_flutter gives no control over — this custom marker is what
+  /// lets the puck carry a compass-heading direction indicator. Loaded once;
+  /// [Marker.rotation] then does the work on every heading update.
+  BitmapDescriptor? _locationPuckIcon;
+
+  /// Tracked from [GoogleMap.onCameraMove] so compass-mode rotation can spin
+  /// the map around wherever it's currently centred/zoomed, instead of
+  /// jumping back to some other target every time the heading updates.
+  CameraPosition? _lastCameraPosition;
+
   @override
   void initState() {
     super.initState();
     _controller.addListener(_onControllerChanged);
     _controller.loadMap();
+    _loadLocationPuckIcon();
+  }
+
+  Future<void> _loadLocationPuckIcon() async {
+    final icon = await buildLocationPuckIcon(withAccuracyCone: true);
+    if (!mounted) return;
+    setState(() => _locationPuckIcon = icon);
   }
 
   @override
@@ -73,6 +93,42 @@ class _MapPanelState extends State<MapPanel> {
         ),
       );
     }
+
+    // Compass mode: spin the camera to match the heading without moving its
+    // target or zoom, so the tourist keeps whatever they had panned to.
+    final heading = _controller.compassHeading;
+    if (_controller.isCompassModeEnabled &&
+        heading != null &&
+        _mapController != null) {
+      final base = _lastCameraPosition;
+      _mapController!.moveCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: base?.target ??
+                (location != null
+                    ? LatLng(location.latitude, location.longitude)
+                    : MapConstants.georgeTownCenter),
+            zoom: base?.zoom ?? MapConstants.defaultZoom,
+            tilt: base?.tilt ?? 0,
+            bearing: heading,
+          ),
+        ),
+      );
+    }
+  }
+
+  /// Recentres on the tourist without leaving compass mode fighting a stale
+  /// target — replaces the built-in `myLocationButtonEnabled` button, which
+  /// only exists alongside the native blue dot this screen no longer uses.
+  void _recentreOnUser() {
+    final location = _controller.currentLocation;
+    if (location == null || _mapController == null) return;
+    _mapController!.animateCamera(
+      CameraUpdate.newLatLngZoom(
+        LatLng(location.latitude, location.longitude),
+        MapConstants.defaultZoom,
+      ),
+    );
   }
 
   /// UC-009 steps 4-6 / A2 -> UC-M04 step 1: validates the tapped pin, then
@@ -106,6 +162,11 @@ class _MapPanelState extends State<MapPanel> {
                 zoom: MapConstants.defaultZoom,
               ),
               onMapCreated: (controller) {
+                // Deliberately not wrapped in setState: rebuilding the
+                // platform view from its own creation callback is what the
+                // rebuild-storm fix removed. The AnimatedBuilder above
+                // rebuilds on the next controller notification anyway, which
+                // is when ZoomControls picks the instance up.
                 _mapController = controller;
                 // A fix can land before the platform view finishes creating,
                 // in which case _onControllerChanged saw a null _mapController
@@ -113,15 +174,46 @@ class _MapPanelState extends State<MapPanel> {
                 // reaches the tourist whichever of the two arrives first.
                 _onControllerChanged();
               },
-              // Enabling the blue dot before the OS grants permission makes
-              // the Android Maps SDK raise a SecurityException.
-              myLocationEnabled: _controller.hasLocationPermission,
-              myLocationButtonEnabled: _controller.hasLocationPermission,
+              onCameraMove: (position) => _lastCameraPosition = position,
+              // The custom puck marker in _buildMarkers replaces the built-in
+              // blue dot so it can carry a compass-heading direction
+              // indicator, which myLocationEnabled has no way to control.
+              // hasLocationPermission still gates it: without the permission
+              // there is no fix to draw a puck for.
+              myLocationEnabled: false,
+              myLocationButtonEnabled: false,
+              compassEnabled: true,
+              // Compass mode drives rotation itself; leaving the two-finger
+              // rotate gesture on at the same time would just fight it on
+              // every heading update.
+              rotateGesturesEnabled: !_controller.isCompassModeEnabled,
+              zoomControlsEnabled: false,
               cameraTargetBounds: CameraTargetBounds(
                 _controller.boundaryConstraint,
               ),
               minMaxZoomPreference: const MinMaxZoomPreference(10, 19),
               markers: _buildMarkers(),
+            ),
+            Positioned(
+              right: 12,
+              bottom: (_controller.nearbyPlaces.isNotEmpty ? 132 : 0) + 20,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (_controller.isCompassAvailable)
+                    _CompassModeButton(
+                      isEnabled: _controller.isCompassModeEnabled,
+                      onPressed: _controller.toggleCompassMode,
+                    ),
+                  if (_controller.currentLocation != null) ...[
+                    const SizedBox(height: 12),
+                    _RecentreButton(onPressed: _recentreOnUser),
+                  ],
+                  const SizedBox(height: 12),
+                  ZoomControls(mapController: _mapController),
+                ],
+              ),
             ),
             Positioned(
               top: 12,
@@ -162,7 +254,7 @@ class _MapPanelState extends State<MapPanel> {
   }
 
   Set<Marker> _buildMarkers() {
-    return _controller.nearbyPlaces.map((place) {
+    final markers = _controller.nearbyPlaces.map((place) {
       return Marker(
         markerId: MarkerId(place.placeId),
         position: LatLng(place.latitude, place.longitude),
@@ -176,6 +268,84 @@ class _MapPanelState extends State<MapPanel> {
             : BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
       );
     }).toSet();
+
+    // UC-008: stands in for the built-in blue dot, rotated to the tourist's
+    // live compass heading (falls back to pointing "up"/north until the
+    // first sensor reading lands).
+    final location = _controller.currentLocation;
+    if (location != null && _locationPuckIcon != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('current_location'),
+          position: LatLng(location.latitude, location.longitude),
+          icon: _locationPuckIcon!,
+          anchor: const Offset(0.5, 0.5),
+          rotation: _controller.compassHeading ?? 0,
+          flat: true,
+          zIndexInt: 1,
+        ),
+      );
+    }
+
+    return markers;
+  }
+}
+
+/// Toggles [MapController.isCompassModeEnabled] — filled while the map is
+/// following the tourist's compass heading, outlined while north-up.
+/// Mirrors [_RecentreButton]'s filled/outlined convention from the
+/// navigation screen.
+class _CompassModeButton extends StatelessWidget {
+  final bool isEnabled;
+  final VoidCallback onPressed;
+
+  const _CompassModeButton({required this.isEnabled, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: isEnabled ? const Color(0xFF4285F4) : Colors.white,
+      shape: const CircleBorder(),
+      elevation: 2,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Icon(
+            Icons.explore,
+            color: isEnabled ? Colors.white : AppColors.onPrimary,
+            size: 22,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Recentres the camera on the tourist's live location — replaces the
+/// built-in `myLocationButtonEnabled` button now that the map draws its own
+/// puck marker instead of the native blue dot.
+class _RecentreButton extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _RecentreButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      shape: const CircleBorder(),
+      elevation: 2,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onPressed,
+        child: const Padding(
+          padding: EdgeInsets.all(12),
+          child: Icon(Icons.my_location, color: AppColors.onPrimary, size: 22),
+        ),
+      ),
+    );
   }
 }
 

@@ -398,6 +398,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.4.2"
+  flutter_compass:
+    dependency: "direct main"
+    description:
+      name: flutter_compass
+      sha256: "1b4d7e6c95a675ec8482b5c9c9ccf1ebf0ced3dbec59dce28ad609da953de850"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.8.1"
   flutter_dotenv:
     dependency: "direct main"
     description:
@@ -1089,10 +1097,10 @@ packages:
     dependency: transitive
     description:
       name: source_maps
-      sha256: "190222579a448b03896e0ca6eca5998fa810fda630c1d65e2f78b3f638f54812"
+      sha256: "14c2945847669b44089bb1222f66873d7ff7103c58911917f2a63c5a62327898"
       url: "https://pub.dev"
     source: hosted
-    version: "0.10.13"
+    version: "0.10.14"
   source_span:
     dependency: transitive
     description:
@@ -1177,10 +1185,10 @@ packages:
     dependency: transitive
     description:
       name: synchronized
-      sha256: "61894a1956de6b4fc1aefd0892e109514a1a706cbece3ac59decd90ff5a7a423"
+      sha256: "3a7b5d17422dd0f8d5c6c14feaa5a1c65638b9455f871a96f08437562c046931"
       url: "https://pub.dev"
     source: hosted
-    version: "3.4.1+1"
+    version: "3.4.1+2"
   term_glyph:
     dependency: transitive
     description:

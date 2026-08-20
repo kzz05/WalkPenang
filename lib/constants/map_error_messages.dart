@@ -28,14 +28,8 @@ class MapErrorMessages {
       'This destination is outside Penang. Please select a location within Penang.';
 
   // UC-M04
-  static const noWalkableRoute =
-      'No walking route found for this destination. Please select a different location.';
+  static const noRouteFound =
+      'No route found for this travel mode. Try a different mode or destination.';
   static const networkLostDuringRoute =
       'Unable to calculate route. Please check your internet connection.';
-
-  // UC-M05
-  static const navigationLaunchFailed =
-      'Unable to open navigation. Please try again.';
-  static const googleMapsNotInstalled =
-      'Google Maps is not installed. Redirecting to the Play Store.';
 }
