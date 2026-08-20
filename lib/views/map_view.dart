@@ -35,7 +35,14 @@ class MapView extends StatelessWidget {
 /// it can be dropped into any parent. HomeView embeds it directly rather than
 /// pushing a route, which is why this is split out from [MapView].
 class MapPanel extends StatefulWidget {
-  const MapPanel({super.key});
+  /// Dropped into the top overlay row, to the right of the radius chips.
+  ///
+  /// HomeView passes its account button here so the button and the chips
+  /// share one row over the map, instead of the button living in a bar of its
+  /// own above it. Null for [MapView], which has an AppBar already.
+  final Widget? topBarTrailing;
+
+  const MapPanel({super.key, this.topBarTrailing});
 
   @override
   State<MapPanel> createState() => _MapPanelState();
@@ -224,7 +231,24 @@ class _MapPanelState extends State<MapPanel> {
                   if (_controller.errorMessage != null)
                     _ErrorBanner(message: _controller.errorMessage!),
                   const SizedBox(height: 8),
-                  _RadiusChips(controller: _controller),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Scrollable so three chips plus the trailing button
+                      // cannot overflow on a narrow phone — the chips give way
+                      // rather than the button being pushed off screen.
+                      Expanded(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: _RadiusChips(controller: _controller),
+                        ),
+                      ),
+                      if (widget.topBarTrailing != null) ...[
+                        const SizedBox(width: 8),
+                        widget.topBarTrailing!,
+                      ],
+                    ],
+                  ),
                 ],
               ),
             ),

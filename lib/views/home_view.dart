@@ -105,21 +105,13 @@ class _HomeViewState extends State<HomeView> {
       backgroundColor: AppColors.background,
       // In the Scaffold's own nav slot, like the Discovery module's shell —
       // so the bar handles its own safe-area inset and the map gets the rest.
+      // Home *is* the map: it now runs edge to edge under the status bar
+      // rather than starting below a brand bar, so nothing competes with it
+      // for vertical space. The account button rides in the map's own top
+      // overlay row, level with the radius chips.
       body: SafeArea(
         bottom: false,
-        child: Column(
-          children: [
-            // The brand bar sits above the map rather than floating over it,
-            // so the hamburger never competes with the map's pan gestures.
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
-              child: _buildBrandBar(),
-            ),
-            // Home *is* the map — it fills whatever is left between the brand
-            // bar and the nav, so it is the first thing shown after sign-in.
-            const Expanded(child: MapPanel()),
-          ],
-        ),
+        child: MapPanel(topBarTrailing: _buildAccountButton()),
       ),
       bottomNavigationBar: WpBottomNav(
         currentIndex: 0,
@@ -138,30 +130,22 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
-  /// Logo on the left, a circular menu button on the right.
-  Widget _buildBrandBar() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Image.asset(
-          'assets/images/walkpenanglogonobg.png',
-          height: 64,
-          fit: BoxFit.contain,
-        ),
-        InkWell(
-          onTap: _openAccountMenu,
-          customBorder: const CircleBorder(),
-          child: Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.onPrimary, width: 1.6),
-            ),
-            child: const Icon(Icons.menu, size: 20, color: AppColors.onPrimary),
-          ),
-        ),
-      ],
+  /// The account menu button, sitting over the map alongside the radius
+  /// chips.
+  ///
+  /// No fill and no outline: it is drawn straight onto the map, so any
+  /// background would reinstate the bar this replaced. The icon stays dark
+  /// ink, which is what carries it against the map's light ground — over
+  /// satellite imagery or a dark style it would need a scrim.
+  Widget _buildAccountButton() {
+    return InkWell(
+      onTap: _openAccountMenu,
+      customBorder: const CircleBorder(),
+      child: const SizedBox(
+        width: 40,
+        height: 40,
+        child: Icon(Icons.menu, size: 22, color: AppColors.onPrimary),
+      ),
     );
   }
 }
