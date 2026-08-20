@@ -1,14 +1,17 @@
 import 'package:flutter/foundation.dart';
 
-/// A walking route's destination and distance/time, as the Map & GPS
-/// module will eventually supply it for the Pre-Walk Summary screen.
+import '../utils/reward_constants.dart';
+import 'transport_mode.dart';
+
+/// A journey's destination and distance/time, as supplied by the Map & GPS
+/// module for the Pre-Walk Summary screen.
 ///
-/// Map & GPS integration contract: once that module is ready, it should
-/// construct a [WalkingRouteSummary] from its calculated route — a
-/// resolved destination name + area label, the on-foot distance in
-/// kilometres, and the estimated walking time — and hand it to
-/// [WalkingController.setRouteSummary]. Nothing in this class or the
-/// screens that read it assumes any particular map provider.
+/// Map & GPS integration contract — **now satisfied**: that module builds one
+/// of these from a tapped place and its calculated route via
+/// [WalkingRouteSummary.fromDestination], and hands it to
+/// [WalkingController.setRouteSummary]. Nothing in this class or the screens
+/// that read it assumes any particular map provider, which is why the factory
+/// takes plain values rather than PlaceModel/RouteResult.
 @immutable
 class WalkingRouteSummary {
   final String destinationName;
@@ -34,6 +37,12 @@ class WalkingRouteSummary {
   final double destinationLatitude;
   final double destinationLongitude;
 
+  /// How the tourist intends to travel (UC-W01 / UC-M04). Carried through to
+  /// [CheckInResult.transportMode] on completion, because only a walk earns
+  /// points and carbon (FR-W01) — the reward module cannot tell a walk from a
+  /// drive after the fact unless the journey records it.
+  final TransportMode transportMode;
+
   const WalkingRouteSummary({
     required this.destinationName,
     required this.areaLabel,
@@ -44,17 +53,60 @@ class WalkingRouteSummary {
     required this.destinationId,
     required this.destinationLatitude,
     required this.destinationLongitude,
+    this.transportMode = TransportMode.walking,
   });
+
+  /// Builds a summary from a destination the Map & GPS module resolved — the
+  /// integration contract described above, finally satisfied.
+  ///
+  /// Takes plain values rather than that module's `PlaceModel` and
+  /// `RouteResult` on purpose: `RouteResult` imports google_maps_flutter, and
+  /// this class promises to assume no particular map provider. The caller
+  /// (route_summary_view) already holds both objects and does the unpacking,
+  /// so the coupling stays on the map side of the seam where it belongs.
+  factory WalkingRouteSummary.fromDestination({
+    required String destinationId,
+    required String destinationName,
+    required String areaLabel,
+    required double destinationLatitude,
+    required double destinationLongitude,
+    required double distanceKm,
+    required Duration estimatedDuration,
+    TransportMode transportMode = TransportMode.walking,
+  }) {
+    return WalkingRouteSummary(
+      destinationId: destinationId,
+      destinationName: destinationName,
+      areaLabel: areaLabel,
+      distanceKm: distanceKm,
+      estimatedDuration: estimatedDuration,
+      destinationLatitude: destinationLatitude,
+      destinationLongitude: destinationLongitude,
+      transportMode: transportMode,
+      // The real award for this distance, not a fixed number: the pre-walk
+      // screen promises "earn N WalkPoints", and N has to be the figure the
+      // reward module will actually grant on check-in.
+      rewardPoints: RewardPoints.forCheckInKm(distanceKm: distanceKm),
+      // Deliberately not "a heritage badge for <place>". Every badge in this
+      // app is a cumulative milestone — Explorer at 5 check-ins, Trailblazer
+      // at 10 km, Penang Wanderer at 50 km (see RewardConstants) — so there
+      // is no per-place or per-category badge to promise, and naming one
+      // would be a promise the reward module cannot keep.
+      rewardBadgeLabel: 'progress towards your next badge',
+    );
+  }
 
   /// Whether this route has a usable distance/duration — checked before
   /// starting a journey so a bad calculation from upstream is caught.
   bool get isValid => distanceKm > 0 && estimatedDuration > Duration.zero;
 
-  /// Sprint 1 fallback used only until Map & GPS provides a real route —
-  /// the Fort Cornwallis walk from the "02 · Pre-Walk Summary v2" Figma
-  /// prototype. Coordinates are Fort Cornwallis's real public location in
-  /// George Town, so US-W05/UC-W06 arrival verification behaves sensibly
-  /// even while this fallback is still in use.
+  /// Debug-only fixture, kept for lib/debug/demo_journey_flow_view.dart and
+  /// the widget tests — the Fort Cornwallis walk from the "02 · Pre-Walk
+  /// Summary v2" Figma prototype. The real path no longer uses it: journeys
+  /// now start from a tapped place via [WalkingRouteSummary.fromDestination].
+  /// Coordinates are Fort Cornwallis's real public location in George Town,
+  /// so US-W05/UC-W06 arrival verification behaves sensibly in the debug
+  /// flow.
   static const demo = WalkingRouteSummary(
     destinationName: 'Fort Cornwallis',
     areaLabel: 'George Town Heritage Zone',
