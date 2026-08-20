@@ -517,6 +517,47 @@ class WpStatTile extends StatelessWidget {
 /// `navigationBarTheme` in [buildAppTheme], so the two bars cannot drift:
 /// a white bar, a cream pill behind the selected item, and its icon switching
 /// from outline to filled.
+class WpBottomNav extends StatelessWidget {
+  final int currentIndex;
+  final List<String> items;
+  final ValueChanged<int> onTap;
+
+  const WpBottomNav({
+    super.key,
+    required this.currentIndex,
+    required this.items,
+    required this.onTap,
+  });
+
+  /// Outline icon for the resting state, filled for the selected one.
+  static const _icons = <String, (IconData, IconData)>{
+    'home': (Icons.home_outlined, Icons.home),
+    'map': (Icons.map_outlined, Icons.map),
+    'explore': (Icons.explore_outlined, Icons.explore),
+    'walk': (Icons.directions_walk_outlined, Icons.directions_walk),
+    'rewards': (Icons.emoji_events_outlined, Icons.emoji_events),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return NavigationBar(
+      selectedIndex: currentIndex,
+      onDestinationSelected: onTap,
+      destinations: [
+        for (final item in items)
+          NavigationDestination(
+            icon: Icon((_icons[item] ?? _fallback).$1),
+            selectedIcon: Icon((_icons[item] ?? _fallback).$2),
+            // Title case: "Explore", not "EXPLORE" — the mono uppercase
+            // treatment is for micro-labels, not navigation.
+            label: '${item[0].toUpperCase()}${item.substring(1)}',
+          ),
+      ],
+    );
+  }
+
+  static const _fallback = (Icons.circle_outlined, Icons.circle);
+}
 
 /// Small pill of text — a category tag or an inline detail like an email.
 class WpChip extends StatelessWidget {

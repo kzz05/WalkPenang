@@ -1,29 +1,100 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:walkpenang/theme/app_theme.dart';
+import 'package:walkpenang/views/widgets/wp_components.dart';
 
-/// The shared navigation-bar theme, and the input-theme trap that hid the
-/// OTP boxes.
+/// The one bottom-bar design, and the input-theme trap that hid the OTP boxes.
 void main() {
-  // buildAppTheme() resolves google_fonts, which reads the asset bundle and
-  // so needs a binding. It used to be initialised as a side effect of the
-  // testWidgets cases that pumped WpBottomNav; those are gone with the
-  // widget, so the dependency is now stated rather than inherited.
-  TestWidgetsFlutterBinding.ensureInitialized();
+  Future<void> pumpNav(
+    WidgetTester tester, {
+    required List<String> items,
+    int currentIndex = 0,
+    ValueChanged<int>? onTap,
+  }) {
+    return tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          bottomNavigationBar: WpBottomNav(
+            currentIndex: currentIndex,
+            items: items,
+            onTap: onTap ?? (_) {},
+          ),
+        ),
+      ),
+    );
+  }
+
+  group('WpBottomNav', () {
+    testWidgets('renders a Material NavigationBar, like the Discovery shell',
+        (tester) async {
+      await pumpNav(tester, items: const ['home', 'explore', 'walk']);
+
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.byType(NavigationDestination), findsNWidgets(3));
+    });
+
+    testWidgets('labels are title case, not the mono uppercase treatment',
+        (tester) async {
+      await pumpNav(tester, items: const ['home', 'explore', 'rewards']);
+
+      expect(find.text('Home'), findsOneWidget);
+      expect(find.text('Explore'), findsOneWidget);
+      expect(find.text('Rewards'), findsOneWidget);
+      expect(find.text('HOME'), findsNothing);
+    });
+
+    testWidgets('the selected item is filled and the rest are outlined',
+        (tester) async {
+      await pumpNav(
+        tester,
+        items: const ['home', 'explore', 'walk'],
+        currentIndex: 1,
+      );
+
+      // Selected.
+      expect(find.byIcon(Icons.explore), findsOneWidget);
+      expect(find.byIcon(Icons.explore_outlined), findsNothing);
+      // Resting.
+      expect(find.byIcon(Icons.home_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.home), findsNothing);
+    });
+
+    testWidgets('reports the tapped index', (tester) async {
+      final tapped = <int>[];
+      await pumpNav(
+        tester,
+        items: const ['home', 'explore', 'walk'],
+        onTap: tapped.add,
+      );
+
+      await tester.tap(find.text('Walk'));
+      await tester.pumpAndSettle();
+
+      expect(tapped, [2]);
+    });
+
+    testWidgets('an unknown item still renders rather than crashing',
+        (tester) async {
+      await pumpNav(tester, items: const ['home', 'nonsense']);
+
+      expect(find.byType(NavigationDestination), findsNWidgets(2));
+      expect(find.text('Nonsense'), findsOneWidget);
+    });
+  });
 
   group('navigation bar theme', () {
-    // testWidgets, not test: buildAppTheme() resolves google_fonts, which
-    // attempts a font fetch. The widget-test binding stubs HTTP so the
-    // lookup fails closed to the bundled fallback; a plain test lets the
-    // exception escape.
-    testWidgets('the shared theme still supplies the Discovery bar its colours',
+    testWidgets('drives the bar, so both nav bars cannot drift apart',
         (tester) async {
-      // WpBottomNav is gone — HomeView replaced it with WpTabSheet, and the
-      // map got the bottom of the screen back. The theme is still live
-      // though: main_discovery.dart's standalone shell builds a NavigationBar
-      // and sets no colours of its own, so these values are what it renders.
-      final theme = buildAppTheme().navigationBarTheme;
+      await pumpNav(tester, items: const ['home', 'explore']);
 
+      final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+      // The widget sets no colours of its own — everything resolves from the
+      // shared theme, which the Discovery shell's bar also reads.
+      expect(bar.backgroundColor, isNull);
+      expect(bar.indicatorColor, isNull);
+
+      final theme = buildAppTheme().navigationBarTheme;
       expect(theme.backgroundColor, AppColors.card);
       expect(theme.indicatorColor, AppColors.backgroundDeep);
       expect(
