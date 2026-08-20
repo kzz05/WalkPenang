@@ -29,6 +29,19 @@ class CheckInResult {
   /// The attraction checked into, from Module 2's catalogue.
   final String destinationId;
 
+  /// The attraction's display name at the time of the check-in.
+  ///
+  /// Denormalised deliberately. [destinationId] is a Places id, so a journal
+  /// built on the id alone would list "ChIJ50W1D43DSjARlPqYV1MqscE" instead of
+  /// "Chew Jetty", and resolving it later would mean a Places lookup per row —
+  /// billed, and useless offline. Storing the name also keeps the record
+  /// truthful: it is what the place was called when the tourist walked there,
+  /// which is the right thing to show in a history even if it is renamed.
+  ///
+  /// Empty for check-ins written before this field existed; the journal
+  /// renders those as an unknown place rather than a blank row.
+  final String destinationName;
+
   /// Distance walked for this check-in, as calculated by Module 4.
   final double distanceKm;
 
@@ -58,6 +71,7 @@ class CheckInResult {
     required this.checkInId,
     required this.userId,
     required this.destinationId,
+    this.destinationName = '',
     required this.distanceKm,
     required this.carbonSavedKg,
     required this.caloriesBurned,
@@ -79,6 +93,7 @@ class CheckInResult {
       checkInId: map['checkInId'] as String,
       userId: map['userId'] as String,
       destinationId: map['destinationId'] as String? ?? '',
+      destinationName: map['destinationName'] as String? ?? '',
       distanceKm: (map['distanceKm'] as num?)?.toDouble() ?? 0.0,
       carbonSavedKg: (map['carbonSavedKg'] as num?)?.toDouble() ?? 0.0,
       caloriesBurned: (map['caloriesBurned'] as num?)?.toDouble() ?? 0.0,
@@ -92,6 +107,7 @@ class CheckInResult {
       'checkInId': checkInId,
       'userId': userId,
       'destinationId': destinationId,
+      'destinationName': destinationName,
       'distanceKm': distanceKm,
       'carbonSavedKg': carbonSavedKg,
       'caloriesBurned': caloriesBurned,

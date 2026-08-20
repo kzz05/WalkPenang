@@ -114,6 +114,24 @@ class RewardConstants {
   /// awarded for it. Checked before processing so a retry is a no-op.
   static const String checkInRewardProcessedField = 'rewardProcessed';
 
+  /// Points this check-in earned, stamped onto Module 4's document
+  /// alongside [checkInRewardProcessedField].
+  ///
+  /// The authoritative record is still the points ledger entry — this is
+  /// a denormalised copy so the walking journal (FR-R03) can list a
+  /// journey and its award in one query instead of joining the ledger
+  /// row by row.
+  static const String checkInPointsAwardedField = 'pointsAwarded';
+
+  /// The check-in's owner, as Module 4 writes it. Same string as
+  /// [ledgerUserIdField] but a separate constant on purpose: they name
+  /// fields on two different collections, and renaming one must not
+  /// silently rename the other.
+  static const String checkInUserIdField = 'userId';
+
+  /// When the check-in was verified. The walking journal orders on this.
+  static const String checkInTimeField = 'checkInTime';
+
   // --- Metres <-> kilometres ----------------------------------------------
 
   static const int metresPerKilometre = 1000;

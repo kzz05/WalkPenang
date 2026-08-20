@@ -17,9 +17,12 @@
 
 import '../models/badge_model.dart';
 import '../models/check_in_result.dart';
+import '../models/journal_entry_model.dart';
 import '../models/reward_model.dart';
+import '../models/transport_mode.dart';
 import '../models/user_badge_model.dart';
 import 'badge_dao.dart';
+import 'journal_dao.dart';
 import 'reward_dao.dart';
 
 /// Cumulative totals held in memory.
@@ -129,8 +132,79 @@ class DemoRewardData {
         ),
       ];
 
+  /// The seven journeys behind [stats], newest first.
+  ///
+  /// Deliberately reconciled with everything else on this class rather than
+  /// invented: the distances sum to 12,400 m, the points to 194 by the real
+  /// formula (10 flat plus metres/100 each), the carbon to 2.61 kg at
+  /// 0.21 kg/km, and the calories to 744. The fifth journey lands on 19 July
+  /// and the sixth pushes the running total past 10 km on 2 August, which are
+  /// exactly the dates [earnedBadges] says Explorer and Trailblazer were
+  /// earned. A tutor adding up the journal gets the dashboard.
+  static List<JournalEntryModel> get entries => [
+        _entry('Kek Lok Si Temple', 'demo-kek-lok-si',
+            DateTime(2026, 8, 14, 9, 20), 2.2, 32),
+        _entry('Penang Botanic Gardens', 'demo-botanic-gardens',
+            DateTime(2026, 8, 2, 17, 05), 1.4, 24),
+        _entry('Chew Jetty', 'demo-chew-jetty',
+            DateTime(2026, 7, 19, 10, 45), 2.6, 36),
+        _entry('Street of Harmony', 'demo-street-of-harmony',
+            DateTime(2026, 7, 15, 16, 30), 1.8, 28),
+        _entry('Cheong Fatt Tze Mansion', 'demo-blue-mansion',
+            DateTime(2026, 7, 12, 11, 15), 0.9, 19),
+        _entry('Penang Hill', 'demo-penang-hill',
+            DateTime(2026, 7, 8, 8, 40), 2.3, 33),
+        _entry('Fort Cornwallis', 'demo-fort-cornwallis',
+            DateTime(2026, 7, 2, 15, 50), 1.2, 22),
+      ];
+
+  /// Carbon and calories are derived rather than typed in, so the per-journey
+  /// figures cannot drift away from the rates the Walking module applies.
+  static JournalEntryModel _entry(
+    String name,
+    String id,
+    DateTime at,
+    double km,
+    int points,
+  ) {
+    return JournalEntryModel(
+      checkInId: id,
+      destinationName: name,
+      destinationId: id,
+      checkInTime: at,
+      distanceKm: km,
+      pointsAwarded: points,
+      carbonSavedKg: km * 0.21,
+      caloriesBurned: km * 60,
+      transportMode: TransportMode.walking,
+    );
+  }
+
   static InMemoryRewardDao rewardDao() => InMemoryRewardDao(initial: stats);
 
   static InMemoryBadgeDao badgeDao() =>
       InMemoryBadgeDao(earned: earnedBadges);
+
+  static InMemoryJournalDao journalDao() =>
+      InMemoryJournalDao(entries: entries);
+}
+
+/// Completed journeys held in memory.
+class InMemoryJournalDao implements JournalDao {
+  InMemoryJournalDao({List<JournalEntryModel>? entries})
+      : _entries = entries ?? const <JournalEntryModel>[];
+
+  final List<JournalEntryModel> _entries;
+
+  @override
+  Future<List<JournalEntryModel>> fetchEntries(
+    String userId, {
+    int limit = 50,
+  }) async {
+    // Sorted here rather than trusted from the caller, so this behaves like
+    // the Firestore implementation's orderBy however the list was built.
+    final sorted = [..._entries]
+      ..sort((a, b) => b.checkInTime.compareTo(a.checkInTime));
+    return sorted.take(limit).toList();
+  }
 }

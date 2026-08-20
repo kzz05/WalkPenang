@@ -28,6 +28,7 @@ import '../../models/check_in_result.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/reward/badge_card.dart';
 import '../../widgets/reward/badge_unlock_notification.dart';
+import '../../widgets/reward/message_state.dart';
 import '../../widgets/reward/points_notification.dart';
 import '../../widgets/reward/stat_summary_card.dart';
 import '../widgets/wp_components.dart';
@@ -208,7 +209,7 @@ class _StatsDashboardScreenState extends State<StatsDashboardScreen> {
     // they must not look the same on screen — one is a problem to retry, the
     // other is a normal starting point.
     if (_controller.error != null) {
-      return _MessageState(
+      return RewardMessageState(
         title: 'Could not load rewards',
         body: 'Check your connection and try again.',
         // The real exception in debug builds only. "Check your connection" is
@@ -222,7 +223,7 @@ class _StatsDashboardScreenState extends State<StatsDashboardScreen> {
     }
 
     if (_controller.userId.isEmpty) {
-      return _MessageState(
+      return RewardMessageState(
         title: 'Sign in to see rewards',
         body: 'Points and badges are tied to your account.',
         secondary: _demoAction(),
@@ -432,70 +433,3 @@ class _BadgeStrip extends StatelessWidget {
 }
 
 /// Shared layout for the empty, signed-out and error states.
-class _MessageState extends StatelessWidget {
-  final String title;
-  final String body;
-
-  /// Raw diagnostic text, shown in debug builds only.
-  final String? detail;
-  final String? actionLabel;
-  final VoidCallback? onAction;
-  final Widget? secondary;
-
-  const _MessageState({
-    required this.title,
-    required this.body,
-    this.detail,
-    this.actionLabel,
-    this.onAction,
-    this.secondary,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(title, textAlign: TextAlign.center, style: AppType.heading),
-            const SizedBox(height: 10),
-            Text(
-              body,
-              textAlign: TextAlign.center,
-              style: AppType.body.copyWith(color: AppColors.muted),
-            ),
-            if (detail != null) ...[
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.card,
-                  borderRadius: AppRadius.smAll,
-                  border: Border.all(color: AppColors.outline),
-                ),
-                child: SelectableText(
-                  detail!,
-                  style: AppType.monoValue.copyWith(
-                    fontSize: 11,
-                    color: AppColors.muted,
-                  ),
-                ),
-              ),
-            ],
-            if (actionLabel != null && onAction != null) ...[
-              const SizedBox(height: 24),
-              WpPrimaryButton(label: actionLabel!, onPressed: onAction!),
-            ],
-            if (secondary != null) ...[
-              const SizedBox(height: 12),
-              secondary!,
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}

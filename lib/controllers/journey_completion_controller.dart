@@ -341,6 +341,9 @@ class JourneyCompletionController extends ChangeNotifier {
       checkInId: _checkInRepository.newCheckInId(),
       userId: userId,
       destinationId: routeSummary.destinationId,
+      // Stored alongside the id so the walking journal can name the
+      // place without a Places lookup per row (FR-R03).
+      destinationName: routeSummary.destinationName,
       distanceKm: routeSummary.distanceKm,
       carbonSavedKg: carbonSavedKg,
       // CheckInResult.caloriesBurned is non-nullable; a missing body weight

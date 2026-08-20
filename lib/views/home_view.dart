@@ -7,8 +7,8 @@ import 'discovery_module_view.dart';
 import 'edit_profile_view.dart';
 import 'map_view.dart';
 import 'reward/stats_dashboard_screen.dart';
+import 'reward/walking_journal_screen.dart';
 import 'settings_view.dart';
-import 'walking_view.dart';
 import 'widgets/wp_components.dart';
 
 /// Screen 06 · Home — brand bar over a full-height map, with the explore,
@@ -79,11 +79,15 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
+  /// The walk tab opens the tourist's journey history (UC520 / FR-R03).
+  ///
+  /// It used to open UC-W01's transport-mode picker. That became redundant
+  /// once the map's route summary grew its own Walk/Drive/Bus tabs and
+  /// journeys started from a tapped place — the picker had no destination to
+  /// offer and could only send the tourist back to the map.
   Future<void> _openWalkingModule() async {
     await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => WalkingView(profile: _controller.profile),
-      ),
+      MaterialPageRoute(builder: (_) => const WalkingJournalScreen()),
     );
   }
 
