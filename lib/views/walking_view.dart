@@ -5,9 +5,7 @@ import '../controllers/walking_controller.dart';
 import '../debug/demo_journey_flow_view.dart';
 import '../models/transport_mode.dart';
 import '../models/user_profile.dart';
-import '../models/walking_route_summary.dart';
 import '../theme/app_theme.dart';
-import 'pre_walk_summary_view.dart';
 import 'widgets/wp_components.dart';
 
 /// Screen 01 · Transport Mode Selection (UC-W01) v2 — destination pill,
@@ -38,22 +36,27 @@ class _WalkingViewState extends State<WalkingView> {
     super.dispose();
   }
 
+  /// A journey needs a destination, and this screen has never had one — it
+  /// used to seed WalkingRouteSummary.demo, so every walk started here went
+  /// to Fort Cornwallis whatever the tourist had actually been looking at.
+  ///
+  /// Now that the Map module offers Start Journey on a tapped place, the
+  /// destination comes from there. This screen keeps UC-W01's mode choice,
+  /// and hands the tourist back to the map to pick where they are going.
   void _onContinue() {
-    if (_controller.selectedMode != TransportMode.walking) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pre-Walk Summary — to be built')),
-      );
-      return;
-    }
+    // The Continue button is disabled until a mode is picked, so this is
+    // non-null in practice; the fallback keeps the copy sensible regardless.
+    final mode = _controller.selectedMode ?? TransportMode.walking;
+    final message = mode == TransportMode.walking
+        ? 'Tap a place on the map to see the route, then Start Journey.'
+        : '${mode.label} routes are shown on the map, but only walking '
+            'earns points and saves carbon.';
 
-    // TODO(map-gps): seed this from the Map & GPS module's calculated
-    // route instead of the Sprint 1 demo fallback.
-    _controller.setRouteSummary(WalkingRouteSummary.demo);
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PreWalkSummaryView(controller: _controller),
-      ),
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
     );
+    // Home is the map, so popping is "go and choose a destination".
+    Navigator.of(context).pop();
   }
 
   @override
