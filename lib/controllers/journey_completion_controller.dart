@@ -7,7 +7,7 @@
 // exposing the actions those views' callbacks invoke. Never recomputes
 // points/badges (that stays Module 5's — see RewardService) and never talks
 // to Geolocator/Firestore directly (that stays behind
-// ArrivalVerificationService / CheckInRepository).
+// ArrivalVerificationService / JourneyProgressService / CheckInRepository).
 //
 // Every dependency is injected, so lib/views/journey_flow_view.dart wires
 // this to real GPS + Firestore + the real RewardController, and
@@ -30,6 +30,7 @@ import '../models/walking_route_summary.dart';
 import '../constants/map_constants.dart';
 import '../services/arrival_verification_service.dart';
 import '../services/check_in_repository.dart';
+import '../services/journey_progress_service.dart';
 import '../services/navigation_launcher_service.dart';
 import 'reward_service.dart';
 
@@ -44,26 +45,48 @@ class JourneyCompletionController extends ChangeNotifier {
     required CheckInRepository checkInRepository,
     ArrivalVerificationService? arrivalVerificationService,
     NavigationLauncherService? navigationLauncherService,
+    JourneyProgressService? journeyProgressService,
     this.carbonSavedKg = 0.0,
     this.caloriesBurned,
   })  : _rewardService = rewardService,
         _checkInRepository = checkInRepository,
         _arrivalVerificationService =
             arrivalVerificationService ?? LocationArrivalVerificationService(),
-        _navigationLauncherService = navigationLauncherService {
+        _navigationLauncherService = navigationLauncherService,
+        _journeyProgressService =
+            journeyProgressService ?? const NoJourneyProgressService() {
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       _elapsed += const Duration(seconds: 1);
       notifyListeners();
     });
+
+    // Progress tracking is strictly additive: none of it is required for a
+    // journey to be walked, verified and rewarded. A stream error is
+    // swallowed rather than surfaced because arrival is checked by its own
+    // one-shot fix — a position stream that dies mid-walk (permission
+    // revoked, GPS switched off) must not take the journey with it. KM
+    // COVERED then simply stays unavailable, exactly as it read before any
+    // progress source existed.
+    _progressSubscription =
+        _journeyProgressService.metresWalked().listen((metres) {
+      _metresWalked = metres;
+      notifyListeners();
+    }, onError: (_) {});
   }
 
   final WalkingRouteSummary routeSummary;
   final String userId;
 
-  /// Snapshotted once at construction from WalkingController — this module
-  /// has no live route-progress source, so these are the planned-route
-  /// figures throughout the journey, exactly as Pre-Walk Summary already
-  /// shows them (see the "known limitations" note in the integration report).
+  /// Snapshotted once at construction from WalkingController: these stay the
+  /// planned-route figures for the whole journey, exactly as Pre-Walk Summary
+  /// already showed them.
+  ///
+  /// Distance covered *is* now tracked live (see [kmCovered]), but carbon and
+  /// calories are deliberately not recomputed from it. They were promised to
+  /// the tourist before departure, and a figure that ticks downward when GPS
+  /// under-reports would make the promise look broken. Recomputing them from
+  /// [kmCovered] on completion is a reasonable future change; it just is not
+  /// this one.
   final double carbonSavedKg;
   final double? caloriesBurned;
 
@@ -71,10 +94,41 @@ class JourneyCompletionController extends ChangeNotifier {
   final CheckInRepository _checkInRepository;
   final ArrivalVerificationService _arrivalVerificationService;
   final NavigationLauncherService? _navigationLauncherService;
+  final JourneyProgressService _journeyProgressService;
 
   Timer? _elapsedTimer;
+  StreamSubscription<double>? _progressSubscription;
   Duration _elapsed = Duration.zero;
   Duration? _completedDuration;
+
+  /// Metres actually walked, accumulated from the position stream. Null until
+  /// the first movement lands, so the UI can tell "not tracking yet" from
+  /// "tracked, and you have not moved" — the Active Walking tiles render the
+  /// former as unavailable rather than as a fabricated 0.0.
+  double? _metresWalked;
+
+  /// Distance genuinely covered, never the route's planned distance.
+  double? get kmCovered =>
+      _metresWalked == null ? null : _metresWalked! / 1000;
+
+  /// Minutes still to go, from the distance left at the route's own planned
+  /// pace.
+  ///
+  /// Planned pace rather than the tourist's observed pace on purpose: over a
+  /// short walk the observed figure swings wildly between fixes, and a
+  /// countdown that jumps from 4 minutes to 20 and back reads as broken. Null
+  /// whenever there is nothing sound to divide — no progress yet, or a route
+  /// with no distance or duration to take a pace from.
+  int? get minutesRemaining {
+    final covered = kmCovered;
+    final plannedKm = routeSummary.distanceKm;
+    final plannedMinutes = routeSummary.estimatedDuration.inMinutes;
+    if (covered == null || plannedKm <= 0 || plannedMinutes <= 0) return null;
+
+    final remainingKm = plannedKm - covered;
+    if (remainingKm <= 0) return 0;
+    return (remainingKm / (plannedKm / plannedMinutes)).round();
+  }
 
   JourneyStep _step = JourneyStep.active;
   JourneyStep get step => _step;
@@ -101,6 +155,8 @@ class JourneyCompletionController extends ChangeNotifier {
         destinationName: routeSummary.destinationName,
         elapsedTime: _elapsed,
         plannedDistanceKm: routeSummary.distanceKm,
+        kmCovered: kmCovered,
+        minutesRemaining: minutesRemaining,
         carbonSavedKg: carbonSavedKg,
         caloriesBurned: caloriesBurned,
       );
@@ -116,10 +172,10 @@ class JourneyCompletionController extends ChangeNotifier {
   JourneyCompletedUiData get journeyCompletedUiData => JourneyCompletedUiData(
         destinationName: routeSummary.destinationName,
         destinationAreaLabel: routeSummary.areaLabel,
-        // No live distance-walked tracking exists (see class doc) — left
-        // null rather than substituting the planned distance, per this
-        // model's own contract.
-        completedDistanceKm: null,
+        // The tracked distance, still never the planned one: null while the
+        // position stream gave us nothing, exactly as this model's contract
+        // requires.
+        completedDistanceKm: kmCovered,
         journeyDuration: _completedDuration,
         carbonSavedKg: carbonSavedKg,
         caloriesBurned: caloriesBurned,
@@ -250,6 +306,10 @@ class JourneyCompletionController extends ChangeNotifier {
     _step = JourneyStep.completed;
     _completedDuration = _elapsed;
     _elapsedTimer?.cancel();
+    // Stop accumulating: the journey is over, and the completed screen's
+    // distance must be what was walked to get here, not whatever the phone
+    // drifts through afterwards.
+    _progressSubscription?.cancel();
     notifyListeners();
 
     await _awardReward();
@@ -324,6 +384,7 @@ class JourneyCompletionController extends ChangeNotifier {
   @override
   void dispose() {
     _elapsedTimer?.cancel();
+    _progressSubscription?.cancel();
     super.dispose();
   }
 }

@@ -39,9 +39,40 @@ service cloud.firestore {
     //   users/{uid}                          profile + cumulative reward totals
     //   users/{uid}/favorites/{placeId}      saved places (id only)
     //   users/{uid}/user_badges/{badgeId}    badges this tourist has earned
-    //   users/{uid}/points_ledger/{checkInId} award history, keyed for idempotency
+    //
+    // The points ledger is NOT under here — it is a top-level collection, see
+    // its own block below.
     match /users/{userId}/{document=**} {
       allow read, write: if isOwner(userId);
+    }
+
+    // ---- Points ledger ---------------------------------------------------
+    //
+    // Top-level, keyed by check-in id — see FirestoreRewardDao._ledgerRef.
+    // Its existence is the record of "this check-in has already been
+    // rewarded", which is what stops a completed journey paying out twice.
+    //
+    // This block was missing when the merged rules were first deployed, on
+    // the mistaken assumption that the ledger lived under users/. It does
+    // not, so every award transaction failed on its very first read and the
+    // journey-completed screen showed "Could not reach the reward service".
+    //
+    // The `resource == null` guard is load-bearing. Rules are evaluated for
+    // reads of documents that do not exist, with `resource` null, so a bare
+    // `resource.data.userId` errors out and denies — and on a tourist's first
+    // check-in the ledger entry has never existed. Same reasoning applies to
+    // check_ins below.
+    //
+    // create only: an award, once written, is final. Allowing update or
+    // delete would let a client clear the idempotency record and re-claim
+    // points for the same journey.
+    match /points_ledger/{checkInId} {
+      allow read: if isSignedIn()
+                  && (resource == null
+                      || resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
     }
 
     // ---- Email OTP -------------------------------------------------------
@@ -84,7 +115,14 @@ service cloud.firestore {
     // string mint points. Absent is still allowed: check-ins written before
     // modes existed carry no such field and were all walks.
     match /check_ins/{checkInId} {
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      // The `resource == null` guard matters for the same reason it does on
+      // the points ledger: FirestoreRewardDao's award transaction reads this
+      // document before it decides whether to update or create it, and a bare
+      // field access on a document that does not exist errors out and denies
+      // the whole transaction.
+      allow read: if isSignedIn()
+                  && (resource == null
+                      || resource.data.userId == request.auth.uid);
       allow create: if isSignedIn()
                     && request.resource.data.userId == request.auth.uid
                     && (!('transportMode' in request.resource.data.keys())
