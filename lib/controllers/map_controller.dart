@@ -8,6 +8,7 @@ import '../constants/map_error_messages.dart';
 import '../models/gps_location.dart';
 import '../models/place_model.dart';
 import '../services/boundary_validator_service.dart';
+import '../services/compass_service.dart';
 import '../services/location_service.dart';
 import '../services/map_service.dart';
 import '../services/places_service.dart';
@@ -19,16 +20,20 @@ class MapController extends ChangeNotifier {
     LocationService? locationService,
     BoundaryValidatorService? boundaryValidatorService,
     PlacesService? placesService,
+    CompassService? compassService,
   }) : _locationService = locationService ?? LocationService(),
        _boundaryValidatorService =
            boundaryValidatorService ?? BoundaryValidatorService(),
-       _placesService = placesService ?? PlacesService(MapService());
+       _placesService = placesService ?? PlacesService(MapService()),
+       _compassService = compassService ?? CompassService();
 
   final LocationService _locationService;
   final BoundaryValidatorService _boundaryValidatorService;
   final PlacesService _placesService;
+  final CompassService _compassService;
 
   StreamSubscription<GpsLocation>? _locationSubscription;
+  StreamSubscription<double?>? _compassSubscription;
 
   GpsLocation? currentLocation;
   List<PlaceModel> nearbyPlaces = [];
@@ -36,6 +41,20 @@ class MapController extends ChangeNotifier {
   String? errorMessage;
   double searchRadiusKm = MapConstants.defaultSearchRadiusKm;
   bool isWithinPenang = true;
+
+  /// The tourist's live facing direction from the device magnetometer,
+  /// degrees clockwise from true north — null until the first sensor
+  /// reading lands (or permanently, on a device with no compass).
+  double? compassHeading;
+
+  /// Whether the map camera should keep rotating to match [compassHeading]
+  /// ("compass mode" — the two-finger rotate gesture is disabled while this
+  /// is on, since it would otherwise fight the auto-rotation on every
+  /// sensor update). Off by default: a north-up map is the more familiar
+  /// default for browsing nearby pins.
+  bool isCompassModeEnabled = false;
+
+  bool get isCompassAvailable => _compassService.isCompassAvailable;
 
   /// UC-007 step 5: centre the map on the live fix once one exists, and on
   /// George Town before the first fix arrives.
@@ -66,6 +85,7 @@ class MapController extends ChangeNotifier {
       final location = await _locationService.getCurrentLocation();
       _applyLocation(location);
       _startLocationUpdates();
+      _startCompassUpdates();
       await renderNearbyPins();
     } on Exception {
       errorMessage = MapErrorMessages.locationTimeout;
@@ -80,6 +100,44 @@ class MapController extends ChangeNotifier {
     _locationSubscription = _locationService.startLocationUpdates().listen(
       _applyLocation,
     );
+  }
+
+  void _startCompassUpdates() {
+    if (!_compassService.isCompassAvailable) return;
+    _compassSubscription?.cancel();
+    _compassSubscription = _compassService.headingStream.listen(
+      _applyCompassHeading,
+    );
+  }
+
+  /// UC-008: feeds both the map's compass-follow rotation and the location
+  /// puck's direction indicator. Raw magnetometer readings are noisy, so a
+  /// reading is dropped unless it moves the heading by at least
+  /// [MapConstants.compassHeadingChangeThresholdDegrees] — redrawing on every
+  /// sample would look jittery and cost battery for no visible benefit.
+  void _applyCompassHeading(double? heading) {
+    if (heading == null) return;
+    final previous = compassHeading;
+    if (previous != null &&
+        _angleDifference(previous, heading) <
+            MapConstants.compassHeadingChangeThresholdDegrees) {
+      return;
+    }
+    compassHeading = heading;
+    notifyListeners();
+  }
+
+  double _angleDifference(double a, double b) {
+    final diff = (a - b).abs() % 360;
+    return diff > 180 ? 360 - diff : diff;
+  }
+
+  /// Toggled by the compass-mode button on [MapView]. Turning it off leaves
+  /// [compassHeading] (and the puck's own rotation) updating as normal —
+  /// only the camera's auto-rotation and the manual rotate gesture lock stop.
+  void toggleCompassMode() {
+    isCompassModeEnabled = !isCompassModeEnabled;
+    notifyListeners();
   }
 
   /// UC-008 steps 4-6 / UC-009 steps 1-2: updates the marker and re-checks
@@ -134,6 +192,7 @@ class MapController extends ChangeNotifier {
   @override
   void dispose() {
     _locationSubscription?.cancel();
+    _compassSubscription?.cancel();
     super.dispose();
   }
 }
