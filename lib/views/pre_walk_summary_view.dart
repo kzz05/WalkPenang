@@ -120,25 +120,8 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        InkWell(
-          onTap: onBack,
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            width: 32,
-            height: 32,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.primary,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(
-              Icons.chevron_left,
-              size: 20,
-              color: AppColors.onPrimary,
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
+        WpBackButton(onBack: onBack),
+        const SizedBox(width: 12),
         Text(
           'Journey Preview',
           style: AppType.heading.copyWith(

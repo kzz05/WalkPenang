@@ -33,6 +33,40 @@ class WpScreen extends StatelessWidget {
   }
 }
 
+/// The app's one back control: a plain outlined circle with a back arrow.
+///
+/// Extracted from [WpBackBar] so a screen whose header puts something else
+/// beside the button — a title, a status pill — can still use the same
+/// treatment instead of hand-rolling its own. Every screen that navigates
+/// back should render this or [WpBackBar]; nothing should draw a third
+/// variant.
+class WpBackButton extends StatelessWidget {
+  final VoidCallback? onBack;
+
+  const WpBackButton({super.key, required this.onBack});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onBack,
+      customBorder: const CircleBorder(),
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: AppColors.outline),
+        ),
+        child: const Icon(
+          Icons.arrow_back,
+          size: 18,
+          color: AppColors.onPrimary,
+        ),
+      ),
+    );
+  }
+}
+
 /// Circular back button, with an optional right-aligned text action
 /// (e.g. "save") next to it.
 class WpBackBar extends StatelessWidget {
@@ -52,23 +86,7 @@ class WpBackBar extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        InkWell(
-          onTap: onBack,
-          customBorder: const CircleBorder(),
-          child: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.outline),
-            ),
-            child: const Icon(
-              Icons.arrow_back,
-              size: 18,
-              color: AppColors.onPrimary,
-            ),
-          ),
-        ),
+        WpBackButton(onBack: onBack),
         if (actionLabel != null)
           TextButton(
             onPressed: onAction,

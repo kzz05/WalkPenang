@@ -1,9 +1,12 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../models/verify_location_ui_data.dart';
 import '../theme/app_theme.dart';
+import '../widgets/map/verification_radius_map.dart';
+import 'widgets/wp_components.dart';
 
 /// Screens 04a/04b/04c · Proximity Verification (UC-W06) v2 — one
 /// state-driven screen for "Checking", "Verified", and "blocked" (too far,
@@ -88,22 +91,8 @@ class _Header extends StatelessWidget {
       children: [
         Row(
           children: [
-            InkWell(
-              onTap: onBack,
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                width: 32,
-                height: 32,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.chevron_left,
-                    size: 20, color: AppColors.onPrimary),
-              ),
-            ),
-            const SizedBox(width: 10),
+            WpBackButton(onBack: onBack),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
                 'Verify Location',
@@ -142,7 +131,7 @@ class _Content extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _RadiusZoneCard(ringColor: _ringColor, radiusMeters: data.radiusMeters),
+        _RadiusZoneCard(ringColor: _ringColor, data: data),
         const SizedBox(height: 14),
         switch (data.phase) {
           VerifyLocationPhase.checking => _CheckingCard(data: data),
@@ -159,18 +148,50 @@ class _Content extends StatelessWidget {
   }
 }
 
-/// The "100 M RADIUS ZONE" map placeholder card, shared by all three states
-/// with only the ring colour changing.
+/// The "100 M RADIUS ZONE" card, shared by all three states with only the
+/// accent colour changing.
+///
+/// Shows the real thing wherever the flow has coordinates: the destination,
+/// the check-in radius drawn around it, and the tourist's own fix, on the
+/// app's existing [GoogleMap]. The abstract dashed ring below is the fallback
+/// for a caller with no coordinates to hand — it is still an honest
+/// illustration of the radius, and a map of nowhere would not be.
 class _RadiusZoneCard extends StatelessWidget {
   final Color ringColor;
-  final double radiusMeters;
+  final VerifyLocationUiData data;
 
-  const _RadiusZoneCard({required this.ringColor, required this.radiusMeters});
+  const _RadiusZoneCard({required this.ringColor, required this.data});
 
   @override
   Widget build(BuildContext context) {
+    const height = 180.0;
+
+    if (data.hasDestinationPosition) {
+      return Stack(
+        alignment: Alignment.bottomCenter,
+        children: [
+          VerificationRadiusMap(
+            destination: LatLng(
+              data.destinationLatitude!,
+              data.destinationLongitude!,
+            ),
+            userPosition: data.hasUserPosition
+                ? LatLng(data.userLatitude!, data.userLongitude!)
+                : null,
+            radiusMeters: data.radiusMeters,
+            accentColor: ringColor,
+            height: height,
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _RadiusZoneChip(radiusMeters: data.radiusMeters),
+          ),
+        ],
+      );
+    }
+
     return Container(
-      height: 180,
+      height: height,
       decoration: BoxDecoration(
         color: AppColors.backgroundDeep,
         borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -180,16 +201,35 @@ class _RadiusZoneCard extends StatelessWidget {
         children: [
           _DashedRadiusRing(color: ringColor, size: 110),
           const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: const BoxDecoration(
-                color: AppColors.card, borderRadius: AppRadius.mdAll),
-            child: Text(
-              '${radiusMeters.round()} M RADIUS ZONE',
-              style: AppType.mono.copyWith(fontSize: 10, letterSpacing: 0.8),
-            ),
-          ),
+          _RadiusZoneChip(radiusMeters: data.radiusMeters),
         ],
+      ),
+    );
+  }
+}
+
+/// The "100 M RADIUS ZONE" caption, on both the map and the illustrated
+/// fallback so the card reads the same either way.
+class _RadiusZoneChip extends StatelessWidget {
+  final double radiusMeters;
+
+  const _RadiusZoneChip({required this.radiusMeters});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: const BoxDecoration(
+        color: AppColors.card,
+        borderRadius: AppRadius.mdAll,
+        boxShadow: [
+          BoxShadow(
+              color: AppColors.cardShadow, blurRadius: 6, offset: Offset(0, 1)),
+        ],
+      ),
+      child: Text(
+        '${radiusMeters.round()} M RADIUS ZONE',
+        style: AppType.mono.copyWith(fontSize: 10, letterSpacing: 0.8),
       ),
     );
   }

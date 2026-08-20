@@ -28,11 +28,24 @@ class ArrivalCheckReading {
   final ArrivalCheckStatus status;
   final double? distanceMeters;
 
-  const ArrivalCheckReading.success(this.distanceMeters)
-      : status = ArrivalCheckStatus.success;
+  /// Where the tourist was when this reading was taken. Optional, and purely
+  /// so the Verify Location screen can draw the fix it already verified
+  /// against on a map — the arrival decision itself is made from
+  /// [distanceMeters] alone and does not read these. Null for a failure, and
+  /// for any test/demo double that only scripts a distance.
+  final double? userLatitude;
+  final double? userLongitude;
+
+  const ArrivalCheckReading.success(
+    this.distanceMeters, {
+    this.userLatitude,
+    this.userLongitude,
+  }) : status = ArrivalCheckStatus.success;
 
   const ArrivalCheckReading.failure(this.status)
       : distanceMeters = null,
+        userLatitude = null,
+        userLongitude = null,
         assert(status != ArrivalCheckStatus.success,
             'use ArrivalCheckReading.success for a resolved distance');
 }
@@ -95,6 +108,10 @@ class LocationArrivalVerificationService implements ArrivalVerificationService {
       endLatitude: destinationLatitude,
       endLongitude: destinationLongitude,
     );
-    return ArrivalCheckReading.success(distanceMeters);
+    return ArrivalCheckReading.success(
+      distanceMeters,
+      userLatitude: location.latitude,
+      userLongitude: location.longitude,
+    );
   }
 }

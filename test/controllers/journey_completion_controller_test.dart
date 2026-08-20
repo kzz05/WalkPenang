@@ -205,6 +205,50 @@ void main() {
       expect(arrival.callCount, 2);
     });
 
+    test('carries both positions through for the Verify Location map',
+        () async {
+      final controller = _buildController(
+        arrival: _ScriptedArrivalService(
+          const ArrivalCheckReading.success(
+            42,
+            userLatitude: 5.4231,
+            userLongitude: 100.3407,
+          ),
+        ),
+        reward: _CountingRewardService(),
+      );
+      addTearDown(controller.dispose);
+
+      await controller.beginVerification();
+      final data = controller.verifyLocationUiData;
+
+      expect(data.destinationLatitude, _summary.destinationLatitude);
+      expect(data.destinationLongitude, _summary.destinationLongitude);
+      expect(data.userLatitude, 5.4231);
+      expect(data.userLongitude, 100.3407);
+      // The map is drawn from the fix the distance was measured from, so the
+      // verified distance must still be exactly what the reading reported.
+      expect(data.currentDistanceMeters, 42);
+    });
+
+    test('a failed reading leaves no position to plot the tourist from',
+        () async {
+      final controller = _buildController(
+        arrival: _ScriptedArrivalService(
+          const ArrivalCheckReading.failure(ArrivalCheckStatus.gpsUnavailable),
+        ),
+        reward: _CountingRewardService(),
+      );
+      addTearDown(controller.dispose);
+
+      await controller.beginVerification();
+      final data = controller.verifyLocationUiData;
+
+      expect(data.hasUserPosition, isFalse);
+      // The destination is still known, so the zone can still be shown.
+      expect(data.hasDestinationPosition, isTrue);
+    });
+
     test('continueWalking returns to the active step', () async {
       final controller = _buildController(
         arrival:

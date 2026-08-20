@@ -35,14 +35,41 @@ class VerifyLocationUiData {
   /// [VerifyLocationPhase.blocked].
   final VerifyBlockReason? blockReason;
 
+  /// The destination the [radiusMeters] zone is drawn around, so the screen
+  /// can show the real place on a map instead of an abstract ring. Optional:
+  /// a caller with no coordinates to hand (the widget tests, and any screen
+  /// state reached before a destination exists) still gets the illustrated
+  /// fallback.
+  final double? destinationLatitude;
+  final double? destinationLongitude;
+
+  /// Where the last GPS reading put the tourist — the same fix
+  /// [currentDistanceMeters] was measured from, never a second one. Null
+  /// while no fix has landed, or when the reading failed.
+  final double? userLatitude;
+  final double? userLongitude;
+
   const VerifyLocationUiData({
     required this.phase,
     required this.destinationName,
     required this.radiusMeters,
     this.currentDistanceMeters,
     this.blockReason,
+    this.destinationLatitude,
+    this.destinationLongitude,
+    this.userLatitude,
+    this.userLongitude,
   }) : assert(
           phase != VerifyLocationPhase.blocked || blockReason != null,
           'blockReason is required when phase is VerifyLocationPhase.blocked',
         );
+
+  /// Whether there is a destination to centre a map on. The user marker is
+  /// drawn on top only when [hasUserPosition] as well — a map of the
+  /// destination and its radius is still worth showing while the fix is
+  /// being acquired, or after one failed.
+  bool get hasDestinationPosition =>
+      destinationLatitude != null && destinationLongitude != null;
+
+  bool get hasUserPosition => userLatitude != null && userLongitude != null;
 }
