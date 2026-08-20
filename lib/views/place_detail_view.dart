@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:walkpenang/controllers/favorites_controller.dart';
 import 'package:walkpenang/models/place.dart';
@@ -88,6 +89,17 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
       _reviewError = message;
       _loadingReviews = false;
     });
+  }
+
+  /// Opens the place's real Google Maps listing — its actual rating and
+  /// reviews, not the placeholder ones seeded into our own Firestore. Free:
+  /// just a maps search deep link, no Places API key or billing involved.
+  Future<void> _openGoogleMapsReviews() async {
+    final Uri uri = Uri.https('www.google.com', '/maps/search/', {
+      'api': '1',
+      'query': '${widget.place.name}, ${widget.place.address}',
+    });
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   void _toggleFavorite() {
@@ -204,6 +216,37 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
                                 ?.copyWith(color: AppColors.muted),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 4),
+                      InkWell(
+                        onTap: _openGoogleMapsReviews,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Text(
+                                'See real reviews on Google Maps',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  // DiscoveryColors went away when every
+                                  // module moved onto app_theme. The sand
+                                  // tokens are too pale against the cream
+                                  // ground for body-small text, so this uses
+                                  // the primary ink and leans on the weight
+                                  // and trailing icon to read as tappable.
+                                  color: AppColors.onPrimary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.open_in_new,
+                                size: 13,
+                                color: AppColors.onPrimary,
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                       if (place.hasDescription) ...<Widget>[
                         const SizedBox(height: 16),
