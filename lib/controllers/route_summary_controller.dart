@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../constants/map_error_messages.dart';
-import '../constants/travel_mode.dart';
+import '../models/transport_mode.dart';
 import '../models/place_model.dart';
 import '../models/route_result.dart';
 import '../services/map_service.dart';
@@ -21,10 +21,10 @@ class RouteSummaryController extends ChangeNotifier {
 
   /// Every mode's result, fetched together in [calculateRoute] so switching
   /// the tab in [RouteSummaryView] is instant — no re-fetch per tap.
-  final Map<TravelMode, RouteResult> routesByMode = {};
-  final Map<TravelMode, bool> _networkFailedByMode = {};
+  final Map<TransportMode, RouteResult> routesByMode = {};
+  final Map<TransportMode, bool> _networkFailedByMode = {};
 
-  TravelMode selectedMode = TravelMode.walking;
+  TransportMode selectedMode = TransportMode.walking;
   bool isLoading = false;
   String? errorMessage;
 
@@ -43,7 +43,7 @@ class RouteSummaryController extends ChangeNotifier {
 
     final destLatLng = LatLng(destination.latitude, destination.longitude);
     final results = await Future.wait(
-      TravelMode.values.map((mode) => _fetchMode(mode, origin, destLatLng)),
+      TransportMode.values.map((mode) => _fetchMode(mode, origin, destLatLng)),
     );
 
     for (final result in results) {
@@ -57,7 +57,7 @@ class RouteSummaryController extends ChangeNotifier {
   }
 
   Future<_ModeFetchResult> _fetchMode(
-    TravelMode mode,
+    TransportMode mode,
     LatLng origin,
     LatLng destLatLng,
   ) async {
@@ -80,7 +80,7 @@ class RouteSummaryController extends ChangeNotifier {
   /// UC-M04 mode comparison: switches which mode's ETA/route/polyline the
   /// summary and map show — every mode was already fetched together in
   /// [calculateRoute], so this is instant.
-  void selectMode(TravelMode mode) {
+  void selectMode(TransportMode mode) {
     if (selectedMode == mode) return;
     selectedMode = mode;
     _refreshErrorMessageForSelectedMode();
@@ -100,7 +100,7 @@ class RouteSummaryController extends ChangeNotifier {
 }
 
 class _ModeFetchResult {
-  final TravelMode mode;
+  final TransportMode mode;
   final RouteResult route;
   final bool networkFailed;
 

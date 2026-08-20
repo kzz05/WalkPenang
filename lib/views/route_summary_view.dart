@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-import '../constants/travel_mode.dart';
+import '../models/transport_mode.dart';
 import '../controllers/route_summary_controller.dart';
 import '../models/place_model.dart';
 import '../models/route_result.dart';
@@ -171,7 +171,7 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
               ),
               const SizedBox(width: 24),
               _StatBlock(
-                label: '${_controller.selectedMode.label.toLowerCase()} time',
+                label: '${_controller.selectedMode.shortLabel.toLowerCase()} time',
                 value: formatEtaMinutes(route.durationMinutes),
               ),
             ],
@@ -307,7 +307,7 @@ class _ModeTabs extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (final mode in TravelMode.values)
+          for (final mode in TransportMode.values)
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: ChoiceChip(
@@ -331,21 +331,24 @@ class _ModeTabs extends StatelessWidget {
     );
   }
 
-  IconData _modeIcon(TravelMode mode) {
+  IconData _modeIcon(TransportMode mode) {
     switch (mode) {
-      case TravelMode.walking:
+      case TransportMode.walking:
         return Icons.directions_walk;
-      case TravelMode.driving:
+      case TransportMode.driving:
         return Icons.directions_car;
-      case TravelMode.transit:
+      case TransportMode.publicTransport:
         return Icons.directions_bus;
     }
   }
 
-  String _modeLabel(TravelMode mode) {
+  /// shortLabel, not label: three chips share one row, and "Public
+  /// Transport · 12 min" does not fit. The long form belongs to the Walking
+  /// module's full-width mode cards.
+  String _modeLabel(TransportMode mode) {
     final RouteResult? route = controller.routesByMode[mode];
-    if (route == null) return mode.label;
-    if (!route.routeFound) return '${mode.label} · --';
-    return '${mode.label} · ${formatEtaMinutes(route.durationMinutes)}';
+    if (route == null) return mode.shortLabel;
+    if (!route.routeFound) return '${mode.shortLabel} · --';
+    return '${mode.shortLabel} · ${formatEtaMinutes(route.durationMinutes)}';
   }
 }

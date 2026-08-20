@@ -1,6 +1,6 @@
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-import '../constants/travel_mode.dart';
+import '../models/transport_mode.dart';
 import '../models/route_result.dart';
 import '../models/route_step.dart';
 import '../models/transit_details.dart';
@@ -17,7 +17,7 @@ class RouteService {
   Future<RouteResult> calculateRoute({
     required LatLng origin,
     required LatLng destination,
-    required TravelMode mode,
+    required TransportMode mode,
   }) async {
     final uri = _mapService.buildDirectionsRequest(
       origin: origin,

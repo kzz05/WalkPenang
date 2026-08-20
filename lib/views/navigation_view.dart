@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-import '../constants/travel_mode.dart';
+import '../models/transport_mode.dart';
 import '../controllers/navigation_controller.dart';
 import '../models/place_model.dart';
 import '../models/route_result.dart';
@@ -20,7 +20,7 @@ class NavigationView extends StatefulWidget {
   final RouteResult route;
   final PlaceModel destination;
   final LatLng origin;
-  final TravelMode mode;
+  final TransportMode mode;
 
   const NavigationView({
     super.key,
@@ -93,11 +93,11 @@ class _NavigationViewState extends State<NavigationView> {
   /// little to keep upcoming manoeuvres/stops in view.
   double get _navigationZoom {
     switch (widget.mode) {
-      case TravelMode.walking:
+      case TransportMode.walking:
         return 18;
-      case TravelMode.driving:
+      case TransportMode.driving:
         return 16;
-      case TravelMode.transit:
+      case TransportMode.publicTransport:
         return 15;
     }
   }
