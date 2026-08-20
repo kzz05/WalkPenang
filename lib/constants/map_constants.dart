@@ -36,4 +36,11 @@ class MapConstants {
   /// UC-008: how far (in metres) the tourist must move before the live
   /// position marker refreshes while the map screen is open.
   static const int locationUpdateDistanceFilterMeters = 5;
+
+  /// Compass-follow map rotation (UC-008): skip a camera bearing / puck
+  /// rotation update unless the heading has drifted at least this many
+  /// degrees since the last applied reading — raw magnetometer output is
+  /// noisy enough that redrawing on every sample would look jittery and
+  /// burn battery for no visible benefit.
+  static const double compassHeadingChangeThresholdDegrees = 3.0;
 }

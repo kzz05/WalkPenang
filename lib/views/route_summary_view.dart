@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../constants/travel_mode.dart';
 import '../controllers/route_summary_controller.dart';
 import '../models/place_model.dart';
+import '../models/route_result.dart';
 import '../theme/app_theme.dart';
+import '../utils/duration_format.dart';
+import '../widgets/map/zoom_controls.dart';
+import 'navigation_view.dart';
 
-/// Screen for UC-M04 (distance/time) and UC-M05 (launch navigation), both
-/// extending UC-M06 (Request Map Service).
+/// Screen for UC-M04 (distance/time) and UC-M05 (in-app turn-by-turn
+/// navigation), both extending UC-M06 (Request Map Service).
 class RouteSummaryView extends StatefulWidget {
   final PlaceModel destination;
   final LatLng origin;
@@ -25,6 +30,7 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
   late final RouteSummaryController _controller = RouteSummaryController(
     destination: widget.destination,
   );
+  GoogleMapController? _mapController;
 
   @override
   void initState() {
@@ -36,6 +42,22 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  /// UC-M05 step 2: pushes the in-app turn-by-turn view for whichever mode
+  /// is selected, reusing the route already fetched for UC-M04 rather than
+  /// re-requesting it.
+  void _startNavigation(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => NavigationView(
+          route: _controller.route!,
+          destination: widget.destination,
+          origin: widget.origin,
+          mode: _controller.selectedMode,
+        ),
+      ),
+    );
   }
 
   @override
@@ -71,25 +93,42 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
       widget.destination.longitude,
     );
 
-    return GoogleMap(
-      initialCameraPosition: CameraPosition(target: widget.origin, zoom: 14),
-      polylines: route != null && route.routeFound
-          ? {
-              Polyline(
-                polylineId: const PolylineId('walking_route'),
-                points: route.polylinePoints,
-                color: AppColors.primary,
-                width: 5,
-              ),
-            }
-          : {},
-      markers: {
-        Marker(markerId: const MarkerId('origin'), position: widget.origin),
-        Marker(
-          markerId: MarkerId(widget.destination.placeId),
-          position: destLatLng,
+    return Stack(
+      children: [
+        GoogleMap(
+          initialCameraPosition: CameraPosition(target: widget.origin, zoom: 14),
+          onMapCreated: (controller) => setState(() => _mapController = controller),
+          zoomControlsEnabled: false,
+          polylines: route != null && route.routeFound
+              ? {
+                  Polyline(
+                    polylineId: const PolylineId('route'),
+                    points: route.polylinePoints,
+                    color: AppColors.primary,
+                    width: 5,
+                  ),
+                }
+              : {},
+          markers: {
+            Marker(markerId: const MarkerId('origin'), position: widget.origin),
+            Marker(
+              markerId: MarkerId(widget.destination.placeId),
+              position: destLatLng,
+            ),
+          },
         ),
-      },
+        Positioned(
+          right: 12,
+          bottom: 12,
+          child: ZoomControls(mapController: _mapController),
+        ),
+        Positioned(
+          top: 12,
+          left: 12,
+          right: 12,
+          child: _ModeTabs(controller: _controller),
+        ),
+      ],
     );
   }
 
@@ -132,8 +171,8 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
               ),
               const SizedBox(width: 24),
               _StatBlock(
-                label: 'walking time',
-                value: '${route.durationMinutes} min',
+                label: '${_controller.selectedMode.label.toLowerCase()} time',
+                value: formatEtaMinutes(route.durationMinutes),
               ),
             ],
           ),
@@ -158,10 +197,13 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
                 ),
               ),
               const SizedBox(width: 12),
-              // UC-M05 step 1.
+              // UC-M05 step 1: hands the fetched route off to in-app
+              // turn-by-turn navigation instead of an external app.
               Expanded(
                 child: ElevatedButton(
-                  onPressed: _controller.launchNavigation,
+                  onPressed: route.routeFound
+                      ? () => _startNavigation(context)
+                      : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     padding: const EdgeInsets.symmetric(vertical: 14),
@@ -174,8 +216,8 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
               ),
             ],
           ),
-          // UC-M05 A1 / A3: navigation-launch failures surface here, next to
-          // the button that triggered them, instead of replacing the card.
+          // UC-M04 A1: shown here (rather than the full error card) when a
+          // `notFound` result still carries a non-null route.
           if (_controller.errorMessage != null) ...[
             const SizedBox(height: 12),
             Text(
@@ -248,5 +290,62 @@ class _StatBlock extends StatelessWidget {
         Text(value, style: AppType.stat.copyWith(color: AppColors.onSurface)),
       ],
     );
+  }
+}
+
+/// UC-M04 mode comparison: Walk / Drive / Bus tabs, each showing its own
+/// ETA so the tourist can pick a mode before tapping "Navigate" — mirrors
+/// Google Maps' own mode-comparison strip.
+class _ModeTabs extends StatelessWidget {
+  final RouteSummaryController controller;
+  const _ModeTabs({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final mode in TravelMode.values)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(_modeIcon(mode), size: 16, color: AppColors.onPrimary),
+                    const SizedBox(width: 6),
+                    Text(_modeLabel(mode)),
+                  ],
+                ),
+                selected: controller.selectedMode == mode,
+                selectedColor: AppColors.primary,
+                backgroundColor: Colors.white,
+                labelStyle: AppType.monoValue,
+                onSelected: (_) => controller.selectMode(mode),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  IconData _modeIcon(TravelMode mode) {
+    switch (mode) {
+      case TravelMode.walking:
+        return Icons.directions_walk;
+      case TravelMode.driving:
+        return Icons.directions_car;
+      case TravelMode.transit:
+        return Icons.directions_bus;
+    }
+  }
+
+  String _modeLabel(TravelMode mode) {
+    final RouteResult? route = controller.routesByMode[mode];
+    if (route == null) return mode.label;
+    if (!route.routeFound) return '${mode.label} · --';
+    return '${mode.label} · ${formatEtaMinutes(route.durationMinutes)}';
   }
 }

@@ -14,8 +14,9 @@ class MapServiceException implements Exception {
 }
 
 /// Map Service Sub Module (UC-M06). The single place that talks to Google's
-/// HTTP APIs — Route Calculation (UC-M04) and Navigation Launcher (UC-M05)
-/// both build their requests here rather than calling `http` directly.
+/// HTTP APIs — Route Calculation (UC-M04) builds its requests here rather
+/// than calling `http` directly; UC-M05's in-app navigation reuses whatever
+/// route UC-M04 already fetched instead of calling this service again.
 class MapService {
   static String get _apiKey => dotenv.env['MAPS_API_KEY'] ?? '';
 
@@ -70,21 +71,35 @@ class MapService {
     throw MapServiceException('Unable to reach Google Maps API: $error');
   }
 
-  /// UC-M04: Directions API request, walking mode.
+  /// UC-M04: Directions API request for the given travel mode (`walking`,
+  /// `driving`, or `transit` — see `TravelMode.apiValue`).
   Uri buildDirectionsRequest({
     required LatLng origin,
     required LatLng destination,
+    required String mode,
   }) {
-    return Uri.https('maps.googleapis.com', '/maps/api/directions/json', {
+    final params = {
       'origin': '${origin.latitude},${origin.longitude}',
       'destination': '${destination.latitude},${destination.longitude}',
-      'mode': 'walking',
+      'mode': mode,
       'key': _apiKey,
-    });
+    };
+    // Transit schedules depend on when the trip starts; Google recommends
+    // an explicit departure_time for accurate results rather than relying
+    // on its undocumented "now" default.
+    if (mode == 'transit') {
+      final nowSeconds = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      params['departure_time'] = '$nowSeconds';
+    }
+    return Uri.https('maps.googleapis.com', '/maps/api/directions/json', params);
   }
 
-  /// UC-M05: Google Maps walking-navigation deep link. Destination only —
-  /// Google Maps fills in the origin from the device's own location.
+  /// UC-007: base endpoint for a Places API (New) `searchNearby` call. The
+  /// actual search parameters go in the POST body built by [PlacesService].
+  /// UC-M06 / UC-M05: the Google Maps walking deep link. Still used by the
+  /// Walking & Carbon module's journey flow, which hands the tourist off to
+  /// the Google Maps app; the Map module's own UC-M05 now navigates in-app
+  /// via NavigationView instead.
   Uri buildDeepLinkRequest(LatLng destination) {
     return Uri.https('www.google.com', '/maps/dir/', {
       'api': '1',
@@ -93,8 +108,6 @@ class MapService {
     });
   }
 
-  /// UC-007: base endpoint for a Places API (New) `searchNearby` call. The
-  /// actual search parameters go in the POST body built by [PlacesService].
   Uri buildPlacesNearbyRequest() =>
       Uri.https('places.googleapis.com', '/v1/places:searchNearby');
 

@@ -51,12 +51,5 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
-        <!-- UC-M05: lets url_launcher detect the Google Maps app for the
-             walking-navigation deep link (Android 11+ package visibility). -->
-        <intent>
-            <action android:name="android.intent.action.VIEW"/>
-            <data android:scheme="geo"/>
-        </intent>
-        <package android:name="com.google.android.apps.maps"/>
     </queries>
 </manifest>
