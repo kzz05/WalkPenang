@@ -52,6 +52,32 @@ class Review {
     return '$months month${months == 1 ? '' : 's'} ago';
   }
 
+  /// Firestore document fields for the 'reviews' collection. The doc id
+  /// carries [id], so it isn't repeated in the map.
+  Map<String, dynamic> toMap() {
+    return {
+      'placeId': placeId,
+      'authorName': authorName,
+      'rating': rating,
+      'body': body,
+      'createdAt': createdAt.toIso8601String(),
+      'photoCount': photoCount,
+    };
+  }
+
+  factory Review.fromMap(String id, Map<String, dynamic> map) {
+    return Review(
+      id: id,
+      placeId: map['placeId'] as String? ?? '',
+      authorName: map['authorName'] as String? ?? 'Anonymous',
+      rating: (map['rating'] as num?)?.toInt() ?? 5,
+      body: map['body'] as String? ?? '',
+      createdAt: DateTime.tryParse(map['createdAt'] as String? ?? '') ??
+          DateTime.now(),
+      photoCount: (map['photoCount'] as num?)?.toInt() ?? 0,
+    );
+  }
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) || (other is Review && other.id == id);

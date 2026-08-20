@@ -2,10 +2,16 @@ rules_version = '2';
 
 // WalkPenang Firestore security rules (NFR-04 — Data Protection).
 //
-// firebase.json has always pointed at this file, but until now it did not
-// exist: the rules lived only in the Firebase console, unversioned. That is
-// how the reward module's permission-denied broke without anyone noticing —
-// see the users/ block below.
+// Merged 2026-08-20 from the two versions that had diverged:
+//
+//   • in-develop — users/, badges/, check_ins/. Never deployed: the rules
+//     actually running on the project were the Discovery module's, so this
+//     file's users/ block existed in git and nowhere else.
+//   • Food-and-Attraction-Discovery-Module — places/ and reviews/. This was
+//     the deployed version, and it ended with a catch-all
+//     `match /{document=**} { allow read, write: if false; }` that denied
+//     users/ out from under profile_store and the favourites store. Reading
+//     a profile has been failing in production because of it.
 //
 // Deploy with:
 //   firebase deploy --only firestore:rules --project walkpenang-5cefb
@@ -31,10 +37,23 @@ service cloud.firestore {
     //
     // Covers:
     //   users/{uid}                          profile + cumulative reward totals
+    //   users/{uid}/favorites/{placeId}      saved places (id only)
     //   users/{uid}/user_badges/{badgeId}    badges this tourist has earned
     //   users/{uid}/points_ledger/{checkInId} award history, keyed for idempotency
     match /users/{userId}/{document=**} {
       allow read, write: if isOwner(userId);
+    }
+
+    // ---- Email OTP -------------------------------------------------------
+    //
+    // Denied to every client, deliberately — this is not an oversight to be
+    // "fixed" later. functions/index.js writes these documents with the Admin
+    // SDK, which bypasses rules entirely, and the stored value is an HMAC of
+    // the code. A client that could read this collection could brute-force
+    // the hash offline; a client that could write it could mint its own
+    // verification. No Dart code path touches it.
+    match /email_otps/{uid} {
+      allow read, write: if false;
     }
 
     // ---- Badge catalogue -------------------------------------------------
@@ -66,8 +85,70 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Anything not matched above is denied. Add collections explicitly as
-    // other modules start writing — the Food & Attraction module currently
-    // uses no Firestore at all (MockPlaceRepository) and needs nothing here.
+    // ---- Places ----------------------------------------------------------
+    //
+    // The Discovery module's place catalogue: name, category, address,
+    // photoUrls, priceLevel, opening hours, dietary tags. Seeded by
+    // tool/seed_places.dart and read by FirestorePlaceRepository.
+    //
+    // Read is public — the feed renders before the tourist signs in, and none
+    // of these fields are personal data.
+    //
+    // Write requires sign-in. The previously deployed rule allowed
+    // `write: if true`, which let anyone holding the project id rewrite or
+    // delete all twelve places. See the seeding note at the end of this file.
+    match /places/{placeId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // ---- Reviews ---------------------------------------------------------
+    //
+    // Top-level, carrying a placeId field, queried with the composite index
+    // in firestore.indexes.json.
+    //
+    // Bounds are enforced here rather than trusted from the client — the UI's
+    // 1-5 star picker is not a security control. Create only: a review that
+    // has already been shown to other tourists must not be silently rewritten
+    // or removed from the client.
+    //
+    // These documents carry no authorUid (Review.toMap records a display name
+    // only), so ownership cannot be enforced. Sign-in plus value bounds is as
+    // far as this can go without a change to the model.
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+                    && request.resource.data.placeId is string
+                    && request.resource.data.rating is int
+                    && request.resource.data.rating >= 1
+                    && request.resource.data.rating <= 5
+                    && request.resource.data.body is string
+                    && request.resource.data.body.size() <= 2000;
+      allow update, delete: if false;
+    }
+
+    // Anything not matched above is denied by default. Add collections
+    // explicitly as other modules start writing — do NOT add a catch-all
+    // `match /{document=**}` here. One was deployed on 2026-08-20 and it
+    // silently locked users/ out from under the profile and favourites
+    // stores, because a catch-all matches every path no other rule grants.
   }
 }
+
+// ── Note for whoever next runs tool/seed_places.dart ────────────────────────
+//
+// places writes now require sign-in, so the seeder must authenticate before
+// its batch commits:
+//
+//     await FirebaseAuth.instance.signInWithEmailAndPassword(
+//       email: '<a test account that already exists>',
+//       password: '<its password>',
+//     );
+//
+// The same applies to lib/main_discovery.dart if reviews are to be submitted
+// from that standalone entry point.
+//
+// Separately, the seeder's batch.set() call passes no SetOptions, so it is a
+// full document replace. That is harmless today, but once a place carries
+// tourist-submitted data a re-seed would wipe it; prefer
+// `batch.set(ref, place.toMap(), SetOptions(merge: true))`.
