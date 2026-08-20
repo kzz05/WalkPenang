@@ -10,11 +10,16 @@ import 'reward/stats_dashboard_screen.dart';
 import 'reward/walking_journal_screen.dart';
 import 'settings_view.dart';
 import 'widgets/wp_components.dart';
+import 'widgets/wp_tab_sheet.dart';
 
-/// Screen 06 · Home — brand bar over a full-height map, with the explore,
-/// walk and rewards modules reached from the bottom nav and the account
-/// screens from the hamburger. The map is embedded rather than pushed so it
-/// is the first thing a tourist sees after signing in.
+/// Screen 06 · Home — a full-bleed map with every other destination behind a
+/// single control in the bottom-left corner.
+///
+/// There is no bottom navigation bar and no "home" tab, because the map *is*
+/// home: the sheet slides up over it and closing the sheet is how you get
+/// back. That is what gives the close button one unambiguous meaning, and it
+/// hands the whole screen to the map rather than permanently reserving a strip
+/// of it for a nav bar.
 class HomeView extends StatefulWidget {
   final UserProfile profile;
 
@@ -27,28 +32,15 @@ class HomeView extends StatefulWidget {
 class _HomeViewState extends State<HomeView> {
   late final HomeController _controller = HomeController(widget.profile);
 
+  bool _sheetOpen = false;
+  int _tabIndex = 0;
+
+  void _toggleSheet() => setState(() => _sheetOpen = !_sheetOpen);
+
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
-  }
-
-  /// The hamburger opens this — the dashboard's route to the account screens.
-  Future<void> _openAccountMenu() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => _AccountMenu(
-        onEditProfile: () {
-          Navigator.pop(sheetContext);
-          _openEditProfile();
-        },
-        onSettings: () {
-          Navigator.pop(sheetContext);
-          _openSettings();
-        },
-      ),
-    );
   }
 
   Future<void> _openSettings() async {
@@ -68,89 +60,101 @@ class _HomeViewState extends State<HomeView> {
     if (updated != null) _controller.updateProfile(updated);
   }
 
-  /// US-FD01 / US-FD02 — the Food & Attraction Discovery module. Pushed rather
-  /// than embedded: it brings its own Discover / Favorites tabs, which would
-  /// otherwise sit under this screen's nav and give the tourist two nav bars.
-  Future<void> _openDiscoveryModule() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const DiscoveryModuleView(),
-      ),
-    );
-  }
-
-  /// The walk tab opens the tourist's journey history (UC520 / FR-R03).
+  /// The sheet's destinations.
   ///
-  /// It used to open UC-W01's transport-mode picker. That became redundant
-  /// once the map's route summary grew its own Walk/Drive/Bus tabs and
-  /// journeys started from a tapped place — the picker had no destination to
-  /// offer and could only send the tourist back to the map.
-  Future<void> _openWalkingModule() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const WalkingJournalScreen()),
-    );
-  }
-
-  Future<void> _openRewardModule() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const StatsDashboardScreen(),
-      ),
-    );
-  }
+  /// Each is the same screen that used to be pushed as a route, built with
+  /// `embedded: true` so it drops its own Scaffold and back bar — inside the
+  /// sheet there is nothing to pop, and the corner X is the way out.
+  ///
+  /// Discovery keeps its own Discover / Favorites tabs. Two levels of tabs is
+  /// tolerable where two nav bars was not, because the outer row is pills at
+  /// the top of a sheet rather than a second bar competing at the bottom.
+  List<WpTab> get _tabs => [
+        WpTab(
+          label: 'Explore',
+          builder: (_) => const DiscoveryModuleView(embedded: true),
+        ),
+        WpTab(
+          label: 'Walk',
+          builder: (_) => const WalkingJournalScreen(embedded: true),
+        ),
+        WpTab(
+          label: 'Rewards',
+          builder: (_) => const StatsDashboardScreen(embedded: true),
+        ),
+        WpTab(
+          label: 'Account',
+          builder: (_) => _AccountMenu(
+            onEditProfile: _openEditProfile,
+            onSettings: _openSettings,
+          ),
+        ),
+      ];
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      // In the Scaffold's own nav slot, like the Discovery module's shell —
-      // so the bar handles its own safe-area inset and the map gets the rest.
-      // Home *is* the map: it now runs edge to edge under the status bar
-      // rather than starting below a brand bar, so nothing competes with it
-      // for vertical space. The account button rides in the map's own top
-      // overlay row, level with the radius chips.
-      body: SafeArea(
-        bottom: false,
-        child: MapPanel(topBarTrailing: _buildAccountButton()),
-      ),
-      bottomNavigationBar: WpBottomNav(
-        currentIndex: 0,
-        items: const ['home', 'explore', 'walk', 'rewards'],
-        onTap: (index) {
-          switch (index) {
-            case 1:
-              _openDiscoveryModule();
-            case 2:
-              _openWalkingModule();
-            case 3:
-              _openRewardModule();
-          }
-        },
-      ),
-    );
-  }
+    return PopScope(
+      // With the sheet open, back closes it rather than leaving the app.
+      // Without this the system gesture would pop HomeView itself, which on
+      // the root route means exiting — a tourist reading their journal and
+      // swiping back would find the app gone.
+      canPop: !_sheetOpen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _sheetOpen) setState(() => _sheetOpen = false);
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        // No bottomNavigationBar: the sheet replaced it, and the map gets the
+        // whole screen back.
+        body: Stack(
+          children: [
+            // Bottom layer, always present and never rebuilt when the sheet
+            // opens — the map keeps its camera, its pins and its GPS stream
+            // while the tourist is off in another tab.
+            const Positioned.fill(
+                child: SafeArea(bottom: false, child: MapPanel())),
 
-  /// The account menu button, sitting over the map alongside the radius
-  /// chips.
-  ///
-  /// No fill and no outline: it is drawn straight onto the map, so any
-  /// background would reinstate the bar this replaced. The icon stays dark
-  /// ink, which is what carries it against the map's light ground — over
-  /// satellite imagery or a dark style it would need a scrim.
-  Widget _buildAccountButton() {
-    return InkWell(
-      onTap: _openAccountMenu,
-      customBorder: const CircleBorder(),
-      child: const SizedBox(
-        width: 40,
-        height: 40,
-        child: Icon(Icons.menu, size: 22, color: AppColors.onPrimary),
+            // The sheet, translated fully off the bottom when closed rather
+            // than removed, so the slide has something to animate and the tab
+            // screens are not torn down and rebuilt on every open.
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: AnimatedSlide(
+                offset: _sheetOpen ? Offset.zero : const Offset(0, 1),
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeOutCubic,
+                child: WpTabSheet(
+                  tabs: _tabs,
+                  currentIndex: _tabIndex,
+                  onTabSelected: (index) => setState(() => _tabIndex = index),
+                ),
+              ),
+            ),
+
+            // Above both, so the same control is on top of the map when closed
+            // and on top of the sheet when open — that is what makes the X land
+            // in exactly the spot the menu button occupied.
+            Positioned(
+              left: 20,
+              bottom: 24,
+              child: SafeArea(
+                top: false,
+                child: WpSheetToggleButton(
+                  isOpen: _sheetOpen,
+                  onPressed: _toggleSheet,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-/// The sheet behind the hamburger — the dashboard's account section.
+/// The Account tab's body — the route to the profile and settings screens.
 class _AccountMenu extends StatelessWidget {
   final VoidCallback onEditProfile;
   final VoidCallback onSettings;

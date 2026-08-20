@@ -27,7 +27,16 @@ class WalkingJournalScreen extends StatefulWidget {
   /// tourist, matching StatsDashboardScreen.
   final JournalController? controller;
 
-  const WalkingJournalScreen({super.key, this.controller});
+  /// True when this screen is a tab inside HomeView's sheet rather than a
+  /// pushed route. Drops its own Scaffold and back bar — the sheet supplies
+  /// the surface, and its X is the way out.
+  final bool embedded;
+
+  const WalkingJournalScreen({
+    super.key,
+    this.controller,
+    this.embedded = false,
+  });
 
   @override
   State<WalkingJournalScreen> createState() => _WalkingJournalScreenState();
@@ -94,32 +103,30 @@ class _WalkingJournalScreenState extends State<WalkingJournalScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-          child: ListenableBuilder(
-            listenable: _controller,
-            builder: (context, _) => Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                WpBackBar(onBack: () => Navigator.of(context).maybePop()),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text('Walking journal', style: AppType.display),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Expanded(child: _buildBody()),
-              ],
-            ),
-          ),
+    final body = Padding(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+      child: ListenableBuilder(
+        listenable: _controller,
+        builder: (context, _) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (!widget.embedded) ...[
+              WpBackBar(onBack: () => Navigator.of(context).maybePop()),
+              const SizedBox(height: 16),
+            ],
+            Text('Walking journal', style: AppType.display),
+            const SizedBox(height: 20),
+            Expanded(child: _buildBody()),
+          ],
         ),
       ),
+    );
+
+    if (widget.embedded) return body;
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(child: body),
     );
   }
 
