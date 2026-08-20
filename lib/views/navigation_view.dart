@@ -127,10 +127,22 @@ class _NavigationViewState extends State<NavigationView> {
 
   /// UC-M05 A2: exits before arriving — pop straight back to the map screen
   /// with no GPS check-in or points, per constraint C2.
+  /// Pops this screen and nothing else.
+  ///
+  /// It used to pop twice, which suited the only stack it originally had —
+  /// map, route summary, navigation — where leaving navigation meant
+  /// returning to the map. It is now also pushed from inside a walking
+  /// journey (map, route summary, pre-walk, journey flow, navigation), where
+  /// the second pop tore JourneyFlowView off the stack and dumped the tourist
+  /// back on the pre-walk screen mid-journey, with no way to complete it.
+  ///
+  /// A screen dismissing its own parent is the bug; whoever pushed this one
+  /// decides what should happen afterwards. RouteSummaryView still pops
+  /// itself when navigation returns, so the map flow is unchanged. This also
+  /// makes the exit button behave exactly like the Android back gesture,
+  /// which only ever popped once.
   void _exitNavigation() {
-    final navigator = Navigator.of(context);
-    navigator.pop();
-    navigator.pop();
+    Navigator.of(context).pop();
   }
 
   @override
