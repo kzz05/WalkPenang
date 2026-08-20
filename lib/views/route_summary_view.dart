@@ -77,6 +77,12 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
 
     final walkingController = WalkingController()
       ..setUserProfile(profile)
+      // Load-bearing: WalkingController gates carbon savings and the calorie
+      // estimate on its own selected mode, and both return their "not
+      // applicable" values (0.0 and null) while it is unset. Without this the
+      // Pre-Walk Summary would show 0 kg CO2 saved and the missing-weight
+      // prompt on a perfectly valid walk.
+      ..selectMode(_controller.selectedMode)
       ..setRouteSummary(
         WalkingRouteSummary.fromDestination(
           destinationId: widget.destination.placeId,

@@ -47,6 +47,6 @@ class NavigationService {
       destination.latitude,
       destination.longitude,
     );
-    return distance <= MapConstants.checkInThresholdMeters;
+    return MapConstants.isWithinCheckInRange(distance);
   }
 }
