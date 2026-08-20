@@ -56,6 +56,9 @@ class _DemoJourneyFlowViewState extends State<DemoJourneyFlowView> {
       rewardService: FakeRewardService(),
       checkInRepository: NoopCheckInRepository(),
       arrivalVerificationService: const FakeArrivalVerificationService(),
+      // Without this the demo would hit the real GPS stream and the
+      // KM COVERED / MIN REMAINING tiles would sit unavailable.
+      journeyProgressService: const FakeJourneyProgressService(),
       // No NavigationLauncherService: Open Navigation must never launch a
       // real external app mid-demo.
     );

@@ -12,6 +12,7 @@ import '../controllers/reward_service.dart';
 import '../models/check_in_result.dart';
 import '../services/arrival_verification_service.dart';
 import '../services/check_in_repository.dart';
+import '../services/journey_progress_service.dart';
 
 /// Always reports the tourist within [MapConstants.checkInThresholdMeters],
 /// after [delay] so the "Checking your location…" (04a) state is actually
@@ -79,5 +80,33 @@ class FakeRewardService implements RewardService {
       pointsAwarded: pointsAwarded,
       newlyEarnedBadgeIds: newlyEarnedBadgeIds,
     );
+  }
+}
+
+/// Walks a scripted distance so the demo's KM COVERED and MIN REMAINING
+/// tiles count up without a GPS fix, the same way
+/// [FakeArrivalVerificationService] stands in for the arrival check.
+///
+/// Emits [stepMeters] every [interval] up to [totalMeters], then stops —
+/// mirroring a tourist arriving rather than walking on forever.
+class FakeJourneyProgressService implements JourneyProgressService {
+  const FakeJourneyProgressService({
+    this.stepMeters = 60,
+    this.totalMeters = 2400,
+    this.interval = const Duration(seconds: 1),
+  });
+
+  final double stepMeters;
+  final double totalMeters;
+  final Duration interval;
+
+  @override
+  Stream<double> metresWalked() async* {
+    var walked = 0.0;
+    while (walked < totalMeters) {
+      await Future<void>.delayed(interval);
+      walked = (walked + stepMeters).clamp(0, totalMeters).toDouble();
+      yield walked;
+    }
   }
 }

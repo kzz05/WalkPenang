@@ -22,9 +22,11 @@ import 'package:walkpenang/controllers/walking_controller.dart';
 import 'package:walkpenang/models/check_in_result.dart';
 import 'package:walkpenang/models/transport_mode.dart';
 import 'package:walkpenang/models/user_profile.dart';
+import 'package:walkpenang/models/verify_location_ui_data.dart';
 import 'package:walkpenang/models/walking_route_summary.dart';
 import 'package:walkpenang/services/arrival_verification_service.dart';
 import 'package:walkpenang/services/check_in_repository.dart';
+import 'package:walkpenang/services/journey_progress_service.dart';
 import 'package:walkpenang/utils/reward_constants.dart';
 
 /// Stands in for a place the Map module resolved and a route it calculated.
@@ -73,6 +75,16 @@ class _ScriptedArrivalService implements ArrivalVerificationService {
   }) async {
     return reading;
   }
+}
+
+/// Replays a scripted cumulative-distance stream in place of GPS.
+class _ScriptedProgressService implements JourneyProgressService {
+  _ScriptedProgressService(this.metres);
+
+  final Stream<double> metres;
+
+  @override
+  Stream<double> metresWalked() => metres;
 }
 
 class _StubRewardService implements RewardService {
@@ -170,6 +182,100 @@ void main() {
 
       expect(result.transportMode, TransportMode.publicTransport);
       expect(result.earnsPoints, isFalse);
+    });
+  });
+
+  group('live journey progress', () {
+    // KM COVERED and MIN REMAINING had no source at all until
+    // JourneyProgressService existed — JourneyCompletionController never
+    // passed kmCovered or minutesRemaining, so both tiles sat on their
+    // "not available" state for an entire journey.
+
+    JourneyCompletionController controllerWith(
+      Stream<double> metres, {
+      TransportMode mode = TransportMode.walking,
+    }) {
+      final controller = JourneyCompletionController(
+        routeSummary: _summaryFor(mode, distanceKm: 2.0),
+        userId: 'tourist_001',
+        rewardService: _StubRewardService(),
+        checkInRepository: _RecordingCheckInRepository(),
+        arrivalVerificationService:
+            _ScriptedArrivalService(const ArrivalCheckReading.success(42)),
+        journeyProgressService: _ScriptedProgressService(metres),
+      );
+      addTearDown(controller.dispose);
+      return controller;
+    }
+
+    test('reports nothing until the first fix lands', () {
+      final controller = controllerWith(const Stream<double>.empty());
+
+      // Not 0.0 — the tiles must distinguish "not tracking" from "tracked,
+      // and you have not moved yet".
+      expect(controller.kmCovered, isNull);
+      expect(controller.minutesRemaining, isNull);
+      expect(controller.activeWalkingUiData.kmCovered, isNull);
+      expect(controller.activeWalkingUiData.minutesRemaining, isNull);
+    });
+
+    test('reports distance covered once fixes arrive', () async {
+      final controller = controllerWith(Stream<double>.fromIterable([250, 600]));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.kmCovered, closeTo(0.6, 1e-9));
+      expect(controller.activeWalkingUiData.kmCovered, closeTo(0.6, 1e-9));
+    });
+
+    test('counts down the minutes remaining at the route pace', () async {
+      // 2.0 km planned over 33 minutes. After 1.0 km there is half the route
+      // left, so roughly half the planned time.
+      final controller = controllerWith(Stream<double>.fromIterable([1000]));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.minutesRemaining, 17);
+    });
+
+    test('never reports negative time once the route is overshot', () async {
+      final controller = controllerWith(Stream<double>.fromIterable([9000]));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.minutesRemaining, 0);
+    });
+
+    test('a failing position stream does not break the journey', () async {
+      final controller = controllerWith(
+        Stream<double>.error(StateError('GPS off')),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      // Unavailable, not crashed: arrival has its own one-shot fix, so the
+      // tourist can still complete and be rewarded.
+      expect(controller.kmCovered, isNull);
+      await controller.beginVerification();
+      expect(
+        controller.verifyLocationUiData.phase,
+        VerifyLocationPhase.verified,
+      );
+    });
+
+    test('the completed screen reports walked distance, not planned', () async {
+      final controller = controllerWith(Stream<double>.fromIterable([1500]));
+      await Future<void>.delayed(Duration.zero);
+
+      await controller.beginVerification();
+      await controller.completeJourney();
+
+      // 1.5 km walked against a 2.0 km plan — the completed card must show
+      // what happened, never the route's promise.
+      expect(
+        controller.journeyCompletedUiData.completedDistanceKm,
+        closeTo(1.5, 1e-9),
+      );
+      expect(
+        controller.journeyCompletedUiData.completedDistanceKm,
+        isNot(closeTo(2.0, 1e-9)),
+      );
     });
   });
 

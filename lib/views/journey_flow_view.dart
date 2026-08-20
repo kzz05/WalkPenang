@@ -19,6 +19,7 @@ import '../controllers/walking_controller.dart';
 import '../dao/badge_dao.dart';
 import '../dao/reward_dao.dart';
 import '../services/check_in_repository.dart';
+import '../services/journey_progress_service.dart';
 import '../services/map_service.dart';
 import '../services/navigation_launcher_service.dart';
 import 'active_walking_view.dart';
@@ -63,6 +64,8 @@ class _JourneyFlowViewState extends State<JourneyFlowView> {
         badgeDao: FirestoreBadgeDao(firestore: firestore),
       ),
       checkInRepository: FirestoreCheckInRepository(firestore: firestore),
+      // Live KM COVERED / MIN REMAINING on the Active Walking screen.
+      journeyProgressService: LocationJourneyProgressService(),
       navigationLauncherService: NavigationLauncherService(MapService()),
     );
   }
