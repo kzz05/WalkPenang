@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -11,6 +9,7 @@ import '../models/route_step.dart';
 import '../models/transit_details.dart';
 import '../theme/app_theme.dart';
 import '../utils/duration_format.dart';
+import '../utils/location_puck_icon.dart';
 import '../widgets/map/zoom_controls.dart';
 
 /// UC-M05: live turn-by-turn navigation for the tourist's chosen travel
@@ -117,64 +116,13 @@ class _NavigationViewState extends State<NavigationView> {
 
   /// Draws the navigation puck once at startup, rather than shipping it as
   /// an image asset — [NavigationController.currentHeading] then rotates
-  /// this single bitmap through [Marker.rotation]. Sized and coloured to
-  /// match Google Maps' own "blue dot" location puck rather than the
-  /// oversized chevron this replaced.
+  /// this single bitmap through [Marker.rotation]. Shared with [MapView] via
+  /// [buildLocationPuckIcon] so both screens' "blue dot" match; no accuracy
+  /// cone here since this dot is only ever shown while moving.
   Future<void> _loadNavigationArrowIcon() async {
-    // Drawn at 3x and then scaled back down via BitmapDescriptor.bytes'
-    // width/height, so the puck stays crisp on high-DPI screens without
-    // rendering huge on the map.
-    const double targetSize = 26;
-    const double exportScale = 3;
-    const double canvasSize = targetSize * exportScale;
-
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(
-      recorder,
-      const Rect.fromLTWH(0, 0, canvasSize, canvasSize),
-    );
-    const center = Offset(canvasSize / 2, canvasSize / 2);
-    const navigationBlue = Color(0xFF4285F4); // Google Maps' location blue
-
-    canvas.drawCircle(
-      center,
-      canvasSize / 2 - exportScale,
-      Paint()..color = navigationBlue,
-    );
-    canvas.drawCircle(
-      center,
-      canvasSize / 2 - exportScale,
-      Paint()
-        ..color = Colors.white
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = exportScale * 1.5,
-    );
-
-    // Small white chevron pointing "up" — Marker.rotation handles pointing
-    // it towards the tourist's actual course over ground.
-    final arrow = Path()
-      ..moveTo(center.dx, canvasSize * 0.28)
-      ..lineTo(canvasSize * 0.68, canvasSize * 0.68)
-      ..lineTo(center.dx, canvasSize * 0.54)
-      ..lineTo(canvasSize * 0.32, canvasSize * 0.68)
-      ..close();
-    canvas.drawPath(arrow, Paint()..color = Colors.white);
-
-    final image = await recorder.endRecording().toImage(
-      canvasSize.toInt(),
-      canvasSize.toInt(),
-    );
-    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    image.dispose();
-    if (!mounted || bytes == null) return;
-
-    setState(() {
-      _navigationArrowIcon = BitmapDescriptor.bytes(
-        bytes.buffer.asUint8List(),
-        width: targetSize,
-        height: targetSize,
-      );
-    });
+    final icon = await buildLocationPuckIcon();
+    if (!mounted) return;
+    setState(() => _navigationArrowIcon = icon);
   }
 
   /// UC-M05 A2: exits before arriving — pop straight back to the map screen

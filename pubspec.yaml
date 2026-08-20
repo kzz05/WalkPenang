@@ -49,6 +49,7 @@ dependencies:
   geolocator: ^13.0.1
   http: ^1.2.2
   flutter_dotenv: ^5.2.1 # loads MAPS_API_KEY from .env for Places/Directions calls
+  flutter_compass: ^0.8.1 # device magnetometer heading, for compass-follow map mode
 
 dev_dependencies:
   flutter_test:
