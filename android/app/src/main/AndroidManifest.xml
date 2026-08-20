@@ -51,5 +51,15 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Android 11+ package visibility. The Map module navigates in-app
+             now, but the Walking & Carbon module's journey flow still hands
+             off to the Google Maps app via NavigationLauncherService, and
+             without these its isGoogleMapsInstalled() check always fails and
+             sends the tourist to the Play Store instead. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="geo"/>
+        </intent>
+        <package android:name="com.google.android.apps.maps"/>
     </queries>
 </manifest>
