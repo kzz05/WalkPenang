@@ -17,15 +17,7 @@ import 'package:walkpenang/views/widgets/wp_components.dart';
 /// owns their lifecycle, so the rest of the app doesn't have to know about
 /// them. Nothing inside the module is modified.
 class DiscoveryModuleView extends StatefulWidget {
-  /// True when this screen is a tab inside HomeView's sheet rather than a
-  /// pushed route.
-  ///
-  /// Drops its own Scaffold and back bar: the sheet supplies the surface, and
-  /// the way out is the X pinned at the corner, not a back arrow that would
-  /// have nothing to pop.
-  final bool embedded;
-
-  const DiscoveryModuleView({super.key, this.embedded = false});
+  const DiscoveryModuleView({super.key});
 
   @override
   State<DiscoveryModuleView> createState() => _DiscoveryModuleViewState();
@@ -58,21 +50,20 @@ class _DiscoveryModuleViewState extends State<DiscoveryModuleView> {
 
   @override
   Widget build(BuildContext context) {
-    final content = Column(
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: Column(
         children: [
           // Pushed modules each provide their own way back — the reward module
           // uses this same component. Without one the only exit would be the
           // Android system back gesture, since DiscoveryShell has no AppBar.
-          // Embedded in the tab sheet there is nothing to pop, and the sheet's
-          // X is the exit, so it is left out.
-          if (!widget.embedded)
-            SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
-                child: WpBackBar(onBack: () => Navigator.of(context).pop()),
-              ),
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
+              child: WpBackBar(onBack: () => Navigator.of(context).pop()),
             ),
+          ),
           // No Theme override here any more: the module used to need its own
           // one, but its palette, fonts and radii are now the app's, so the
           // ambient theme is already the right one.
@@ -84,13 +75,7 @@ class _DiscoveryModuleViewState extends State<DiscoveryModuleView> {
             ),
           ),
         ],
-      );
-
-    if (widget.embedded) return content;
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: content,
+      ),
     );
   }
 }
