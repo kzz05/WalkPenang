@@ -5,9 +5,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:walkpenang/models/verify_location_ui_data.dart';
 import 'package:walkpenang/views/verify_location_view.dart';
+import 'package:walkpenang/views/widgets/wp_components.dart';
+import 'package:walkpenang/widgets/map/verification_radius_map.dart';
 
 Future<void> _pump(WidgetTester tester, Widget child) {
   return tester.pumpWidget(MaterialApp(home: child));
@@ -129,6 +132,134 @@ void main() {
       find.text('Location permission is required to verify your destination.'),
       findsOneWidget,
     );
+  });
+
+  group('radius zone card', () {
+    // Fort Cornwallis and a fix a little north-east of it.
+    const destinationLat = 5.4206;
+    const destinationLng = 100.3436;
+
+    VerifyLocationUiData verifiedWithMap() => const VerifyLocationUiData(
+          phase: VerifyLocationPhase.verified,
+          destinationName: 'Fort Cornwallis',
+          radiusMeters: 100,
+          currentDistanceMeters: 42,
+          destinationLatitude: destinationLat,
+          destinationLongitude: destinationLng,
+          userLatitude: 5.4210,
+          userLongitude: 100.3440,
+        );
+
+    testWidgets('shows the embedded map, not the illustration, once the flow '
+        'has coordinates', (tester) async {
+      await _pump(tester, VerifyLocationView(data: verifiedWithMap()));
+      await tester.pump();
+
+      expect(find.byType(VerificationRadiusMap), findsOneWidget);
+      // The caption survives the swap — it labels the zone either way.
+      expect(find.text('100 M RADIUS ZONE'), findsOneWidget);
+    });
+
+    testWidgets('draws the destination, the tourist and the radius circle',
+        (tester) async {
+      await _pump(tester, VerifyLocationView(data: verifiedWithMap()));
+      await tester.pump();
+
+      final map = tester.widget<GoogleMap>(find.byType(GoogleMap));
+
+      final circle = map.circles.single;
+      expect(circle.center, const LatLng(destinationLat, destinationLng));
+      // The zone drawn is the threshold the flow verified against — the
+      // widget must not invent a radius of its own.
+      expect(circle.radius, 100);
+
+      expect(
+        map.markers.map((marker) => marker.position),
+        containsAll(const [
+          LatLng(destinationLat, destinationLng),
+          LatLng(5.4210, 100.3440),
+        ]),
+      );
+    });
+
+    testWidgets('keeps the verification result below the map', (tester) async {
+      await _pump(tester, VerifyLocationView(data: verifiedWithMap()));
+      await tester.pump();
+
+      // The map is a visual addition to the existing flow, not a replacement
+      // for its status card.
+      expect(find.text("You're here!"), findsOneWidget);
+      expect(find.text('WITHIN 42 M OF DESTINATION'), findsOneWidget);
+      expect(find.text('LOCATION VERIFIED'), findsOneWidget);
+    });
+
+    testWidgets('still maps the destination when no fix has landed',
+        (tester) async {
+      await _pump(
+        tester,
+        const VerifyLocationView(
+          data: VerifyLocationUiData(
+            phase: VerifyLocationPhase.blocked,
+            destinationName: 'Fort Cornwallis',
+            radiusMeters: 100,
+            blockReason: VerifyBlockReason.gpsDisabled,
+            destinationLatitude: destinationLat,
+            destinationLongitude: destinationLng,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final map = tester.widget<GoogleMap>(find.byType(GoogleMap));
+      expect(map.circles, hasLength(1));
+      // Destination only: there is no fix to plot the tourist from, and one
+      // must never be guessed.
+      expect(map.markers, hasLength(1));
+      expect(
+        map.markers.single.position,
+        const LatLng(destinationLat, destinationLng),
+      );
+    });
+
+    testWidgets('falls back to the illustrated ring with no coordinates',
+        (tester) async {
+      await _pump(
+        tester,
+        const VerifyLocationView(
+          data: VerifyLocationUiData(
+            phase: VerifyLocationPhase.checking,
+            destinationName: 'Fort Cornwallis',
+            radiusMeters: 100,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byType(VerificationRadiusMap), findsNothing);
+      expect(find.text('100 M RADIUS ZONE'), findsOneWidget);
+    });
+  });
+
+  testWidgets('the header uses the shared back control and reports taps',
+      (tester) async {
+    var wentBack = false;
+    await _pump(
+      tester,
+      VerifyLocationView(
+        data: const VerifyLocationUiData(
+          phase: VerifyLocationPhase.checking,
+          destinationName: 'Fort Cornwallis',
+          radiusMeters: 100,
+        ),
+        onBack: () => wentBack = true,
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(WpBackButton), findsOneWidget);
+    await tester.tap(find.byType(WpBackButton));
+    await tester.pump();
+    expect(wentBack, isTrue);
   });
 
   testWidgets(

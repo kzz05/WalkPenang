@@ -136,6 +136,13 @@ class JourneyCompletionController extends ChangeNotifier {
   VerifyLocationPhase? _verifyPhase;
   VerifyBlockReason? _blockReason;
   double? _currentDistanceMeters;
+
+  /// Where the last arrival check found the tourist — carried purely so the
+  /// Verify Location screen can plot that fix against the destination's
+  /// radius. Nothing here feeds the arrival decision, which stays
+  /// [MapConstants.isWithinCheckInRange] on the measured distance.
+  double? _currentUserLatitude;
+  double? _currentUserLongitude;
   bool _verifying = false;
 
   bool _completing = false;
@@ -167,6 +174,10 @@ class JourneyCompletionController extends ChangeNotifier {
         radiusMeters: MapConstants.checkInThresholdMeters,
         currentDistanceMeters: _currentDistanceMeters,
         blockReason: _blockReason,
+        destinationLatitude: routeSummary.destinationLatitude,
+        destinationLongitude: routeSummary.destinationLongitude,
+        userLatitude: _currentUserLatitude,
+        userLongitude: _currentUserLongitude,
       );
 
   JourneyCompletedUiData get journeyCompletedUiData => JourneyCompletedUiData(
@@ -218,7 +229,7 @@ class JourneyCompletionController extends ChangeNotifier {
     _step = JourneyStep.verifyingLocation;
     _verifyPhase = VerifyLocationPhase.checking;
     _blockReason = null;
-    _currentDistanceMeters = null;
+    _clearLastFix();
     notifyListeners();
 
     await _checkArrival();
@@ -240,6 +251,10 @@ class JourneyCompletionController extends ChangeNotifier {
         case ArrivalCheckStatus.success:
           final distance = reading.distanceMeters!;
           _currentDistanceMeters = distance;
+          // Kept in step with the distance above: the map must never plot a
+          // position the current reading did not produce.
+          _currentUserLatitude = reading.userLatitude;
+          _currentUserLongitude = reading.userLongitude;
           if (MapConstants.isWithinCheckInRange(distance)) {
             _verifyPhase = VerifyLocationPhase.verified;
             _blockReason = null;
@@ -251,23 +266,32 @@ class JourneyCompletionController extends ChangeNotifier {
         case ArrivalCheckStatus.permissionDenied:
           _verifyPhase = VerifyLocationPhase.blocked;
           _blockReason = VerifyBlockReason.permissionDenied;
-          _currentDistanceMeters = null;
+          _clearLastFix();
           break;
         case ArrivalCheckStatus.gpsUnavailable:
           _verifyPhase = VerifyLocationPhase.blocked;
           _blockReason = VerifyBlockReason.gpsDisabled;
-          _currentDistanceMeters = null;
+          _clearLastFix();
           break;
         case ArrivalCheckStatus.weakSignal:
           _verifyPhase = VerifyLocationPhase.blocked;
           _blockReason = VerifyBlockReason.weakSignal;
-          _currentDistanceMeters = null;
+          _clearLastFix();
           break;
       }
     } finally {
       _verifying = false;
       notifyListeners();
     }
+  }
+
+  /// Drops the last fix — the measured distance and the position it was
+  /// measured from always go together, so neither the distance rows nor the
+  /// map can outlive the reading behind them.
+  void _clearLastFix() {
+    _currentDistanceMeters = null;
+    _currentUserLatitude = null;
+    _currentUserLongitude = null;
   }
 
   /// "Try Again" on the blocked card.
@@ -286,7 +310,7 @@ class JourneyCompletionController extends ChangeNotifier {
     _step = JourneyStep.active;
     _verifyPhase = null;
     _blockReason = null;
-    _currentDistanceMeters = null;
+    _clearLastFix();
     notifyListeners();
   }
 

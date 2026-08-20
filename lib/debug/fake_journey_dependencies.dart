@@ -26,13 +26,25 @@ class FakeArrivalVerificationService implements ArrivalVerificationService {
   final Duration delay;
   final double simulatedDistanceMeters;
 
+  /// Metres per degree of latitude — only used to place the demo's fake
+  /// tourist [simulatedDistanceMeters] due north of the destination, so the
+  /// Verify Location map has a dot to draw inside the radius. Nothing about
+  /// arrival is decided from it; the reported distance is still
+  /// [simulatedDistanceMeters] exactly.
+  static const _metresPerDegreeLatitude = 111320.0;
+
   @override
   Future<ArrivalCheckReading> checkDistanceTo({
     required double destinationLatitude,
     required double destinationLongitude,
   }) async {
     await Future.delayed(delay);
-    return ArrivalCheckReading.success(simulatedDistanceMeters);
+    return ArrivalCheckReading.success(
+      simulatedDistanceMeters,
+      userLatitude: destinationLatitude +
+          simulatedDistanceMeters / _metresPerDegreeLatitude,
+      userLongitude: destinationLongitude,
+    );
   }
 }
 

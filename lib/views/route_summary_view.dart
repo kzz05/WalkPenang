@@ -273,9 +273,16 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
               child: ElevatedButton(
                 onPressed:
                     route.routeFound ? () => _startJourney(context) : null,
+                // The loudest control on the card: the deep sand reads as a
+                // step up from the surface it sits on, where the old
+                // AppColors.primary fill was the same sand as the card and
+                // left all three actions looking alike.
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  backgroundColor: AppColors.primaryDeep,
+                  foregroundColor: AppColors.onPrimary,
+                  disabledBackgroundColor: AppColors.placeholder,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: const RoundedRectangleBorder(
                     borderRadius: AppRadius.mdAll,
                   ),
@@ -287,12 +294,17 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
           ],
           Row(
             children: [
-              // UC-M04 A3: cancel just returns to the map, no side effects.
+              // UC-M04 A3: cancel just returns to the map, no side effects —
+              // and reads as the quietest of the three, since it is the one
+              // action that does nothing.
               Expanded(
                 child: OutlinedButton(
                   onPressed: () => Navigator.of(context).pop(),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.border),
+                    backgroundColor: Colors.transparent,
+                    side: BorderSide(
+                      color: AppColors.onSurface.withValues(alpha: 0.28),
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: const RoundedRectangleBorder(
                       borderRadius: AppRadius.mdAll,
@@ -300,20 +312,27 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
                   ),
                   child: Text(
                     'Cancel',
-                    style: AppType.button.copyWith(color: AppColors.onSurface),
+                    style: AppType.button.copyWith(
+                      color: AppColors.onSurfaceMuted,
+                    ),
                   ),
                 ),
               ),
               const SizedBox(width: 12),
               // UC-M05 step 1: hands the fetched route off to in-app
-              // turn-by-turn navigation instead of an external app.
+              // turn-by-turn navigation instead of an external app. Filled,
+              // but in the pale ground tone rather than the deep sand, so it
+              // sits clearly below Start Journey and clearly above Cancel.
               Expanded(
                 child: ElevatedButton(
                   onPressed: route.routeFound
                       ? () => _startNavigation(context)
                       : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
+                    backgroundColor: AppColors.background,
+                    foregroundColor: AppColors.onSurface,
+                    disabledBackgroundColor: AppColors.placeholder,
+                    elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: const RoundedRectangleBorder(
                       borderRadius: AppRadius.mdAll,
