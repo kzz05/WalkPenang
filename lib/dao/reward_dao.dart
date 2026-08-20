@@ -158,15 +158,19 @@ class FirestoreRewardDao implements RewardDao {
       // Stamp Module 4's check-in document so the guard survives even if the
       // ledger collection is ever cleared. update() rather than set(), because
       // the document belongs to Module 4 and only this one field is ours.
+      // pointsAwarded rides along with the guard flag: the ledger entry above
+      // stays authoritative, but copying the figure here lets the walking
+      // journal (FR-R03) render a journey and its award from a single
+      // check_ins query rather than joining the ledger row by row.
+      final stamp = {
+        RewardConstants.checkInRewardProcessedField: true,
+        RewardConstants.checkInPointsAwardedField: points,
+      };
+
       if (checkInSnapshot.exists) {
-        transaction
-            .update(checkInRef, {RewardConstants.checkInRewardProcessedField: true});
+        transaction.update(checkInRef, stamp);
       } else {
-        transaction.set(
-          checkInRef,
-          {RewardConstants.checkInRewardProcessedField: true},
-          SetOptions(merge: true),
-        );
+        transaction.set(checkInRef, stamp, SetOptions(merge: true));
       }
 
       return true;

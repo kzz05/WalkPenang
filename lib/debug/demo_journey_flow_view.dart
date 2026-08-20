@@ -5,7 +5,8 @@
 // fake_journey_dependencies.dart.
 //
 // Debug-only: only ever reachable when kDebugMode is true (see the entry
-// point guard in ../views/walking_view.dart). Never reads real GPS, never
+// point guard in ../views/reward/walking_journal_screen.dart). Never reads
+// real GPS, never
 // writes to Firestore, never calls the real Reward Module — see
 // fake_journey_dependencies.dart for how each dependency guarantees that.
 //
