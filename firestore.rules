@@ -1,0 +1,28 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Place listings for the Discovery module — public read (the feed has
+    // no login gate). Writes are open because tool/seed_places.dart seeds
+    // through the same client SDK, not an admin backend; there's no
+    // content-management flow yet, so this should tighten once one exists.
+    match /places/{placeId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Reviews — anyone can post (Discovery has no login gate), nobody can
+    // edit or delete someone else's review from the client.
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if false;
+    }
+
+    // Everything else stays locked down by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

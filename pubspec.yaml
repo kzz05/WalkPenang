@@ -44,6 +44,7 @@ dependencies:
   image_picker: ^1.2.3 #FOR SELECTING IMAGES
   cloud_functions: ^6.3.5
   cached_network_image: ^3.4.1
+  url_launcher: ^6.3.1 #FOR OPENING THE GOOGLE MAPS REVIEWS LINK
 
 dev_dependencies:
   flutter_test:

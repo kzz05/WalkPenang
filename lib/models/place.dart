@@ -192,6 +192,96 @@ class Place {
     return buffer.toString();
   }
 
+  /// Firestore document fields for the 'places' collection. The doc id
+  /// itself carries [id], so it isn't repeated in the map.
+  Map<String, dynamic> toMap() {
+    return {
+      'name': name,
+      'category': category.name,
+      'photoUrls': photoUrls,
+      'priceLevel': priceLevel.name,
+      'distanceKm': distanceKm,
+      'rating': rating,
+      'reviewCount': reviewCount,
+      'address': address,
+      'opensAtHour': hours?.opensAtHour,
+      'closesAtHour': hours?.closesAtHour,
+      'phone': contact.phone,
+      'website': contact.website,
+      'priceMinRm': priceRange?.minRm,
+      'priceMaxRm': priceRange?.maxRm,
+      'priceUnit': priceRange?.unit,
+      'dietaryTags': dietaryTags.map((DietaryPreference d) => d.name).toList(),
+      'description': description,
+    };
+  }
+
+  /// Defensive parsing: an unrecognized enum name or a missing field falls
+  /// back to a sane default rather than throwing, so one bad document
+  /// doesn't take down the whole feed.
+  factory Place.fromMap(String id, Map<String, dynamic> map) {
+    final int? opensAtHour = (map['opensAtHour'] as num?)?.toInt();
+    final int? closesAtHour = (map['closesAtHour'] as num?)?.toInt();
+    final int? minRm = (map['priceMinRm'] as num?)?.toInt();
+    final int? maxRm = (map['priceMaxRm'] as num?)?.toInt();
+
+    return Place(
+      id: id,
+      name: map['name'] as String? ?? '',
+      category: _categoryByName(map['category'] as String?),
+      photoUrls: (map['photoUrls'] as List<dynamic>?)
+          ?.map((dynamic e) => e as String)
+          .toList() ??
+          const <String>[],
+      priceLevel: _priceLevelByName(map['priceLevel'] as String?),
+      distanceKm: (map['distanceKm'] as num?)?.toDouble() ?? 0.0,
+      rating: (map['rating'] as num?)?.toDouble() ?? 0.0,
+      reviewCount: (map['reviewCount'] as num?)?.toInt() ?? 0,
+      address: map['address'] as String? ?? '',
+      hours: opensAtHour != null && closesAtHour != null
+          ? OpeningHours(opensAtHour: opensAtHour, closesAtHour: closesAtHour)
+          : null,
+      contact: ContactInfo(
+        phone: map['phone'] as String?,
+        website: map['website'] as String?,
+      ),
+      priceRange: minRm != null && maxRm != null
+          ? PriceRange(
+        minRm: minRm,
+        maxRm: maxRm,
+        unit: map['priceUnit'] as String? ?? 'per person',
+      )
+          : null,
+      dietaryTags: (map['dietaryTags'] as List<dynamic>?)
+          ?.map((dynamic e) => _dietaryByName(e as String))
+          .whereType<DietaryPreference>()
+          .toSet() ??
+          const <DietaryPreference>{},
+      description: map['description'] as String? ?? '',
+    );
+  }
+
+  static PlaceCategory _categoryByName(String? name) {
+    return PlaceCategory.values.firstWhere(
+          (PlaceCategory c) => c.name == name,
+      orElse: () => PlaceCategory.food,
+    );
+  }
+
+  static PriceLevel _priceLevelByName(String? name) {
+    return PriceLevel.values.firstWhere(
+          (PriceLevel p) => p.name == name,
+      orElse: () => PriceLevel.moderate,
+    );
+  }
+
+  static DietaryPreference? _dietaryByName(String name) {
+    for (final DietaryPreference d in DietaryPreference.values) {
+      if (d.name == name) return d;
+    }
+    return null;
+  }
+
   Place copyWith({double? rating, int? reviewCount}) {
     return Place(
       id: id,
