@@ -72,7 +72,7 @@ class MapService {
   }
 
   /// UC-M04: Directions API request for the given travel mode (`walking`,
-  /// `driving`, or `transit` — see `TravelMode.apiValue`).
+  /// `driving`, or `transit` — see `TransportMode.apiValue`).
   Uri buildDirectionsRequest({
     required LatLng origin,
     required LatLng destination,
