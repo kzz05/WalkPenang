@@ -126,8 +126,9 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
     );
   }
 
-  void _startNavigation(BuildContext context) {
-    Navigator.of(context).push(
+  Future<void> _startNavigation(BuildContext context) async {
+    final navigator = Navigator.of(context);
+    await navigator.push(
       MaterialPageRoute(
         builder: (_) => NavigationView(
           route: _controller.route!,
@@ -137,6 +138,12 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
         ),
       ),
     );
+    // Leaving navigation from here returns the tourist to the map, not to
+    // this summary — the route they were reviewing is behind them. That
+    // used to be NavigationView popping twice, which broke the journey flow
+    // that pushes it from two screens deeper; the decision belongs here, at
+    // the push site, instead.
+    if (mounted) navigator.pop();
   }
 
   @override
