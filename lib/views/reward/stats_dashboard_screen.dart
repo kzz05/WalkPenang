@@ -40,7 +40,16 @@ class StatsDashboardScreen extends StatefulWidget {
   /// screen builds a Firestore-backed controller for the signed-in tourist.
   final RewardController? controller;
 
-  const StatsDashboardScreen({super.key, this.controller});
+  /// True when this screen is a tab inside HomeView's sheet rather than a
+  /// pushed route. Drops its own Scaffold and back bar — the sheet supplies
+  /// the surface, and its X is the way out.
+  final bool embedded;
+
+  const StatsDashboardScreen({
+    super.key,
+    this.controller,
+    this.embedded = false,
+  });
 
   @override
   State<StatsDashboardScreen> createState() => _StatsDashboardScreenState();
@@ -177,24 +186,27 @@ class _StatsDashboardScreenState extends State<StatsDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final body = ListenableBuilder(
+      listenable: _controller,
+      builder: (context, _) => _buildBody(context),
+    );
+
+    if (widget.embedded) return body;
+
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: ListenableBuilder(
-          listenable: _controller,
-          builder: (context, _) => _buildBody(context),
-        ),
-      ),
+      body: SafeArea(child: body),
     );
   }
 
   Widget _buildBody(BuildContext context) {
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-          child: WpBackBar(onBack: () => Navigator.of(context).pop()),
-        ),
+        if (!widget.embedded)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+            child: WpBackBar(onBack: () => Navigator.of(context).pop()),
+          ),
         Expanded(child: _buildContent(context)),
       ],
     );
