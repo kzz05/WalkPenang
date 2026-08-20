@@ -33,7 +33,20 @@ class JourneyFlowView extends StatefulWidget {
   /// computed carbon/calorie figures (US-W03/US-W04), never recomputed.
   final WalkingController walkingController;
 
-  const JourneyFlowView({super.key, required this.walkingController});
+  /// Opens the app's own turn-by-turn view for this journey, supplied by
+  /// route_summary_view where the RouteResult lives.
+  ///
+  /// When null — the debug journey flow, which runs with no map — the Active
+  /// Walking screen falls back to
+  /// [JourneyCompletionController.openExternalNavigation] and its Google Maps
+  /// deep link.
+  final void Function(BuildContext)? onOpenNavigation;
+
+  const JourneyFlowView({
+    super.key,
+    required this.walkingController,
+    this.onOpenNavigation,
+  });
 
   @override
   State<JourneyFlowView> createState() => _JourneyFlowViewState();
@@ -100,7 +113,12 @@ class _JourneyFlowViewState extends State<JourneyFlowView> {
             return ActiveWalkingView(
               data: _controller.activeWalkingUiData,
               onBack: () => Navigator.of(context).maybePop(),
-              onOpenNavigation: _controller.openExternalNavigation,
+              // In-app navigation when the Map module handed us a way to
+              // open it; the external Google Maps hand-off only as a
+              // fallback, which is what the debug flow still takes.
+              onOpenNavigation: widget.onOpenNavigation != null
+                  ? () => widget.onOpenNavigation!(context)
+                  : _controller.openExternalNavigation,
               onCompleteJourney: _controller.beginVerification,
             );
           case JourneyStep.verifyingLocation:

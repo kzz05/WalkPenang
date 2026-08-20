@@ -98,7 +98,30 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
 
     navigator.push(
       MaterialPageRoute(
-        builder: (_) => PreWalkSummaryView(controller: walkingController),
+        builder: (_) => PreWalkSummaryView(
+          controller: walkingController,
+          // UC-M05 from inside a journey: the Active Walking screen's "Open
+          // Navigation" opens WalkPenang's own turn-by-turn view rather than
+          // handing the tourist to the Google Maps app. The route and place
+          // are already here, so the Walking screens only forward a callback
+          // and never see a map type.
+          onOpenNavigation: (navContext) {
+            Navigator.of(navContext).push(
+              MaterialPageRoute(
+                builder: (_) => NavigationView(
+                  route: route,
+                  destination: widget.destination,
+                  // Where the route was calculated from, not where the
+                  // tourist is now — NavigationController uses this only as
+                  // the opening camera target and snaps to live GPS on its
+                  // first fix.
+                  origin: widget.origin,
+                  mode: _controller.selectedMode,
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }

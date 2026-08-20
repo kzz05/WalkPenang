@@ -18,7 +18,24 @@ import 'widgets/wp_components.dart';
 class PreWalkSummaryView extends StatefulWidget {
   final WalkingController controller;
 
-  const PreWalkSummaryView({super.key, required this.controller});
+  /// Opens turn-by-turn navigation for this journey, forwarded straight to
+  /// [JourneyFlowView] and on to the Active Walking screen's "Open
+  /// Navigation" button.
+  ///
+  /// A callback rather than the route itself: NavigationView needs a
+  /// RouteResult, which imports google_maps_flutter, and the Walking module's
+  /// screens have no business depending on the map SDK. The Map module
+  /// supplies this from route_summary_view, where the route already lives.
+  ///
+  /// Null in the debug journey flow, which has no map — [JourneyFlowView]
+  /// then falls back to the external Google Maps hand-off.
+  final void Function(BuildContext)? onOpenNavigation;
+
+  const PreWalkSummaryView({
+    super.key,
+    required this.controller,
+    this.onOpenNavigation,
+  });
 
   @override
   State<PreWalkSummaryView> createState() => _PreWalkSummaryViewState();
@@ -37,7 +54,10 @@ class _PreWalkSummaryViewState extends State<PreWalkSummaryView> {
       controller.acknowledgeJourneyStart();
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => JourneyFlowView(walkingController: controller),
+          builder: (_) => JourneyFlowView(
+            walkingController: controller,
+            onOpenNavigation: widget.onOpenNavigation,
+          ),
         ),
       );
     } else if (controller.journeyStartError != null) {
