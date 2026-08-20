@@ -5,10 +5,14 @@ import '../models/transport_mode.dart';
 import '../controllers/route_summary_controller.dart';
 import '../models/place_model.dart';
 import '../models/route_result.dart';
+import '../models/walking_route_summary.dart';
+import '../controllers/walking_controller.dart';
+import '../services/profile_store.dart';
 import '../theme/app_theme.dart';
 import '../utils/duration_format.dart';
 import '../widgets/map/zoom_controls.dart';
 import 'navigation_view.dart';
+import 'pre_walk_summary_view.dart';
 
 /// Screen for UC-M04 (distance/time) and UC-M05 (in-app turn-by-turn
 /// navigation), both extending UC-M06 (Request Map Service).
@@ -47,6 +51,52 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
   /// UC-M05 step 2: pushes the in-app turn-by-turn view for whichever mode
   /// is selected, reusing the route already fetched for UC-M04 rather than
   /// re-requesting it.
+  /// UC-W01 -> UC-W05: starts a recorded walking journey to this place.
+  ///
+  /// This is the seam the Walking module documented on WalkingRouteSummary
+  /// and never had connected: until now that module ran on
+  /// WalkingRouteSummary.demo, so every journey was to Fort Cornwallis
+  /// regardless of the pin the tourist actually tapped.
+  ///
+  /// Offered for walking only. Driving and public transport earn no points
+  /// and save no carbon (FR-W01), so there is nothing to record — those
+  /// modes keep Navigate alone.
+  Future<void> _startJourney(BuildContext context) async {
+    final route = _controller.route;
+    if (route == null || !route.routeFound) return;
+
+    final navigator = Navigator.of(context);
+
+    // The walking module needs the tourist's body weight for its calorie
+    // estimate (US-W04). Loaded here rather than threaded down from HomeView
+    // through MapPanel and the pin tap; a null profile is handled by
+    // PreWalkSummaryView, which shows its missing-weight prompt instead of a
+    // misleading figure.
+    final profile = await ProfileStore().load();
+    if (!mounted) return;
+
+    final walkingController = WalkingController()
+      ..setUserProfile(profile)
+      ..setRouteSummary(
+        WalkingRouteSummary.fromDestination(
+          destinationId: widget.destination.placeId,
+          destinationName: widget.destination.name,
+          areaLabel: widget.destination.address ?? 'Penang',
+          destinationLatitude: widget.destination.latitude,
+          destinationLongitude: widget.destination.longitude,
+          distanceKm: route.distanceKm,
+          estimatedDuration: Duration(minutes: route.durationMinutes),
+          transportMode: _controller.selectedMode,
+        ),
+      );
+
+    navigator.push(
+      MaterialPageRoute(
+        builder: (_) => PreWalkSummaryView(controller: walkingController),
+      ),
+    );
+  }
+
   void _startNavigation(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -177,6 +227,28 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
             ],
           ),
           const SizedBox(height: 20),
+          // The app's core loop: walk there, check in, earn points. Given its
+          // own full-width row above Cancel/Navigate because it is the
+          // primary action, and because a third chip in that row would leave
+          // all three cramped.
+          if (_controller.selectedMode == TransportMode.walking) ...[
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed:
+                    route.routeFound ? () => _startJourney(context) : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: AppRadius.mdAll,
+                  ),
+                ),
+                child: Text('Start Journey', style: AppType.button),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           Row(
             children: [
               // UC-M04 A3: cancel just returns to the map, no side effects.
