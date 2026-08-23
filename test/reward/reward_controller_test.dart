@@ -105,7 +105,9 @@ void main() {
     });
 
     test('a repeat does not re-award a badge', () async {
-      // Reach Explorer, then replay the check-in that unlocked it.
+      // Reach Explorer, then replay the check-in that unlocked it. Two badges
+      // are held by then — First Steps from the first check-in, Explorer from
+      // the fifth — and the replay must not add a third.
       for (var i = 1; i <= 5; i++) {
         await controller.onCheckInVerified(checkIn(checkInId: 'chk_$i'));
       }
@@ -115,13 +117,19 @@ void main() {
 
       expect(replay.alreadyAwarded, isTrue);
       expect(replay.newlyEarnedBadgeIds, isEmpty);
-      expect(controller.unlockedBadgeCount, 1);
+      expect(controller.unlockedBadgeCount, 2);
     });
   });
 
   group('badge evaluation', () {
     test('Explorer unlocks on the 5th check-in and not before', () async {
-      for (var i = 1; i <= 4; i++) {
+      // The first check-in earns First Steps. Nothing further is due until
+      // the Explorer threshold, so check-ins two to four must award nothing.
+      final first =
+          await controller.onCheckInVerified(checkIn(checkInId: 'chk_1'));
+      expect(first.newlyEarnedBadgeIds, [RewardConstants.firstStepsBadgeId]);
+
+      for (var i = 2; i <= 4; i++) {
         final outcome =
             await controller.onCheckInVerified(checkIn(checkInId: 'chk_$i'));
         expect(outcome.newlyEarnedBadgeIds, isEmpty, reason: 'check-in $i');
@@ -139,9 +147,15 @@ void main() {
         checkIn(checkInId: 'chk_long', distanceKm: 52.0),
       );
 
+      // One 52 km check-in crosses milestones on three different criteria at
+      // once: it is a first check-in, it passes 10 km and 50 km, and its
+      // 530-point award passes the Point Collector threshold. All of them are
+      // due, and they come back in gallery order.
       expect(outcome.newlyEarnedBadgeIds, [
+        RewardConstants.firstStepsBadgeId,
         RewardConstants.trailblazerBadgeId,
         RewardConstants.penangWandererBadgeId,
+        RewardConstants.pointCollectorBadgeId,
       ]);
     });
 
@@ -177,8 +191,8 @@ void main() {
 
       expect(seeded.isLoading, isFalse);
       expect(seeded.error, isNull);
-      expect(seeded.definitions, hasLength(3));
-      expect(seeded.unlockedBadgeCount, 2);
+      expect(seeded.definitions, hasLength(BadgeCatalogue.all.length));
+      expect(seeded.unlockedBadgeCount, 3);
       expect(seeded.stats.totalPoints, 194);
     });
 
@@ -216,7 +230,7 @@ void main() {
     test('the empty state shows every badge locked', () async {
       await controller.load();
 
-      expect(controller.definitions, hasLength(3));
+      expect(controller.definitions, hasLength(BadgeCatalogue.all.length));
       expect(controller.unlockedBadgeCount, 0);
       expect(controller.stats.totalPoints, 0);
       for (final badge in controller.definitions) {

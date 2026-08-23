@@ -102,8 +102,10 @@ class InMemoryBadgeDao implements BadgeDao {
 
 /// A tourist part-way through the badge set, for demo mode.
 ///
-/// Chosen so all three gallery states are visible at once: Explorer and
-/// Trailblazer unlocked, Penang Wanderer locked and showing partial progress.
+/// Chosen so every gallery state is visible at once: First Steps, Explorer
+/// and Trailblazer unlocked, and the rest locked — Penang Wanderer showing
+/// partial progress on distance, Point Collector on points, Green Strider on
+/// carbon, so one screenshot exercises all four badge criteria.
 /// The totals are internally consistent with the points formula — 7 check-ins
 /// at 10 points each plus 124 points of distance bonus for 12.4 km — so the
 /// numbers on screen survive a tutor checking them against the rule.
@@ -123,6 +125,10 @@ class DemoRewardData {
 
   static List<UserBadgeModel> get earnedBadges => [
         UserBadgeModel(
+          badgeId: BadgeCatalogue.firstSteps.id,
+          dateEarned: DateTime(2026, 7, 2, 15, 50),
+        ),
+        UserBadgeModel(
           badgeId: BadgeCatalogue.explorer.id,
           dateEarned: DateTime(2026, 7, 19, 11, 05),
         ),
@@ -137,10 +143,11 @@ class DemoRewardData {
   /// Deliberately reconciled with everything else on this class rather than
   /// invented: the distances sum to 12,400 m, the points to 194 by the real
   /// formula (10 flat plus metres/100 each), the carbon to 2.61 kg at
-  /// 0.21 kg/km, and the calories to 744. The fifth journey lands on 19 July
-  /// and the sixth pushes the running total past 10 km on 2 August, which are
-  /// exactly the dates [earnedBadges] says Explorer and Trailblazer were
-  /// earned. A tutor adding up the journal gets the dashboard.
+  /// 0.21 kg/km, and the calories to 744. The earliest journey is 2 July, the
+  /// fifth lands on 19 July, and the sixth pushes the running total past 10 km
+  /// on 2 August — exactly the three dates [earnedBadges] gives for First
+  /// Steps, Explorer and Trailblazer. A tutor adding up the journal gets the
+  /// dashboard.
   static List<JournalEntryModel> get entries => [
         _entry('Kek Lok Si Temple', 'demo-kek-lok-si',
             DateTime(2026, 8, 14, 9, 20), 2.2, 32),

@@ -20,14 +20,13 @@ import '../utils/reward_constants.dart';
 class RewardModel {
   final String userId;
 
-  /// Lifetime points balance (UC500).
+  /// Lifetime points balance (UC500). Drives the points badges.
   final int totalPoints;
 
-  /// Number of completed check-ins. Drives the Explorer badge.
+  /// Number of completed check-ins. Drives the check-in count badges.
   final int totalCheckIns;
 
-  /// Lifetime distance in whole metres. Drives the Trailblazer and Penang
-  /// Wanderer badges.
+  /// Lifetime distance in whole metres. Drives the distance badges.
   ///
   /// Stored as an integer rather than a double of kilometres because these
   /// fields are accumulated with repeated increments, and accumulated
@@ -35,7 +34,8 @@ class RewardModel {
   /// wrong way at the boundary.
   final int totalDistanceMetres;
 
-  /// Lifetime carbon saved, as reported by Module 4.
+  /// Lifetime carbon saved, as reported by Module 4. Drives the Green
+  /// Strider badge, which compares [totalCarbonSavedGrams].
   final double totalCarbonSavedKg;
 
   /// Lifetime calories burned, as reported by Module 4.
@@ -62,6 +62,14 @@ class RewardModel {
   /// Distance for display. Storage stays in metres.
   double get totalDistanceKm =>
       RewardConstants.kmFromMetres(totalDistanceMetres);
+
+  /// Carbon saved as whole grams, for the Green Strider threshold.
+  ///
+  /// Carbon is stored as a double of kilograms because that is what Module 4
+  /// reports, but a badge comparison must not be decided by representation
+  /// error, so the rule compares this integer instead.
+  int get totalCarbonSavedGrams =>
+      RewardConstants.gramsFromKg(totalCarbonSavedKg);
 
   bool get hasCheckIns => totalCheckIns > 0;
 

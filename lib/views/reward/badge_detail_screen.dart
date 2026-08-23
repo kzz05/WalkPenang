@@ -33,13 +33,22 @@ class BadgeDetailScreen extends StatelessWidget {
     required this.controller,
   });
 
+  /// Drops the decimal on a whole-number milestone, so 10 km reads as "10 km"
+  /// and not "10.0 km", while a half-kilometre threshold keeps its digit.
+  static String _trim(double value) =>
+      value.toStringAsFixed(value % 1 == 0 ? 0 : 1);
+
   /// The milestone in the unit the tourist reads it in.
   String get _thresholdLabel {
     switch (badge.criterion) {
       case BadgeCriterion.totalCheckIns:
         return '${badge.threshold} check-ins';
       case BadgeCriterion.cumulativeDistance:
-        return '${badge.thresholdKm.toStringAsFixed(badge.thresholdKm % 1 == 0 ? 0 : 1)} km';
+        return '${_trim(badge.thresholdKm)} km';
+      case BadgeCriterion.totalPoints:
+        return '${badge.threshold} points';
+      case BadgeCriterion.carbonSaved:
+        return '${_trim(badge.thresholdKg)} kg CO2';
     }
   }
 
@@ -51,6 +60,24 @@ class BadgeDetailScreen extends StatelessWidget {
         return '${stats.totalCheckIns} check-ins';
       case BadgeCriterion.cumulativeDistance:
         return '${RewardConstants.kmFromMetres(stats.totalDistanceMetres).toStringAsFixed(1)} km';
+      case BadgeCriterion.totalPoints:
+        return '${stats.totalPoints} points';
+      case BadgeCriterion.carbonSaved:
+        return '${stats.totalCarbonSavedKg.toStringAsFixed(2)} kg CO2';
+    }
+  }
+
+  /// How the criterion itself is named on the detail rows.
+  String get _criterionLabel {
+    switch (badge.criterion) {
+      case BadgeCriterion.totalCheckIns:
+        return 'Total check-ins';
+      case BadgeCriterion.cumulativeDistance:
+        return 'Cumulative distance';
+      case BadgeCriterion.totalPoints:
+        return 'Points balance';
+      case BadgeCriterion.carbonSaved:
+        return 'Carbon saved';
     }
   }
 
@@ -127,12 +154,7 @@ class BadgeDetailScreen extends StatelessWidget {
                   const SizedBox(height: 20),
                 ],
 
-                WpDetailRow(
-                  label: 'criterion',
-                  value: badge.criterion == BadgeCriterion.totalCheckIns
-                      ? 'Total check-ins'
-                      : 'Cumulative distance',
-                ),
+                WpDetailRow(label: 'criterion', value: _criterionLabel),
                 WpDetailRow(label: 'milestone', value: _thresholdLabel),
                 WpDetailRow(
                   label: 'your total',

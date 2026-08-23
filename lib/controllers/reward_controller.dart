@@ -92,6 +92,8 @@ class RewardController extends ChangeNotifier implements RewardService {
     final current = switch (badge.criterion) {
       BadgeCriterion.totalCheckIns => _stats.totalCheckIns,
       BadgeCriterion.cumulativeDistance => _stats.totalDistanceMetres,
+      BadgeCriterion.totalPoints => _stats.totalPoints,
+      BadgeCriterion.carbonSaved => _stats.totalCarbonSavedGrams,
     };
     return (current / badge.threshold).clamp(0.0, 1.0);
   }
@@ -108,6 +110,13 @@ class RewardController extends ChangeNotifier implements RewardService {
         final left = badge.threshold - _stats.totalDistanceMetres;
         final km = RewardConstants.kmFromMetres(left < 0 ? 0 : left);
         return '${km.toStringAsFixed(1)} km to go';
+      case BadgeCriterion.totalPoints:
+        final left = badge.threshold - _stats.totalPoints;
+        return left == 1 ? '1 point to go' : '$left points to go';
+      case BadgeCriterion.carbonSaved:
+        final left = badge.threshold - _stats.totalCarbonSavedGrams;
+        final kg = RewardConstants.kgFromGrams(left < 0 ? 0 : left);
+        return '${kg.toStringAsFixed(2)} kg CO2 to go';
     }
   }
 

@@ -21,6 +21,7 @@ import 'package:walkpenang/models/badge_model.dart';
 import 'package:walkpenang/views/reward/badge_detail_screen.dart';
 import 'package:walkpenang/views/reward/badge_gallery_screen.dart';
 import 'package:walkpenang/views/reward/stats_dashboard_screen.dart';
+import 'package:walkpenang/widgets/reward/badge_card.dart';
 import 'package:walkpenang/widgets/reward/stat_summary_card.dart';
 
 RewardController demoController() => RewardController(
@@ -55,7 +56,12 @@ void main() {
     expect(find.text('Rewards'), findsOneWidget);
     expect(find.text('194'), findsOneWidget); // total points
     expect(find.text('12.4'), findsOneWidget); // distance in km
-    expect(find.textContaining('2 OF 3 UNLOCKED'), findsOneWidget);
+    // Derived from the catalogue rather than typed in, so adding a badge
+    // does not fail this test for the wrong reason.
+    expect(
+      find.textContaining('3 OF ${BadgeCatalogue.all.length} UNLOCKED'),
+      findsOneWidget,
+    );
 
     // Demo data must always be labelled as such on screen.
     expect(find.text('DEMO DATA'), findsOneWidget);
@@ -77,7 +83,10 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('FROM 0 CHECK-INS'), findsOneWidget);
-    expect(find.textContaining('0 OF 3 UNLOCKED'), findsOneWidget);
+    expect(
+      find.textContaining('0 OF ${BadgeCatalogue.all.length} UNLOCKED'),
+      findsOneWidget,
+    );
     expect(find.textContaining('TO GO'), findsWidgets);
   });
 
@@ -88,8 +97,22 @@ void main() {
     await pump(tester, BadgeGalleryScreen(controller: controller));
 
     expect(find.text('Badges'), findsOneWidget);
-    // Explorer and Trailblazer are held, so exactly one progress bar is left.
-    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+
+    // Every locked tile carries a progress bar and no unlocked tile does,
+    // which is one of the three signals FR-R05 uses to tell them apart.
+    //
+    // Counted against the tiles the grid actually built rather than against
+    // the catalogue: the gallery scrolls, so off-screen tiles do not exist
+    // yet and a hard-coded total would fail as the catalogue grows.
+    final tiles = tester.widgetList<BadgeCard>(find.byType(BadgeCard));
+    final lockedOnScreen = tiles.where((tile) => !tile.unlocked).length;
+
+    expect(tiles, isNotEmpty);
+    expect(lockedOnScreen, greaterThan(0));
+    expect(
+      find.byType(LinearProgressIndicator),
+      findsNWidgets(lockedOnScreen),
+    );
   });
 
   testWidgets('detail shows the milestone and the tourist position',

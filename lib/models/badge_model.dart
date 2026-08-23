@@ -6,8 +6,8 @@
 // Owner    : Tang Khuan Zhi (2414351)
 // ---------------------------------------------------------------------------
 //
-// A badge definition, the three badges fixed by the proposal, and the rule
-// that decides which of them a check-in has just unlocked.
+// A badge definition, the badge catalogue, and the rule that decides which of
+// them a check-in has just unlocked.
 //
 // Pure Dart with no Flutter or Firestore import, so the milestone rule can be
 // unit tested without a Firebase project.
@@ -22,6 +22,19 @@ enum BadgeCriterion {
 
   /// Cumulative distance walked, compared in whole metres.
   cumulativeDistance,
+
+  /// Lifetime points balance, compared as a count of points.
+  ///
+  /// Points are already an integer produced by the points formula, so a
+  /// milestone on them needs no unit conversion.
+  totalPoints,
+
+  /// Cumulative carbon saved, compared in whole grams.
+  ///
+  /// The total is stored as a double of kilograms because that is the unit
+  /// Module 4 reports, but the comparison converts to grams first so that a
+  /// threshold is never decided by accumulated floating point error.
+  carbonSaved,
 }
 
 class BadgeModel {
@@ -39,9 +52,9 @@ class BadgeModel {
   /// The total this badge is measured against.
   final BadgeCriterion criterion;
 
-  /// The value the criterion must reach. A count of check-ins when the
-  /// criterion is [BadgeCriterion.totalCheckIns], a count of metres when it
-  /// is [BadgeCriterion.cumulativeDistance].
+  /// The value the criterion must reach, in that criterion's own unit: a
+  /// count of check-ins, a count of metres, a count of points, or a count of
+  /// grams of carbon.
   final int threshold;
 
   /// Hand-authored SVG for this badge. Locked state is produced at render
@@ -71,11 +84,18 @@ class BadgeModel {
         return stats.totalCheckIns >= threshold;
       case BadgeCriterion.cumulativeDistance:
         return stats.totalDistanceMetres >= threshold;
+      case BadgeCriterion.totalPoints:
+        return stats.totalPoints >= threshold;
+      case BadgeCriterion.carbonSaved:
+        return stats.totalCarbonSavedGrams >= threshold;
     }
   }
 
   /// Threshold in the unit the badge detail screen displays.
   double get thresholdKm => RewardConstants.kmFromMetres(threshold);
+
+  /// Threshold in kilograms, for a [BadgeCriterion.carbonSaved] badge.
+  double get thresholdKg => RewardConstants.kgFromGrams(threshold);
 
   factory BadgeModel.fromMap(Map<String, dynamic> map) {
     return BadgeModel(
@@ -108,15 +128,32 @@ class BadgeModel {
   String toString() => 'BadgeModel($id, $criterion >= $threshold)';
 }
 
-/// The three badges fixed by the proposal (UC510, constraint C1).
+/// Every badge the gallery renders (UC510, constraint C1).
 ///
-/// Held in code rather than read from Firestore because they are part of the
-/// business rules, not tourist data: the milestone table is fixed by the
-/// submitted proposal, and a badge that quietly changed threshold would make
+/// Held in code rather than read from Firestore because they are business
+/// rules, not tourist data: a badge that quietly changed threshold would make
 /// already-awarded badges inconsistent. The BADGES collection seeds from this
 /// list so the gallery has something to read.
+///
+/// Explorer, Trailblazer and Penang Wanderer are the three fixed by the
+/// submitted proposal and must keep their IDs and thresholds. The remaining
+/// seven extend the set across the other totals the dashboard already tracks,
+/// so that a tourist has a reachable next milestone at every stage rather
+/// than a 40 km gap between the second badge and the third.
 class BadgeCatalogue {
   BadgeCatalogue._();
+
+  // --- Check-in count ------------------------------------------------------
+
+  static const BadgeModel firstSteps = BadgeModel(
+    id: RewardConstants.firstStepsBadgeId,
+    name: 'First Steps',
+    description: 'Complete your first check-in.',
+    criterion: BadgeCriterion.totalCheckIns,
+    threshold: RewardConstants.firstStepsCheckIns,
+    assetPath: RewardConstants.firstStepsAsset,
+    hue: RewardTokens.firstStepsHue,
+  );
 
   static const BadgeModel explorer = BadgeModel(
     id: RewardConstants.explorerBadgeId,
@@ -127,6 +164,28 @@ class BadgeCatalogue {
     assetPath: RewardConstants.explorerAsset,
     hue: RewardTokens.explorerHue,
   );
+
+  static const BadgeModel sightseer = BadgeModel(
+    id: RewardConstants.sightseerBadgeId,
+    name: 'Sightseer',
+    description: 'Complete 15 check-ins.',
+    criterion: BadgeCriterion.totalCheckIns,
+    threshold: RewardConstants.sightseerCheckIns,
+    assetPath: RewardConstants.sightseerAsset,
+    hue: RewardTokens.sightseerHue,
+  );
+
+  static const BadgeModel pearlPathfinder = BadgeModel(
+    id: RewardConstants.pearlPathfinderBadgeId,
+    name: 'Pearl Pathfinder',
+    description: 'Complete 30 check-ins.',
+    criterion: BadgeCriterion.totalCheckIns,
+    threshold: RewardConstants.pearlPathfinderCheckIns,
+    assetPath: RewardConstants.pearlPathfinderAsset,
+    hue: RewardTokens.pearlPathfinderHue,
+  );
+
+  // --- Cumulative distance -------------------------------------------------
 
   static const BadgeModel trailblazer = BadgeModel(
     id: RewardConstants.trailblazerBadgeId,
@@ -148,8 +207,70 @@ class BadgeCatalogue {
     hue: RewardTokens.penangWandererHue,
   );
 
-  /// Gallery order (FR-R05): easiest milestone first.
-  static const List<BadgeModel> all = [explorer, trailblazer, penangWanderer];
+  static const BadgeModel centuryWalker = BadgeModel(
+    id: RewardConstants.centuryWalkerBadgeId,
+    name: 'Century Walker',
+    description: 'Walk 100 km in total.',
+    criterion: BadgeCriterion.cumulativeDistance,
+    threshold: RewardConstants.centuryWalkerMetres,
+    assetPath: RewardConstants.centuryWalkerAsset,
+    hue: RewardTokens.centuryWalkerHue,
+  );
+
+  // --- Carbon saved --------------------------------------------------------
+
+  static const BadgeModel greenStrider = BadgeModel(
+    id: RewardConstants.greenStriderBadgeId,
+    name: 'Green Strider',
+    description: 'Save 5 kg of carbon by walking.',
+    criterion: BadgeCriterion.carbonSaved,
+    threshold: RewardConstants.greenStriderCarbonGrams,
+    assetPath: RewardConstants.greenStriderAsset,
+    hue: RewardTokens.greenStriderHue,
+  );
+
+  // --- Points balance ------------------------------------------------------
+
+  static const BadgeModel pointCollector = BadgeModel(
+    id: RewardConstants.pointCollectorBadgeId,
+    name: 'Point Collector',
+    description: 'Earn 500 points in total.',
+    criterion: BadgeCriterion.totalPoints,
+    threshold: RewardConstants.pointCollectorPoints,
+    assetPath: RewardConstants.pointCollectorAsset,
+    hue: RewardTokens.pointCollectorHue,
+  );
+
+  static const BadgeModel rewardLegend = BadgeModel(
+    id: RewardConstants.rewardLegendBadgeId,
+    name: 'Reward Legend',
+    description: 'Earn 2,000 points in total.',
+    criterion: BadgeCriterion.totalPoints,
+    threshold: RewardConstants.rewardLegendPoints,
+    assetPath: RewardConstants.rewardLegendAsset,
+    hue: RewardTokens.rewardLegendHue,
+  );
+
+  /// Gallery order (FR-R05): grouped by criterion, easiest milestone first
+  /// within each group.
+  ///
+  /// Grouping rather than interleaving by difficulty is deliberate — a
+  /// tourist scanning the grid can see at once that there are four ways to
+  /// earn, instead of a single ladder whose rungs change unit without
+  /// warning. [BadgeEvaluator] returns newly-earned badges in this order, and
+  /// [FirestoreBadgeDao.fetchDefinitions] sorts the collection back into it.
+  static const List<BadgeModel> all = [
+    firstSteps,
+    explorer,
+    sightseer,
+    pearlPathfinder,
+    trailblazer,
+    penangWanderer,
+    centuryWalker,
+    greenStrider,
+    pointCollector,
+    rewardLegend,
+  ];
 
   static BadgeModel? byId(String id) {
     for (final badge in all) {
