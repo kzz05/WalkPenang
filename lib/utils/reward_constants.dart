@@ -33,8 +33,26 @@ class RewardConstants {
 
   // --- Badge milestones (UC510, constraint C1) -----------------------------
 
+  // Ordered easiest first within each criterion. Explorer, Trailblazer and
+  // Penang Wanderer are the three fixed by the proposal; the rest extend the
+  // same shape of rule — a running total compared against a threshold — so
+  // they add rows to the catalogue rather than logic to the evaluator.
+
+  /// First Steps — awarded on the tourist's very first completed check-in.
+  ///
+  /// Deliberately trivial. A gallery where nothing is reachable gives a new
+  /// tourist no reason to check in a second time, and the first unlock is
+  /// what demonstrates that check-ins pay at all.
+  static const int firstStepsCheckIns = 1;
+
   /// Explorer — awarded on the tourist's 5th completed check-in.
   static const int explorerCheckIns = 5;
+
+  /// Sightseer — 15 completed check-ins.
+  static const int sightseerCheckIns = 15;
+
+  /// Pearl Pathfinder — 30 completed check-ins.
+  static const int pearlPathfinderCheckIns = 30;
 
   /// Trailblazer — 10 km cumulative distance.
   static const int trailblazerMetres = 10000;
@@ -42,19 +60,51 @@ class RewardConstants {
   /// Penang Wanderer — 50 km cumulative distance.
   static const int penangWandererMetres = 50000;
 
+  /// Century Walker — 100 km cumulative distance.
+  static const int centuryWalkerMetres = 100000;
+
+  /// Green Strider — 5 kg of carbon saved, held in whole grams.
+  ///
+  /// Grams for the same reason distance is held in metres: the comparison is
+  /// integer, so a tourist sitting exactly on 5.000 kg cannot be denied the
+  /// badge by representation error accumulated across dozens of increments.
+  static const int greenStriderCarbonGrams = 5000;
+
+  /// Point Collector — 500 lifetime points.
+  static const int pointCollectorPoints = 500;
+
+  /// Reward Legend — 2,000 lifetime points.
+  static const int rewardLegendPoints = 2000;
+
   // --- Badge identifiers ---------------------------------------------------
   //
   // These are document IDs in the BADGES collection and the keys the badge
   // gallery uses to look up an asset, so they must never be renamed once
   // tourist data exists.
 
+  static const String firstStepsBadgeId = 'first_steps';
   static const String explorerBadgeId = 'explorer';
+  static const String sightseerBadgeId = 'sightseer';
+  static const String pearlPathfinderBadgeId = 'pearl_pathfinder';
   static const String trailblazerBadgeId = 'trailblazer';
   static const String penangWandererBadgeId = 'penang_wanderer';
+  static const String centuryWalkerBadgeId = 'century_walker';
+  static const String greenStriderBadgeId = 'green_strider';
+  static const String pointCollectorBadgeId = 'point_collector';
+  static const String rewardLegendBadgeId = 'reward_legend';
 
+  static const String firstStepsAsset = 'assets/badges/first_steps.svg';
   static const String explorerAsset = 'assets/badges/explorer.svg';
+  static const String sightseerAsset = 'assets/badges/sightseer.svg';
+  static const String pearlPathfinderAsset =
+      'assets/badges/pearl_pathfinder.svg';
   static const String trailblazerAsset = 'assets/badges/trailblazer.svg';
   static const String penangWandererAsset = 'assets/badges/penang_wanderer.svg';
+  static const String centuryWalkerAsset = 'assets/badges/century_walker.svg';
+  static const String greenStriderAsset = 'assets/badges/green_strider.svg';
+  static const String pointCollectorAsset =
+      'assets/badges/point_collector.svg';
+  static const String rewardLegendAsset = 'assets/badges/reward_legend.svg';
 
   // --- Firestore collections ----------------------------------------------
 
@@ -146,6 +196,20 @@ class RewardConstants {
 
   static double kmFromMetres(int distanceMetres) =>
       distanceMetres / metresPerKilometre;
+
+  // --- Grams <-> kilograms -------------------------------------------------
+  //
+  // Carbon arrives from Module 4 as a double of kilograms and is stored that
+  // way, but the Green Strider threshold is compared in whole grams so the
+  // milestone cannot be decided by floating point error. Rounds rather than
+  // truncates, for the same reason [metresFromKm] does.
+
+  static const int gramsPerKilogram = 1000;
+
+  static int gramsFromKg(double carbonKg) =>
+      (carbonKg * gramsPerKilogram).round();
+
+  static double kgFromGrams(int carbonGrams) => carbonGrams / gramsPerKilogram;
 }
 
 /// The points formula (UC500, constraint C1): 10 points per completed
@@ -200,9 +264,20 @@ class RewardTokens {
   RewardTokens._();
 
   /// Badge hues, one per badge (badge visual specification).
+  ///
+  /// Chosen to be distinct from one another rather than shaded by tier. The
+  /// gallery shows them in one grid, and two near-identical hues read as a
+  /// rendering fault rather than as two different badges.
+  static const int firstStepsHue = 0xFF6C8CA8; // slate
   static const int explorerHue = 0xFF2E9E6B; // green
+  static const int sightseerHue = 0xFF1FA9A0; // teal
+  static const int pearlPathfinderHue = 0xFFC46BA5; // orchid
   static const int trailblazerHue = 0xFF2F80ED; // blue
   static const int penangWandererHue = 0xFFF2A93B; // amber
+  static const int centuryWalkerHue = 0xFFD64545; // red
+  static const int greenStriderHue = 0xFF7CB342; // lime
+  static const int pointCollectorHue = 0xFF5B4BC4; // indigo
+  static const int rewardLegendHue = 0xFFBF9B30; // antique gold
 
   /// A locked badge is the same asset rendered greyscale at 40% opacity, so
   /// FR-R05 needs no second artwork file per badge.

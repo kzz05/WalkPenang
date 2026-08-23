@@ -27,18 +27,45 @@ import '../../theme/app_theme.dart';
 import '../../utils/reward_constants.dart';
 
 /// The glyph at the centre of a badge.
-enum BadgeGlyph { compassRose, footprints, crown }
+enum BadgeGlyph {
+  compassRose,
+  firstFootprint,
+  footprints,
+  landmark,
+  pearl,
+  crown,
+  summitFlag,
+  leaf,
+  star,
+  gem,
+}
 
 /// Which glyph each badge carries (badge visual specification).
 ///
 /// Presentation only — the milestone rules never branch on badge ID. A badge
-/// this map does not know about still renders, with the compass rose.
+/// this map does not know about still renders, with the compass rose, so a
+/// badge seeded into Firestore ahead of this file still shows up in the
+/// gallery rather than crashing it.
 BadgeGlyph glyphFor(String badgeId) {
   switch (badgeId) {
+    case RewardConstants.firstStepsBadgeId:
+      return BadgeGlyph.firstFootprint;
     case RewardConstants.trailblazerBadgeId:
       return BadgeGlyph.footprints;
+    case RewardConstants.sightseerBadgeId:
+      return BadgeGlyph.landmark;
+    case RewardConstants.pearlPathfinderBadgeId:
+      return BadgeGlyph.pearl;
     case RewardConstants.penangWandererBadgeId:
       return BadgeGlyph.crown;
+    case RewardConstants.centuryWalkerBadgeId:
+      return BadgeGlyph.summitFlag;
+    case RewardConstants.greenStriderBadgeId:
+      return BadgeGlyph.leaf;
+    case RewardConstants.pointCollectorBadgeId:
+      return BadgeGlyph.star;
+    case RewardConstants.rewardLegendBadgeId:
+      return BadgeGlyph.gem;
     default:
       return BadgeGlyph.compassRose;
   }
@@ -278,6 +305,20 @@ class _BadgeEmblemPainter extends CustomPainter {
         _paintFootprints(canvas, paint);
       case BadgeGlyph.crown:
         _paintCrown(canvas, paint);
+      case BadgeGlyph.firstFootprint:
+        _paintFirstFootprint(canvas, paint);
+      case BadgeGlyph.landmark:
+        _paintLandmark(canvas, paint);
+      case BadgeGlyph.pearl:
+        _paintPearl(canvas, paint);
+      case BadgeGlyph.summitFlag:
+        _paintSummitFlag(canvas, paint);
+      case BadgeGlyph.leaf:
+        _paintLeaf(canvas, paint);
+      case BadgeGlyph.star:
+        _paintStar(canvas, paint);
+      case BadgeGlyph.gem:
+        _paintGem(canvas, paint);
     }
   }
 
@@ -321,37 +362,56 @@ class _BadgeEmblemPainter extends CustomPainter {
     canvas.drawCircle(c, 3.4, Paint()..color = _light);
   }
 
-  /// Trailblazer — a staggered pair of footprints.
-  void _paintFootprints(Canvas canvas, Paint paint) {
+  /// One footprint, offset from the core by [dx] and [dy] and tilted by
+  /// [tilt] radians. Shared by First Steps and Trailblazer.
+  void _paintFoot(
+    Canvas canvas,
+    Paint paint,
+    double dx,
+    double dy,
+    double tilt, {
+    double scale = 1,
+  }) {
     const c = _BadgeGeometry.core;
 
-    void foot(double dx, double dy, double tilt) {
-      canvas.save();
-      canvas.translate(c.dx + dx, c.dy + dy);
-      canvas.rotate(tilt);
+    canvas.save();
+    canvas.translate(c.dx + dx, c.dy + dy);
+    canvas.rotate(tilt);
+    canvas.scale(scale);
 
-      // Sole.
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: const Offset(0, 2), width: 13, height: 20),
-          const Radius.circular(6.5),
-        ),
-        paint,
-      );
-      // Toes, largest inboard.
-      canvas.drawOval(
-        Rect.fromCenter(center: const Offset(-3, -12), width: 6, height: 5),
-        paint,
-      );
-      canvas.drawOval(
-        Rect.fromCenter(center: const Offset(3.5, -11), width: 5, height: 4.5),
-        paint,
-      );
-      canvas.restore();
-    }
+    // Sole.
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: const Offset(0, 2), width: 13, height: 20),
+        const Radius.circular(6.5),
+      ),
+      paint,
+    );
+    // Toes, largest inboard.
+    canvas.drawOval(
+      Rect.fromCenter(center: const Offset(-3, -12), width: 6, height: 5),
+      paint,
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: const Offset(3.5, -11), width: 5, height: 4.5),
+      paint,
+    );
+    canvas.restore();
+  }
 
-    foot(-11, -4, -0.18);
-    foot(11, 5, 0.18);
+  /// First Steps — a single footprint, centred and enlarged.
+  ///
+  /// The same drawing as Trailblazer's pair rather than an unrelated shape:
+  /// the two badges are the first and second rungs of the same walking
+  /// ladder, and sharing the motif makes that readable at a glance.
+  void _paintFirstFootprint(Canvas canvas, Paint paint) {
+    _paintFoot(canvas, paint, 0, -1, 0, scale: 1.35);
+  }
+
+  /// Trailblazer — a staggered pair of footprints.
+  void _paintFootprints(Canvas canvas, Paint paint) {
+    _paintFoot(canvas, paint, -11, -4, -0.18);
+    _paintFoot(canvas, paint, 11, 5, 0.18);
   }
 
   /// Penang Wanderer — a three-peaked crown on a banded base.
@@ -385,6 +445,217 @@ class _BadgeEmblemPainter extends CustomPainter {
     for (final dx in [-12.0, 0.0, 12.0]) {
       canvas.drawCircle(Offset(c.dx + dx, base + 6.5), 2.2, jewel);
     }
+  }
+
+  /// Sightseer — a tiered pagoda, the silhouette every Penang itinerary
+  /// opens with.
+  void _paintLandmark(Canvas canvas, Paint paint) {
+    const c = _BadgeGeometry.core;
+
+    // Tower body first, so the eaves drawn over it read as overhanging.
+    canvas.drawRect(
+      Rect.fromLTRB(c.dx - 7, c.dy - 14, c.dx + 7, c.dy + 20),
+      paint,
+    );
+
+    void eave(double y, double half) {
+      final path = Path()
+        ..moveTo(c.dx - half, y)
+        ..lineTo(c.dx + half, y)
+        ..lineTo(c.dx + half * 0.42, y - 7)
+        ..lineTo(c.dx - half * 0.42, y - 7)
+        ..close();
+      canvas.drawPath(path, paint);
+    }
+
+    eave(c.dy + 20, 23);
+    eave(c.dy + 6, 18);
+    eave(c.dy - 8, 13);
+
+    final light = Paint()..color = _light;
+    canvas.drawCircle(Offset(c.dx, c.dy - 18), 3.2, light);
+    canvas.drawRect(
+      Rect.fromLTRB(c.dx - 3.5, c.dy + 11, c.dx + 3.5, c.dy + 20),
+      light,
+    );
+  }
+
+  /// Pearl Pathfinder — a pearl above an open, ribbed shell.
+  void _paintPearl(Canvas canvas, Paint paint) {
+    const c = _BadgeGeometry.core;
+    final hinge = Offset(c.dx, c.dy + 12);
+
+    // The lower half of an ellipse, so the shell's flat edge faces the pearl.
+    canvas.drawArc(
+      Rect.fromCenter(center: hinge, width: 46, height: 36),
+      0,
+      3.141592653589793,
+      true,
+      paint,
+    );
+
+    // Ribs fanning from the hinge to the shell edge. The endpoints are
+    // written out rather than swept with sin and cos, which keeps this file
+    // free of a dart:math import and the geometry checkable by eye.
+    final rib = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..color = _light;
+    for (final end in const [
+      Offset(-21, 7),
+      Offset(-13, 15),
+      Offset(0, 18),
+      Offset(13, 15),
+      Offset(21, 7),
+    ]) {
+      canvas.drawLine(hinge, hinge + end, rib);
+    }
+
+    final pearl = Offset(c.dx, c.dy - 6);
+    canvas.drawCircle(pearl, 10.5, paint);
+    canvas.drawCircle(pearl, 8, Paint()..color = _light);
+    canvas.drawCircle(
+      Offset(pearl.dx - 2.6, pearl.dy - 3),
+      2.4,
+      Paint()..color = Colors.white.withValues(alpha: 0.9),
+    );
+  }
+
+  /// Century Walker — a flag planted on the taller of two peaks.
+  void _paintSummitFlag(Canvas canvas, Paint paint) {
+    const c = _BadgeGeometry.core;
+
+    final ridge = Path()
+      ..moveTo(c.dx - 25, c.dy + 20)
+      ..lineTo(c.dx - 7, c.dy - 8)
+      ..lineTo(c.dx + 4, c.dy + 6)
+      ..lineTo(c.dx + 11, c.dy - 3)
+      ..lineTo(c.dx + 25, c.dy + 20)
+      ..close();
+    canvas.drawPath(ridge, paint);
+
+    // Snow cap on the taller peak.
+    final cap = Path()
+      ..moveTo(c.dx - 7, c.dy - 8)
+      ..lineTo(c.dx + 1, c.dy + 3)
+      ..lineTo(c.dx - 3, c.dy + 4)
+      ..lineTo(c.dx - 8, c.dy)
+      ..lineTo(c.dx - 12, c.dy + 3)
+      ..close();
+    canvas.drawPath(cap, Paint()..color = _light);
+
+    canvas.drawRect(
+      Rect.fromLTRB(c.dx - 8, c.dy - 28, c.dx - 6, c.dy - 8),
+      paint,
+    );
+    final pennant = Path()
+      ..moveTo(c.dx - 6, c.dy - 28)
+      ..lineTo(c.dx + 10, c.dy - 23)
+      ..lineTo(c.dx - 6, c.dy - 18)
+      ..close();
+    canvas.drawPath(pennant, Paint()..color = _light);
+  }
+
+  /// Green Strider — a leaf with its midrib and two veins.
+  void _paintLeaf(Canvas canvas, Paint paint) {
+    const c = _BadgeGeometry.core;
+
+    final leaf = Path()
+      ..moveTo(c.dx, c.dy - 21)
+      ..quadraticBezierTo(c.dx + 21, c.dy - 7, c.dx, c.dy + 19)
+      ..quadraticBezierTo(c.dx - 21, c.dy - 7, c.dx, c.dy - 21)
+      ..close();
+    canvas.drawPath(leaf, paint);
+
+    final vein = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8
+      ..strokeCap = StrokeCap.round
+      ..color = _light;
+
+    canvas.drawLine(Offset(c.dx, c.dy - 16), Offset(c.dx, c.dy + 15), vein);
+    canvas.drawLine(Offset(c.dx, c.dy - 4), Offset(c.dx + 9, c.dy - 10), vein);
+    canvas.drawLine(Offset(c.dx, c.dy + 6), Offset(c.dx - 9, c.dy + 1), vein);
+  }
+
+  /// A five-pointed star centred on the core, [outer] to the tips and
+  /// [inner] to the valleys between them.
+  ///
+  /// The vertex directions are written out as unit offsets rather than swept
+  /// with sin and cos, for the same reason the shell ribs are.
+  static Path _starPath(double outer, double inner) {
+    const c = _BadgeGeometry.core;
+    const tips = [
+      Offset(0, -1),
+      Offset(0.9511, -0.3090),
+      Offset(0.5878, 0.8090),
+      Offset(-0.5878, 0.8090),
+      Offset(-0.9511, -0.3090),
+    ];
+    const valleys = [
+      Offset(0.5878, -0.8090),
+      Offset(0.9511, 0.3090),
+      Offset(0, 1),
+      Offset(-0.9511, 0.3090),
+      Offset(-0.5878, -0.8090),
+    ];
+
+    final path = Path();
+    for (var i = 0; i < tips.length; i++) {
+      final tip = Offset(c.dx + tips[i].dx * outer, c.dy + tips[i].dy * outer);
+      if (i == 0) {
+        path.moveTo(tip.dx, tip.dy);
+      } else {
+        path.lineTo(tip.dx, tip.dy);
+      }
+      path.lineTo(
+        c.dx + valleys[i].dx * inner,
+        c.dy + valleys[i].dy * inner,
+      );
+    }
+    return path..close();
+  }
+
+  /// Point Collector — a star with a second, lighter star inset.
+  void _paintStar(Canvas canvas, Paint paint) {
+    canvas.drawPath(_starPath(23, 9.5), paint);
+    canvas.drawPath(_starPath(11, 4.5), Paint()..color = _light);
+  }
+
+  /// Reward Legend — a brilliant-cut gem, faceted in the light tone.
+  void _paintGem(Canvas canvas, Paint paint) {
+    const c = _BadgeGeometry.core;
+    const top = -17.0;
+    const girdle = -5.0;
+    const culet = 21.0;
+    const halfCrown = 12.0;
+    const halfGirdle = 21.0;
+
+    final gem = Path()
+      ..moveTo(c.dx - halfCrown, c.dy + top)
+      ..lineTo(c.dx + halfCrown, c.dy + top)
+      ..lineTo(c.dx + halfGirdle, c.dy + girdle)
+      ..lineTo(c.dx, c.dy + culet)
+      ..lineTo(c.dx - halfGirdle, c.dy + girdle)
+      ..close();
+    canvas.drawPath(gem, paint);
+
+    final facet = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..color = _light;
+
+    // The girdle, then the crown and pavilion facets that land on it.
+    canvas.drawLine(Offset(c.dx - halfGirdle, c.dy + girdle),
+        Offset(c.dx + halfGirdle, c.dy + girdle), facet);
+    canvas.drawLine(Offset(c.dx - halfCrown, c.dy + top),
+        Offset(c.dx - halfCrown, c.dy + girdle), facet);
+    canvas.drawLine(Offset(c.dx + halfCrown, c.dy + top),
+        Offset(c.dx + halfCrown, c.dy + girdle), facet);
+    canvas.drawLine(Offset(c.dx - halfCrown, c.dy + girdle),
+        Offset(c.dx, c.dy + culet), facet);
+    canvas.drawLine(Offset(c.dx + halfCrown, c.dy + girdle),
+        Offset(c.dx, c.dy + culet), facet);
   }
 
   /// The four-point sparkle accent, white at 90%.

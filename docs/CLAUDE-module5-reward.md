@@ -110,15 +110,26 @@ Compute the distance bonus in integer metres, not by multiplying the kilometre d
 Badge milestones (UC510, constraint C1):
 
 Badge	Criterion	Threshold
+First Steps	Total check-ins	1
 Explorer	Total check-ins	5
+Sightseer	Total check-ins	15
+Pearl Pathfinder	Total check-ins	30
 Trailblazer	Cumulative distance	10 km
 Penang Wanderer	Cumulative distance	50 km
+Century Walker	Cumulative distance	100 km
+Green Strider	Carbon saved	5 kg
+Point Collector	Points balance	500
+Reward Legend	Points balance	2,000
+
+Explorer, Trailblazer and Penang Wanderer are the three fixed by the submitted proposal; their IDs and thresholds must not move. The other seven were added afterwards so that a tourist always has a reachable next milestone, and they extend the criterion set to four: total check-ins, cumulative distance, points balance, and carbon saved.
+
+Points and carbon are compared as integers, for the same reason distance is. Points already are one. Carbon is stored as a double of kilograms because that is the unit Module 4 reports, so RewardModel.totalCarbonSavedGrams rounds it to whole grams and the badge threshold is held in grams to match.
 
 A single check-in may cross more than one threshold at once. The evaluator must return all newly-qualifying badges, and must never re-award a badge already held.
 
 Badge visual specification
 
-Only three badges exist, so they are hand-authored SVG in assets/badges/, rendered with flutter_svg. Do not copy any existing badge artwork found online — generate to this specification.
+The artwork is drawn to this specification by CustomPainter in widgets/reward/badge_emblem.dart, not loaded from assets/badges/*.svg — same geometry and same three-tone palette, but it needs no flutter_svg dependency and no asset files, so the gallery renders on a fresh clone. BadgeModel still carries assetPath, so moving to SVG later is a change to that one file. Adding a badge means adding a glyph to BadgeGlyph and a case to glyphFor; a badge the map does not know about still renders, with the compass rose. Do not copy any existing badge artwork found online — generate to this specification.
 
 Shared structure, 120 × 140 viewBox:
 
@@ -131,9 +142,18 @@ A ribbon banner across the lower third carrying the badge name, with notched end
 Per-badge palette and glyph, each a single hue in three tones (dark outline, mid shield, light ray):
 
 Badge	Hue	Glyph
+First Steps	Slate 0xFF6C8CA8	Single footprint
 Explorer	Green 0xFF2E9E6B	Compass rose
+Sightseer	Teal 0xFF1FA9A0	Tiered pagoda
+Pearl Pathfinder	Orchid 0xFFC46BA5	Pearl in an open shell
 Trailblazer	Blue 0xFF2F80ED	Footprint pair
 Penang Wanderer	Amber 0xFFF2A93B	Crown
+Century Walker	Red 0xFFD64545	Summit flag
+Green Strider	Lime 0xFF7CB342	Leaf
+Point Collector	Indigo 0xFF5B4BC4	Five-pointed star
+Reward Legend	Antique gold 0xFFBF9B30	Cut gem
+
+Hues are chosen to be distinct from one another rather than shaded by tier, because the gallery shows them together in one grid.
 
 Locked state is produced at render time, never as a second asset file. Wrap the SVG in ColorFiltered with a greyscale colour matrix and drop opacity to 40%. This satisfies FR-R05's requirement to visually distinguish locked from unlocked while keeping one asset per badge.
 
