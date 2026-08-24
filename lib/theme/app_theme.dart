@@ -27,6 +27,34 @@ class AppColors {
 
   /// Empty-avatar and progress-track fill.
   static const placeholder = Color(0xFFCFD5D0);
+
+  // ── Map & GPS module accents ────────────────────────────────────────────
+  // Derived from the primary terracotta so map pins read as part of the same
+  // palette, while still separating food from attractions at a glance.
+
+  /// Food establishment pins (UC-007).
+  static const foodPin = Color(0xFFD97742);
+
+  /// Tourist attraction pins (UC-007).
+  static const attractionPin = Color(0xFF3F8A8B);
+
+  /// Anything the Places response typed as neither food nor attraction.
+  static const otherPin = Color(0xFF8A7360);
+
+  /// Dark casing drawn under the route polyline so the terracotta line stays
+  /// readable over both the cream and the night map styles.
+  static const routeCasing = Color(0xFF3B2A1D);
+
+  /// Google's own location blue — reused for the live position puck and the
+  /// recentre control so the "that's me" affordance matches what tourists
+  /// already recognise from Google Maps itself.
+  static const navigationBlue = Color(0xFF4285F4);
+
+  /// Arrival confirmation and "open now" state.
+  static const success = Color(0xFF4C9A6A);
+
+  /// Route/GPS warnings shown in the map error banner.
+  static const warning = Color(0xFFC7603C);
 }
 
 /// Corner radii — SM 10 for cards and inputs, MD 50 for pills.

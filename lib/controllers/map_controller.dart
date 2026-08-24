@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../constants/map_constants.dart';
@@ -12,6 +13,29 @@ import '../services/compass_service.dart';
 import '../services/location_service.dart';
 import '../services/map_service.dart';
 import '../services/places_service.dart';
+import '../utils/angle_utils.dart';
+
+/// What the tourist can actually *do* about the message currently on screen.
+///
+/// Every alternative flow in UC-007/UC-008/UC-009 ends in a sentence telling
+/// the tourist to go and fix something; pairing each with the button that does
+/// it turns "Please enable it in your device settings" from an instruction
+/// into one tap.
+enum MapMessageAction {
+  none,
+
+  /// Device GPS is off — jump to the system location screen.
+  openLocationSettings,
+
+  /// Permission was refused for good — jump to this app's settings page.
+  openAppSettings,
+
+  /// Nothing found at this radius — offer the next one up.
+  widenRadius,
+
+  /// A network or timeout failure worth simply trying again.
+  retry,
+}
 
 /// Drives [MapView] — UC-007 (nearby pins), UC-008 (live location), and
 /// UC-009 (boundary validation) all meet here.
@@ -38,20 +62,58 @@ class MapController extends ChangeNotifier {
   GpsLocation? currentLocation;
   List<PlaceModel> nearbyPlaces = [];
   bool isLoading = false;
-  String? errorMessage;
   double searchRadiusKm = MapConstants.defaultSearchRadiusKm;
   bool isWithinPenang = true;
 
-  /// The tourist's live facing direction from the device magnetometer,
-  /// degrees clockwise from true north — null until the first sensor
-  /// reading lands (or permanently, on a device with no compass).
+  /// The pin the tourist most recently picked out, either by tapping it on the
+  /// map or by scrolling to its card. Drawn larger than the rest so the map
+  /// and the results strip always agree on what's selected.
+  String? selectedPlaceId;
+
+  /// Messages are split by source so they can't overwrite each other: a GPS
+  /// tick arriving a second after "No places found nearby" used to wipe that
+  /// message off the screen before the tourist had read it.
+  String? _gpsMessage;
+  String? _contentMessage;
+  MapMessageAction _gpsAction = MapMessageAction.none;
+  MapMessageAction _contentAction = MapMessageAction.none;
+
+  /// Where the last search was centred, and where the camera is now — the two
+  /// together are what decide whether "Search this area" is worth offering.
+  LatLng? _resultsCentre;
+  LatLng? _mapCentre;
+  bool _canSearchThisArea = false;
+
+  /// Set only by [searchThisArea]. Until the tourist explicitly searches
+  /// somewhere else, every search — including a radius change — is centred on
+  /// where they actually are, not on wherever the camera happens to have
+  /// drifted to.
+  LatLng? _customSearchCentre;
+
+  /// UC-007 A2 / UC-008 A2 / UC-009 A1-A2 — whichever message currently
+  /// matters most. A GPS problem outranks a content one, because nothing else
+  /// on the screen can be trusted while the position is wrong.
+  String? get errorMessage => _gpsMessage ?? _contentMessage;
+
+  /// The action offered alongside [errorMessage], from the same source.
+  MapMessageAction get messageAction =>
+      _gpsMessage != null ? _gpsAction : _contentAction;
+
+  /// True once the tourist has panned far enough from the last search that the
+  /// pins on screen no longer describe what they're looking at — the moment
+  /// Google Maps itself offers "Search this area".
+  bool get canSearchThisArea => _canSearchThisArea;
+
+  /// The tourist's live facing direction from the device magnetometer, degrees
+  /// clockwise from true north — null until the first sensor reading lands (or
+  /// permanently, on a device with no compass).
   double? compassHeading;
 
   /// Whether the map camera should keep rotating to match [compassHeading]
-  /// ("compass mode" — the two-finger rotate gesture is disabled while this
-  /// is on, since it would otherwise fight the auto-rotation on every
-  /// sensor update). Off by default: a north-up map is the more familiar
-  /// default for browsing nearby pins.
+  /// ("compass mode" — the two-finger rotate gesture is disabled while this is
+  /// on, since it would otherwise fight the auto-rotation on every sensor
+  /// update). Off by default: a north-up map is the more familiar default for
+  /// browsing nearby pins.
   bool isCompassModeEnabled = false;
 
   bool get isCompassAvailable => _compassService.isCompassAvailable;
@@ -66,16 +128,17 @@ class MapController extends ChangeNotifier {
   /// `GoogleMap.cameraTargetBounds` so panning can't leave Penang.
   LatLngBounds get boundaryConstraint => _boundaryValidatorService.panningBounds;
 
-  /// UC-007 steps 2-6, UC-008 steps 2-7, UC-009 steps 1-3 — run once when
-  /// the map screen opens.
+  /// UC-007 steps 2-6, UC-008 steps 2-7, UC-009 steps 1-3 — run once when the
+  /// map screen opens.
   Future<void> loadMap() async {
     isLoading = true;
-    errorMessage = null;
+    _setGpsMessage(null);
+    _setContentMessage(null);
     notifyListeners();
 
-    final granted = await _locationService.requestLocationPermission();
-    if (!granted) {
-      errorMessage = MapErrorMessages.locationPermissionDenied;
+    final availability = await _locationService.requestLocationPermission();
+    if (availability != LocationAvailability.granted) {
+      _applyUnavailableLocation(availability);
       isLoading = false;
       notifyListeners();
       return;
@@ -88,17 +151,63 @@ class MapController extends ChangeNotifier {
       _startCompassUpdates();
       await renderNearbyPins();
     } on Exception {
-      errorMessage = MapErrorMessages.locationTimeout;
+      _setGpsMessage(MapErrorMessages.locationTimeout, MapMessageAction.retry);
     } finally {
       isLoading = false;
       notifyListeners();
     }
   }
 
+  /// UC-008 A1: each way of being blocked gets the message *and* the button
+  /// that resolves it.
+  void _applyUnavailableLocation(LocationAvailability availability) {
+    switch (availability) {
+      case LocationAvailability.serviceDisabled:
+        _setGpsMessage(
+          MapErrorMessages.gpsDisabled,
+          MapMessageAction.openLocationSettings,
+        );
+      case LocationAvailability.permissionDeniedForever:
+        _setGpsMessage(
+          MapErrorMessages.locationPermissionDenied,
+          MapMessageAction.openAppSettings,
+        );
+      case LocationAvailability.permissionDenied:
+        // Still askable, so the button re-runs the request rather than sending
+        // the tourist off into system settings for no reason.
+        _setGpsMessage(
+          MapErrorMessages.locationPermissionDenied,
+          MapMessageAction.retry,
+        );
+      case LocationAvailability.granted:
+        _setGpsMessage(null);
+    }
+  }
+
+  void _setGpsMessage(
+    String? message, [
+    MapMessageAction action = MapMessageAction.none,
+  ]) {
+    _gpsMessage = message;
+    _gpsAction = message == null ? MapMessageAction.none : action;
+  }
+
+  void _setContentMessage(
+    String? message, [
+    MapMessageAction action = MapMessageAction.none,
+  ]) {
+    _contentMessage = message;
+    _contentAction = message == null ? MapMessageAction.none : action;
+  }
+
   void _startLocationUpdates() {
     _locationSubscription?.cancel();
     _locationSubscription = _locationService.startLocationUpdates().listen(
       _applyLocation,
+      onError: (Object _) {
+        _setGpsMessage(MapErrorMessages.locationTimeout, MapMessageAction.retry);
+        notifyListeners();
+      },
     );
   }
 
@@ -117,41 +226,37 @@ class MapController extends ChangeNotifier {
   /// sample would look jittery and cost battery for no visible benefit.
   void _applyCompassHeading(double? heading) {
     if (heading == null) return;
+    final normalised = normaliseDegrees(heading);
     final previous = compassHeading;
     if (previous != null &&
-        _angleDifference(previous, heading) <
+        angleDifference(previous, normalised) <
             MapConstants.compassHeadingChangeThresholdDegrees) {
       return;
     }
-    compassHeading = heading;
+    compassHeading = normalised;
     notifyListeners();
   }
 
-  double _angleDifference(double a, double b) {
-    final diff = (a - b).abs() % 360;
-    return diff > 180 ? 360 - diff : diff;
-  }
-
   /// Toggled by the compass-mode button on [MapView]. Turning it off leaves
-  /// [compassHeading] (and the puck's own rotation) updating as normal —
-  /// only the camera's auto-rotation and the manual rotate gesture lock stop.
+  /// [compassHeading] (and the puck's own rotation) updating as normal — only
+  /// the camera's auto-rotation and the manual rotate gesture lock stop.
   void toggleCompassMode() {
     isCompassModeEnabled = !isCompassModeEnabled;
     notifyListeners();
   }
 
-  /// UC-008 steps 4-6 / UC-009 steps 1-2: updates the marker and re-checks
-  /// the Penang boundary on every fix, not just the first one.
+  /// UC-008 steps 4-6 / UC-009 steps 1-2: updates the marker and re-checks the
+  /// Penang boundary on every fix, not just the first one.
   void _applyLocation(GpsLocation location) {
     currentLocation = location;
     isWithinPenang = _boundaryValidatorService.validateUserLocation(location);
 
     if (!_locationService.checkSignalAccuracy(location)) {
-      errorMessage = MapErrorMessages.weakGpsSignal;
+      _setGpsMessage(MapErrorMessages.weakGpsSignal);
     } else if (!isWithinPenang) {
-      errorMessage = MapErrorMessages.outsidePenangUser;
+      _setGpsMessage(MapErrorMessages.outsidePenangUser);
     } else {
-      errorMessage = null;
+      _setGpsMessage(null);
     }
     notifyListeners();
   }
@@ -159,24 +264,150 @@ class MapController extends ChangeNotifier {
   /// UC-007 step 4 / A2: (re)loads nearby pins for the current centre and
   /// radius — also the retry path when a tourist widens the search radius.
   Future<void> renderNearbyPins() async {
+    final centre = _customSearchCentre ?? cameraCenter;
     try {
       final results = await _placesService.fetchNearbyPlaces(
-        center: cameraCenter,
+        center: centre,
         radiusKm: searchRadiusKm,
       );
+      _resultsCentre = centre;
+      _canSearchThisArea = false;
+      // Nearest first: the results strip is a "where could I walk right now"
+      // list, and the Places API returns them in its own relevance order.
+      results.sort(
+        (a, b) => distanceToPlaceMeters(a).compareTo(distanceToPlaceMeters(b)),
+      );
       nearbyPlaces = results;
-      if (results.isEmpty) errorMessage = MapErrorMessages.noPlacesFound;
+      selectedPlaceId = null;
+      _setContentMessage(
+        results.isEmpty ? MapErrorMessages.noPlacesFound : null,
+        MapMessageAction.widenRadius,
+      );
     } catch (_) {
-      errorMessage = MapErrorMessages.mapLoadFailed;
+      _setContentMessage(MapErrorMessages.mapLoadFailed, MapMessageAction.retry);
     }
     notifyListeners();
   }
 
-  /// UC-007 constraint C1: the 1 / 2 / 5 km radius chips.
-  Future<void> setSearchRadius(double radiusKm) async {
-    searchRadiusKm = radiusKm;
+  /// Fed from [GoogleMap.onCameraMove]. Notifies only when the "Search this
+  /// area" affordance actually appears or disappears — the camera callback runs
+  /// on every frame of a drag, and rebuilding the screen that often for a
+  /// boolean that rarely flips would undo the work spent keeping the map
+  /// smooth.
+  void updateMapCentre(LatLng centre) {
+    _mapCentre = centre;
+    final origin = _resultsCentre;
+    if (origin == null) return;
+
+    final drifted = Geolocator.distanceBetween(
+          origin.latitude,
+          origin.longitude,
+          centre.latitude,
+          centre.longitude,
+        ) >
+        MapConstants.searchThisAreaThresholdMeters;
+
+    if (drifted != _canSearchThisArea) {
+      _canSearchThisArea = drifted;
+      notifyListeners();
+    }
+  }
+
+  /// Re-runs UC-007 step 4 around wherever the tourist has panned to, so they
+  /// can scout a neighbourhood before walking over to it.
+  Future<void> searchThisArea() async {
+    _customSearchCentre = _mapCentre;
+    isLoading = true;
     notifyListeners();
     await renderNearbyPins();
+    isLoading = false;
+    notifyListeners();
+  }
+
+  /// Hands searching back to the tourist's own position — paired with the
+  /// recentre button, so "take me back to me" also means "show me what's
+  /// around me" rather than leaving stale pins from another neighbourhood.
+  void resetSearchToCurrentLocation() {
+    if (_customSearchCentre == null) return;
+    _customSearchCentre = null;
+    notifyListeners();
+  }
+
+  /// Straight-line metres from the tourist to [place] — shown on each result
+  /// card so "2 km radius" turns into something concrete. Falls back to
+  /// [double.infinity] before the first fix so sorting stays stable.
+  double distanceToPlaceMeters(PlaceModel place) {
+    final location = currentLocation;
+    if (location == null) return double.infinity;
+    return Geolocator.distanceBetween(
+      location.latitude,
+      location.longitude,
+      place.latitude,
+      place.longitude,
+    );
+  }
+
+  /// UC-007 constraint C1: the 1 / 2 / 5 km radius chips.
+  Future<void> setSearchRadius(double radiusKm) async {
+    if (searchRadiusKm == radiusKm) return;
+    searchRadiusKm = radiusKm;
+    isLoading = true;
+    notifyListeners();
+    await renderNearbyPins();
+    isLoading = false;
+    notifyListeners();
+  }
+
+  /// Highlights a pin without leaving the map — the intermediate step between
+  /// "there's something over there" and committing to a route for it.
+  void selectPlace(PlaceModel? place) {
+    if (selectedPlaceId == place?.placeId) return;
+    selectedPlaceId = place?.placeId;
+    notifyListeners();
+  }
+
+  /// Runs whatever [messageAction] currently offers, so the tourist fixes the
+  /// problem from the banner instead of hunting for the right settings screen.
+  Future<void> runMessageAction() async {
+    switch (messageAction) {
+      case MapMessageAction.openLocationSettings:
+        await _locationService.openLocationSettings();
+      case MapMessageAction.openAppSettings:
+        await _locationService.openAppSettings();
+      case MapMessageAction.widenRadius:
+        await setSearchRadius(MapConstants.radiusOptions.last);
+      case MapMessageAction.retry:
+        await loadMap();
+      case MapMessageAction.none:
+        break;
+    }
+  }
+
+  /// Label for [messageAction] — kept next to the behaviour so the wording and
+  /// what the button does can't drift apart. Null means "offer no button".
+  String? get messageActionLabel {
+    switch (messageAction) {
+      case MapMessageAction.openLocationSettings:
+        return 'Turn on GPS';
+      case MapMessageAction.openAppSettings:
+        return 'Open settings';
+      case MapMessageAction.widenRadius:
+        return searchRadiusKm == MapConstants.radiusOptions.last
+            ? null
+            : 'Search ${MapConstants.radiusOptions.last.toStringAsFixed(0)} km';
+      case MapMessageAction.retry:
+        return 'Try again';
+      case MapMessageAction.none:
+        return null;
+    }
+  }
+
+  /// Lets the tourist clear a message they've read, rather than waiting for
+  /// the next GPS tick to decide for them.
+  void dismissMessage() {
+    _setGpsMessage(null);
+    _setContentMessage(null);
+    notifyListeners();
   }
 
   /// UC-009 steps 4-6 / A2: validates a tapped pin before it's allowed to
@@ -184,7 +415,9 @@ class MapController extends ChangeNotifier {
   bool validateDestination(PlaceModel place) {
     final destination = LatLng(place.latitude, place.longitude);
     final isValid = _boundaryValidatorService.validateDestination(destination);
-    errorMessage = isValid ? null : MapErrorMessages.outsidePenangDestination;
+    _setContentMessage(
+      isValid ? null : MapErrorMessages.outsidePenangDestination,
+    );
     notifyListeners();
     return isValid;
   }
