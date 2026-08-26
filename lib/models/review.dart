@@ -78,6 +78,28 @@ class Review {
     );
   }
 
+  /// Maps one of Google's own reviews (from Place Details (New)) into a
+  /// [Review], so they can sit alongside app-submitted ones in the same
+  /// list. Google reviews aren't writable by the app — [id] is just their
+  /// resource name, unused for anything but the list key.
+  factory Review.fromGooglePlace(String placeId, Map<String, dynamic> json) {
+    final Map<String, dynamic>? text = json['text'] as Map<String, dynamic>?;
+    final Map<String, dynamic>? originalText =
+        json['originalText'] as Map<String, dynamic>?;
+    final Map<String, dynamic>? author =
+        json['authorAttribution'] as Map<String, dynamic>?;
+
+    return Review(
+      id: json['name'] as String? ?? 'google-${json.hashCode}',
+      placeId: placeId,
+      authorName: author?['displayName'] as String? ?? 'Google user',
+      rating: (json['rating'] as num?)?.toInt() ?? 5,
+      body: text?['text'] as String? ?? originalText?['text'] as String? ?? '',
+      createdAt: DateTime.tryParse(json['publishTime'] as String? ?? '') ??
+          DateTime.now(),
+    );
+  }
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) || (other is Review && other.id == id);
