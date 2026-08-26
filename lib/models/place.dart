@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Color;
 
@@ -281,6 +283,168 @@ class Place {
     }
     return null;
   }
+
+  /// Maps a Places API (New) place resource (searchNearby/searchText result)
+  /// into a [Place]. [photoUrlBuilder] turns a photo resource name like
+  /// "places/xyz/photos/abc" into a loadable image URL — kept as a callback
+  /// rather than a direct GooglePlacesService dependency so this model stays
+  /// free of API/HTTP concerns.
+  ///
+  /// [originLat]/[originLng] are used to compute [distanceKm] since Places
+  /// API (New) doesn't return distance directly.
+  factory Place.fromGooglePlace(
+    Map<String, dynamic> json, {
+    required String Function(String photoName) photoUrlBuilder,
+    required double originLat,
+    required double originLng,
+  }) {
+    final Map<String, dynamic>? location =
+        json['location'] as Map<String, dynamic>?;
+    final double lat = (location?['latitude'] as num?)?.toDouble() ?? originLat;
+    final double lng = (location?['longitude'] as num?)?.toDouble() ?? originLng;
+
+    final List<String> types = (json['types'] as List<dynamic>?)
+            ?.map((dynamic e) => e as String)
+            .toList() ??
+        const <String>[];
+    final String primaryType = json['primaryType'] as String? ?? '';
+
+    final List<dynamic> photos = json['photos'] as List<dynamic>? ?? const [];
+
+    return Place(
+      id: json['id'] as String? ?? '',
+      name: (json['displayName'] as Map<String, dynamic>?)?['text']
+              as String? ??
+          '',
+      category: _categoryFromGoogleTypes(<String>[primaryType, ...types]),
+      photoUrls: photos
+          .map((dynamic photo) => photoUrlBuilder(
+              (photo as Map<String, dynamic>)['name'] as String))
+          .toList(),
+      priceLevel: _priceLevelFromGoogle(json['priceLevel'] as String?),
+      distanceKm: _haversineKm(originLat, originLng, lat, lng),
+      rating: (json['rating'] as num?)?.toDouble() ?? 0.0,
+      reviewCount: (json['userRatingCount'] as num?)?.toInt() ?? 0,
+      address: json['formattedAddress'] as String? ?? '',
+      hours: _hoursFromGoogle(
+          json['regularOpeningHours'] as Map<String, dynamic>?),
+      contact: ContactInfo(
+        phone: json['internationalPhoneNumber'] as String?,
+        website: json['websiteUri'] as String?,
+      ),
+      priceRange: _priceRangeFromGoogle(json['priceRange'] as Map<String, dynamic>?),
+      dietaryTags: json['servesVegetarianFood'] == true
+          ? const <DietaryPreference>{DietaryPreference.vegetarian}
+          : const <DietaryPreference>{},
+      description: (json['editorialSummary']
+              as Map<String, dynamic>?)?['text'] as String? ??
+          '',
+    );
+  }
+
+  static PlaceCategory _categoryFromGoogleTypes(List<String> types) {
+    const Map<PlaceCategory, List<String>> byType = {
+      PlaceCategory.food: [
+        'restaurant', 'food', 'cafe', 'bakery', 'bar', 'meal_takeaway',
+        'meal_delivery',
+      ],
+      PlaceCategory.museum: ['museum'],
+      PlaceCategory.nature: [
+        'park', 'natural_feature', 'hiking_area', 'national_park',
+        'botanical_garden',
+      ],
+      PlaceCategory.heritage: [
+        'tourist_attraction', 'place_of_worship', 'hindu_temple', 'church',
+        'mosque', 'historical_landmark', 'cultural_landmark',
+      ],
+      PlaceCategory.shopping: [
+        'shopping_mall', 'store', 'clothing_store', 'shoe_store',
+        'jewelry_store', 'department_store',
+      ],
+    };
+
+    for (final String type in types) {
+      for (final MapEntry<PlaceCategory, List<String>> entry in byType.entries) {
+        if (entry.value.contains(type)) return entry.key;
+      }
+    }
+    return PlaceCategory.food;
+  }
+
+  static PriceLevel _priceLevelFromGoogle(String? level) {
+    switch (level) {
+      case 'PRICE_LEVEL_FREE':
+      case 'PRICE_LEVEL_INEXPENSIVE':
+        return PriceLevel.budget;
+      case 'PRICE_LEVEL_EXPENSIVE':
+      case 'PRICE_LEVEL_VERY_EXPENSIVE':
+        return PriceLevel.premium;
+      case 'PRICE_LEVEL_MODERATE':
+      default:
+        return PriceLevel.moderate;
+    }
+  }
+
+  static PriceRange? _priceRangeFromGoogle(Map<String, dynamic>? priceRange) {
+    if (priceRange == null) return null;
+    final Map<String, dynamic>? start =
+        priceRange['startPrice'] as Map<String, dynamic>?;
+    final Map<String, dynamic>? end =
+        priceRange['endPrice'] as Map<String, dynamic>?;
+    if (start?['currencyCode'] != 'MYR' || end?['currencyCode'] != 'MYR') {
+      return null;
+    }
+    final int? minRm = int.tryParse('${start?['units'] ?? ''}');
+    final int? maxRm = int.tryParse('${end?['units'] ?? ''}');
+    if (minRm == null || maxRm == null) return null;
+    return PriceRange(minRm: minRm, maxRm: maxRm);
+  }
+
+  /// Picks today's opening period if published, else the first one, and
+  /// rounds to the hour — [OpeningHours] only stores hour granularity.
+  static OpeningHours? _hoursFromGoogle(Map<String, dynamic>? regularHours) {
+    final List<dynamic>? periods = regularHours?['periods'] as List<dynamic>?;
+    if (periods == null || periods.isEmpty) return null;
+
+    final int today = DateTime.now().weekday % 7; // Google: 0=Sunday
+    Map<String, dynamic> period = (periods.first as Map<String, dynamic>);
+    for (final dynamic candidate in periods) {
+      final Map<String, dynamic> map = candidate as Map<String, dynamic>;
+      final int? openDay = (map['open'] as Map<String, dynamic>?)?['day'] as int?;
+      if (openDay == today) {
+        period = map;
+        break;
+      }
+    }
+
+    final Map<String, dynamic>? open = period['open'] as Map<String, dynamic>?;
+    final Map<String, dynamic>? close = period['close'] as Map<String, dynamic>?;
+    final int? opensAtHour = open?['hour'] as int?;
+    final int? closesAtHour = close?['hour'] as int?;
+    if (opensAtHour == null || closesAtHour == null) return null;
+
+    return OpeningHours(opensAtHour: opensAtHour, closesAtHour: closesAtHour);
+  }
+
+  static double _haversineKm(
+    double lat1,
+    double lng1,
+    double lat2,
+    double lng2,
+  ) {
+    const double earthRadiusKm = 6371;
+    final double dLat = _degToRad(lat2 - lat1);
+    final double dLng = _degToRad(lng2 - lng1);
+    final double a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_degToRad(lat1)) *
+            math.cos(_degToRad(lat2)) *
+            math.sin(dLng / 2) *
+            math.sin(dLng / 2);
+    final double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadiusKm * c;
+  }
+
+  static double _degToRad(double deg) => deg * (math.pi / 180);
 
   Place copyWith({double? rating, int? reviewCount}) {
     return Place(
