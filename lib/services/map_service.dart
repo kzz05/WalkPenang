@@ -111,6 +111,19 @@ class MapService {
   Uri buildPlacesNearbyRequest() =>
       Uri.https('places.googleapis.com', '/v1/places:searchNearby');
 
+  /// UC-007: media URL for a photo resource name returned by
+  /// [buildPlacesNearbyRequest] (e.g. "places/xyz/photos/abc"). Same Places
+  /// Photo (New) endpoint the Discovery module already uses
+  /// (GooglePlacesService.photoUrl), keyed with this module's own
+  /// MAPS_API_KEY — the key that just fetched the place — rather than
+  /// reaching across modules for a second key that may not be configured.
+  /// The endpoint 302-redirects to the image, which CachedNetworkImage
+  /// follows natively.
+  String buildPlacePhotoUrl(String photoName, {int maxWidthPx = 800}) {
+    return 'https://places.googleapis.com/v1/$photoName/media'
+        '?maxWidthPx=$maxWidthPx&key=$_apiKey';
+  }
+
   /// Field mask keeps the response to only what [PlaceModel.fromJson] reads
   /// — the New Places API bills partly by field mask size, so an
   /// unnecessarily wide mask isn't just slower, it costs more.
@@ -120,6 +133,6 @@ class MapService {
     'X-Goog-FieldMask':
         'places.id,places.displayName,places.formattedAddress,'
         'places.location,places.rating,places.types,'
-        'places.currentOpeningHours.openNow',
+        'places.currentOpeningHours.openNow,places.photos',
   };
 }

@@ -163,6 +163,9 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
           distanceKm: route.distanceKm,
           estimatedDuration: Duration(minutes: route.durationMinutes),
           transportMode: _controller.selectedMode,
+          // Already resolved by the nearby search behind this pin — the
+          // Journey Preview's cover image costs no further Places call.
+          destinationPhotoUrl: widget.destination.photoUrl,
         ),
       );
 

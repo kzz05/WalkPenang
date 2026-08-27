@@ -82,6 +82,12 @@ void main() {
     );
     expect(promptTile, findsOneWidget);
 
+    // The summary body scrolls on a short surface now that it carries a
+    // destination photo, so bring the tile into view before tapping — the
+    // 800x600 test window is shorter than the phones this screen targets.
+    await tester.ensureVisible(promptTile);
+    await tester.pumpAndSettle();
+
     // Deliberately not settling/pumping further after the tap: the pushed
     // route's builder (EditProfileView, which touches ProfileStore/
     // FirebaseAuth) must not run in this Firebase-free test — only that

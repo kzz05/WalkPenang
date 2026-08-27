@@ -22,6 +22,13 @@ class ActiveWalkingUiData {
   /// fabricated figure.
   final double? kmCovered;
 
+  /// Straight-line metres to the destination on the journey's first fix,
+  /// and on the latest one. Both null until a tracking source supplies a
+  /// fix, which is why the bar reads empty rather than partially filled
+  /// before the journey has a position.
+  final double? initialMetresToDestination;
+  final double? metresToDestination;
+
   final int? minutesRemaining;
   final double? carbonSavedKg;
   final double? caloriesBurned;
@@ -35,6 +42,8 @@ class ActiveWalkingUiData {
     required this.elapsedTime,
     required this.plannedDistanceKm,
     this.kmCovered,
+    this.initialMetresToDestination,
+    this.metresToDestination,
     this.minutesRemaining,
     this.carbonSavedKg,
     this.caloriesBurned,
@@ -42,10 +51,29 @@ class ActiveWalkingUiData {
   });
 
   /// Progress fraction for the elapsed-time card's bar, clamped to 0..1.
-  /// 0 (never a fabricated partial fill) whenever [kmCovered] is unknown.
+  ///
+  /// How much closer the tourist is to the destination — *not* how far they
+  /// have walked. Those two came apart badly in the field: someone who had
+  /// wandered 0.5 km around a 0.6 km route saw a nearly full bar while still
+  /// standing 817 m from the destination, because this used to read
+  /// [kmCovered] / [plannedDistanceKm]. Cumulative movement only ever grows,
+  /// so the bar could never fall back when they walked the wrong way.
+  ///
+  /// Both distances are straight-line metres to the destination measured the
+  /// same way, so the journey opens at 0 (current == initial) rather than at
+  /// some fraction of a route distance measured along a different path.
+  ///
+  /// 0 (never a fabricated partial fill) while no fix has arrived. This bar
+  /// does not complete the journey — arrival is still verified separately
+  /// against [MapConstants.checkInThresholdMeters].
   double get progressFraction {
-    final covered = kmCovered;
-    if (covered == null || plannedDistanceKm <= 0) return 0.0;
-    return (covered / plannedDistanceKm).clamp(0.0, 1.0);
+    final start = initialMetresToDestination;
+    final current = metresToDestination;
+    if (start == null || current == null) return 0.0;
+    // Starting on top of the destination leaves nothing to divide by; there
+    // is no distance to close, so the answer is simply whether they are
+    // still there.
+    if (start <= 0) return current <= 0 ? 1.0 : 0.0;
+    return ((start - current) / start).clamp(0.0, 1.0);
   }
 }
