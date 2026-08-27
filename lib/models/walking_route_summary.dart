@@ -43,6 +43,14 @@ class WalkingRouteSummary {
   /// drive after the fact unless the journey records it.
   final TransportMode transportMode;
 
+  /// A loadable image URL for the destination's primary photo, or null when
+  /// the place has none (or came from a flow that carries no photo). Display
+  /// only — the Journey Preview's cover image (US-W02), which falls back to a
+  /// placeholder when this is null. Deliberately a plain URL string rather
+  /// than a photo reference or a Places model, so this class keeps its
+  /// promise to assume no particular map/place provider.
+  final String? destinationPhotoUrl;
+
   const WalkingRouteSummary({
     required this.destinationName,
     required this.areaLabel,
@@ -54,6 +62,7 @@ class WalkingRouteSummary {
     required this.destinationLatitude,
     required this.destinationLongitude,
     this.transportMode = TransportMode.walking,
+    this.destinationPhotoUrl,
   });
 
   /// Builds a summary from a destination the Map & GPS module resolved — the
@@ -73,6 +82,7 @@ class WalkingRouteSummary {
     required double distanceKm,
     required Duration estimatedDuration,
     TransportMode transportMode = TransportMode.walking,
+    String? destinationPhotoUrl,
   }) {
     return WalkingRouteSummary(
       destinationId: destinationId,
@@ -83,6 +93,7 @@ class WalkingRouteSummary {
       destinationLatitude: destinationLatitude,
       destinationLongitude: destinationLongitude,
       transportMode: transportMode,
+      destinationPhotoUrl: destinationPhotoUrl,
       // The real award for this distance, not a fixed number: the pre-walk
       // screen promises "earn N WalkPoints", and N has to be the figure the
       // reward module will actually grant on check-in.
