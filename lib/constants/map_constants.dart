@@ -55,4 +55,41 @@ class MapConstants {
   /// noisy enough that redrawing on every sample would look jittery and
   /// burn battery for no visible benefit.
   static const double compassHeadingChangeThresholdDegrees = 3.0;
+
+  /// UC-007: how far the camera must drift from the last search before the
+  /// pins on screen stop describing what the tourist is actually looking at,
+  /// and "Search this area" becomes worth offering.
+  static const double searchThisAreaThresholdMeters = 600;
+
+  // ── UC-M05 in-app navigation ──────────────────────────────────────────
+
+  /// While navigating, every fix matters — the puck is interpolated between
+  /// them, so a distance filter would just starve the interpolation and make
+  /// the marker jump. The browse screen keeps its 5 m filter for battery.
+  static const int navigationUpdateDistanceFilterMeters = 0;
+
+  /// How long the puck/camera takes to glide from the previous fix to the
+  /// new one. Clamped around the actual gap between fixes so the marker
+  /// neither races ahead of the tourist nor lags visibly behind them.
+  static const Duration minNavigationInterpolation = Duration(milliseconds: 350);
+  static const Duration maxNavigationInterpolation = Duration(milliseconds: 1600);
+
+  /// Cap on how often the interpolated puck/camera is pushed across the
+  /// platform channel. 25 fps reads as continuous motion while costing well
+  /// under half of what a per-frame (60 fps) update would.
+  static const Duration navigationRenderInterval = Duration(milliseconds: 40);
+
+  /// Below this ground speed, GPS course-over-ground is noise rather than a
+  /// direction (the tourist is standing at a crossing), so the puck falls
+  /// back to the magnetometer instead.
+  static const double navigationCourseMinSpeedMps = 0.6;
+
+  /// Camera tilt while navigating — a slight lean forward shows more of the
+  /// road ahead, the way a dedicated turn-by-turn app does.
+  static const double navigationCameraTilt = 45.0;
+
+  /// Fraction of the screen height the puck sits at while following, so most
+  /// of the map shows what's *ahead* rather than what's already behind.
+  /// Applied through `GoogleMap.padding`.
+  static const double navigationPuckScreenAnchor = 0.68;
 }

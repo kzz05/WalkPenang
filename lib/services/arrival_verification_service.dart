@@ -75,17 +75,28 @@ class LocationArrivalVerificationService implements ArrivalVerificationService {
     required double destinationLatitude,
     required double destinationLongitude,
   }) async {
-    final hasPermission = await _locationService.requestLocationPermission();
-    if (!hasPermission) {
-      // LocationService.requestLocationPermission() collapses "GPS service
-      // off" and "permission denied" into one false (a documented Map & GPS
-      // gap — see the module's own sprint report). Both surface here as
-      // permissionDenied until that module splits them; VerifyBlockReason
-      // has a distinct gpsDisabled state, but LocationService today gives
-      // no way to tell the two apart.
-      return const ArrivalCheckReading.failure(
-        ArrivalCheckStatus.permissionDenied,
-      );
+    final availability = await _locationService.requestLocationPermission();
+    switch (availability) {
+      case LocationAvailability.granted:
+        break;
+      // The Map & GPS module used to collapse "GPS service off" and
+      // "permission denied" into one false, so both surfaced here as
+      // permissionDenied and a tourist with location switched off was told to
+      // change a permission they had already granted. LocationAvailability
+      // now separates them, so the two finally reach VerifyBlockReason as the
+      // distinct states it always had.
+      case LocationAvailability.serviceDisabled:
+        return const ArrivalCheckReading.failure(
+          ArrivalCheckStatus.gpsUnavailable,
+        );
+      // Denied-forever still reports as permissionDenied: ArrivalCheckStatus
+      // has no separate value for it, and the two differ only in whether the
+      // app may ask again.
+      case LocationAvailability.permissionDenied:
+      case LocationAvailability.permissionDeniedForever:
+        return const ArrivalCheckReading.failure(
+          ArrivalCheckStatus.permissionDenied,
+        );
     }
 
     final GpsLocation location;
