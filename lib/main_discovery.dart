@@ -1,10 +1,11 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'package:walkpenang/controllers/discovery_controller.dart';
 import 'package:walkpenang/controllers/favorites_controller.dart';
 import 'package:walkpenang/firebase_options.dart';
-import 'package:walkpenang/services/firestore_place_repository.dart';
+import 'package:walkpenang/services/google_places_repository.dart';
 import 'package:walkpenang/services/place_repository.dart';
 import 'package:walkpenang/theme/app_theme.dart';
 import 'package:walkpenang/theme/discovery_theme.dart';
@@ -13,9 +14,10 @@ import 'package:walkpenang/views/favorites_view.dart';
 
 /// Development entry point for the Food & Attraction Discovery module.
 ///
-/// Boots straight into the feed, backed by the real 'places' Firestore
-/// collection (see tool/seed_places.dart) — no login, no onboarding — so
-/// the module can be built, tested and demoed on its own.
+/// Boots straight into the feed, backed by live Places API (New) data
+/// around Penang — no login, no onboarding — so the module can be built,
+/// tested and demoed on its own. Reviews/favorites still live in Firestore
+/// (see GooglePlacesRepository).
 ///
 /// Run it with:
 ///   flutter run -t lib/main_discovery.dart
@@ -24,6 +26,7 @@ import 'package:walkpenang/views/favorites_view.dart';
 void main() async {
   // shared_preferences and Firebase both need the binding before runApp.
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: '.env');
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const DiscoveryModuleApp());
 }
@@ -36,10 +39,10 @@ class DiscoveryModuleApp extends StatefulWidget {
 }
 
 class _DiscoveryModuleAppState extends State<DiscoveryModuleApp> {
-  /// Backed by Firestore's 'places' collection. Swap back to
+  /// Backed by live Places API (New) data around Penang. Swap to
   /// MockPlaceRepository() (pass `failureRate: 0.4`) to demo the error and
   /// retry states without touching the network.
-  late final PlaceRepository _repository = FirestorePlaceRepository();
+  late final PlaceRepository _repository = GooglePlacesRepository();
   late final DiscoveryController _discovery =
   DiscoveryController(repository: _repository);
   final FavoritesController _favorites = FavoritesController();
