@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:walkpenang/controllers/discovery_controller.dart';
 import 'package:walkpenang/controllers/favorites_controller.dart';
 import 'package:walkpenang/main_discovery.dart' show DiscoveryShell;
+import 'package:walkpenang/services/google_places_repository.dart';
 import 'package:walkpenang/services/place_repository.dart';
 import 'package:walkpenang/theme/app_theme.dart';
 import 'package:walkpenang/views/widgets/wp_components.dart';
@@ -24,10 +25,17 @@ class DiscoveryModuleView extends StatefulWidget {
 }
 
 class _DiscoveryModuleViewState extends State<DiscoveryModuleView> {
-  /// Seeded, in-process data. The module has no HTTP repository yet — swap
-  /// this for the real one once the Places-backed implementation lands, which
-  /// is the single change needed to put live data behind these screens.
-  late final PlaceRepository _repository = MockPlaceRepository();
+  /// Live Places API (New) data around Penang, the same source
+  /// main_discovery.dart uses when the module runs standalone. Reviews,
+  /// ratings and favourites still come from Firestore, keyed by Google's
+  /// place id — Google doesn't let the app write reviews back.
+  ///
+  /// This was MockPlaceRepository() until the Places-backed implementation
+  /// landed. The seed data it served used real Penang names, so the feed
+  /// looked plausible while showing invented details and reviews.
+  /// MockPlaceRepository is still the way to demo the error and retry states
+  /// offline — construct it with `failureRate: 0.4`.
+  late final PlaceRepository _repository = GooglePlacesRepository();
   late final DiscoveryController _discovery =
       DiscoveryController(repository: _repository);
   final FavoritesController _favorites = FavoritesController();
