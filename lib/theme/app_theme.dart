@@ -118,6 +118,30 @@ class AppColors {
   static const badgeNature = Color(0xFFC8DDB8);
   static const badgeMuseum = Color(0xFFDCCFE4);
   static const badgeShopping = Color(0xFFF3CFC6);
+
+  // ── Map & GPS accents ───────────────────────────────────────────────────
+  // Derived from the primary terracotta so map pins read as part of the same
+  // palette, while still separating food from attractions at a glance. These
+  // are map-specific marks, not new states — status colour still comes from
+  // the shared semantic set above.
+
+  /// Food establishment pins (UC-007).
+  static const foodPin = Color(0xFFD97742);
+
+  /// Tourist attraction pins (UC-007).
+  static const attractionPin = Color(0xFF3F8A8B);
+
+  /// Anything the Places response typed as neither food nor attraction.
+  static const otherPin = Color(0xFF8A7360);
+
+  /// Dark casing drawn under the route polyline so the terracotta line stays
+  /// readable over both the cream and the night map styles.
+  static const routeCasing = Color(0xFF3B2A1D);
+
+  /// Google's own location blue — reused for the live position puck and the
+  /// recentre control so the "that's me" affordance matches what tourists
+  /// already recognise from Google Maps itself.
+  static const navigationBlue = Color(0xFF4285F4);
 }
 
 /// Corner radii — SM 10 for cards and inputs, MD 50 for pills.

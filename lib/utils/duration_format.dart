@@ -7,3 +7,11 @@ String formatEtaMinutes(int minutes) {
   final remainingMinutes = minutes % 60;
   return remainingMinutes == 0 ? '${hours}h' : '${hours}h ${remainingMinutes}m';
 }
+
+/// Wall-clock arrival time in the 12-hour form Malaysian tourists read on
+/// bus timetables and Google Maps alike ("3:45 pm").
+String formatClockTime(DateTime time) {
+  final hour = time.hour % 12 == 0 ? 12 : time.hour % 12;
+  final minute = time.minute.toString().padLeft(2, '0');
+  return '$hour:$minute ${time.hour < 12 ? 'am' : 'pm'}';
+}
