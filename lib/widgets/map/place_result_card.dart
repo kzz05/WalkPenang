@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../models/place_model.dart';
@@ -37,6 +39,36 @@ class PlaceResultCard extends StatelessWidget {
     required this.onToggleFavorite,
     required this.onRoute,
   });
+
+  /// The height one card needs at the ambient text scaling, excluding the
+  /// strip's own padding.
+  ///
+  /// This lives beside the layout it measures rather than in map_view.dart,
+  /// because the version that lived there had to be mirrored a second time in
+  /// the widget test — and all three drifted. See [heightFor]'s test, which
+  /// checks this against the card's *measured* height rather than against
+  /// another copy of the formula.
+  ///
+  /// Each text size goes through the scaler at its own size. That is the whole
+  /// point: Android 14+ scales fonts on a curve that compresses large sizes
+  /// far more than small ones, so putting a single lumped number through
+  /// [TextScaler] — as `124 + scale(60)` used to — badly under-predicts how
+  /// much 10-15px text grows. On a real phone at the largest font setting,
+  /// `scale(60)` came back as 61: no growth at all, while the card itself grew
+  /// by a third and overflowed the box it had been given.
+  static double heightFor(TextScaler scaler) {
+    // The card's 12/10 padding, its 2px border top and bottom, and the two
+    // gaps between the three rows. None of this tracks the font size.
+    const double chrome = 12 + 10 + 4 + 7 + 9;
+
+    // The heart's 28px tap target and the Route button's 32px minimum floor
+    // these two rows until the text in them outgrows the control beside it.
+    final double headerRow = math.max(28, scaler.scale(10) * 1.5);
+    final double titleRows = 2 * scaler.scale(15) * 1.9;
+    final double actionRow = math.max(32, scaler.scale(12) * 1.5);
+
+    return chrome + headerRow + titleRows + actionRow;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,13 +112,23 @@ class PlaceResultCard extends StatelessWidget {
           children: [
             _buildHeaderRow(accent, isFood),
             const SizedBox(height: 7),
-            Text(
-              place.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: AppType.body.copyWith(
-                fontSize: 15,
-                color: isRouted ? AppColors.muted : AppColors.onPrimary,
+            // Flexible, so that if the strip ever hands this card less height
+            // than [heightFor] asked for, the title gives way instead of the
+            // Column overflowing. That distinction matters more than it
+            // sounds: an overflowing Column pushes the action row outside the
+            // card's bounds, and Flutter does not hit-test what falls outside
+            // a parent — which left the Route button visible but dead at the
+            // largest system font. A clipped second line is a far better
+            // failure than an unusable button.
+            Flexible(
+              child: Text(
+                place.name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppType.body.copyWith(
+                  fontSize: 15,
+                  color: isRouted ? AppColors.muted : AppColors.onPrimary,
+                ),
               ),
             ),
             const SizedBox(height: 9),
