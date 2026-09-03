@@ -101,6 +101,12 @@ class FakeRewardService implements RewardService {
 ///
 /// Emits [stepMeters] every [interval] up to [totalMeters], then stops —
 /// mirroring a tourist arriving rather than walking on forever.
+///
+/// The scripted walker heads straight at the destination, so the distance
+/// still to go is whatever is left of [totalMeters]. That drives the demo's
+/// progress bar from 0% to 100% without a GPS fix; the destination
+/// coordinates are ignored precisely because there is no real position to
+/// measure them against.
 class FakeJourneyProgressService implements JourneyProgressService {
   const FakeJourneyProgressService({
     this.stepMeters = 60,
@@ -113,12 +119,22 @@ class FakeJourneyProgressService implements JourneyProgressService {
   final Duration interval;
 
   @override
-  Stream<double> metresWalked() async* {
+  Stream<JourneyProgressUpdate> track({
+    required double destinationLatitude,
+    required double destinationLongitude,
+  }) async* {
     var walked = 0.0;
+    yield JourneyProgressUpdate(
+      metresWalked: walked,
+      metresToDestination: totalMeters,
+    );
     while (walked < totalMeters) {
       await Future<void>.delayed(interval);
       walked = (walked + stepMeters).clamp(0, totalMeters).toDouble();
-      yield walked;
+      yield JourneyProgressUpdate(
+        metresWalked: walked,
+        metresToDestination: totalMeters - walked,
+      );
     }
   }
 }
