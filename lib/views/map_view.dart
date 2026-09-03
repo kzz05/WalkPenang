@@ -68,19 +68,16 @@ class _MapPanelState extends State<MapPanel> {
   /// has to sit clear of it.
   ///
   /// Not a constant, because the card inside is mostly text and its height
-  /// therefore tracks the system font size. The fixed 152 this replaces was
-  /// already 18px short of the card at the *default* scale — every card on the
-  /// home map reported a bottom overflow — and fell 51px short at Android's
-  /// largest font setting. Measured across 320/360/412dp, the card's height
-  /// turns out not to depend on the screen width at all, only on the scale.
+  /// therefore tracks the system font size. Measured across 320/360/412dp, the
+  /// card's height turns out not to depend on the screen width at all, only on
+  /// the scale.
   ///
-  /// 124 covers everything fixed (the strip's own 8/16 padding, the card's
-  /// padding, the heart row's 28px tap target and the 32px Route button); the
-  /// remainder is the text-driven part, put through [TextScaler] rather than
-  /// multiplied, so Android 14's non-linear scaling is honoured instead of
-  /// assumed linear.
+  /// The card owns this measurement now — [PlaceResultCard.heightFor] — rather
+  /// than the strip carrying its own formula for someone else's layout. The 24
+  /// added here is the only part that is genuinely the strip's: its own 8 top
+  /// and 16 bottom padding, applied in [_ResultsStrip].
   double get _resultsStripHeight =>
-      124 + MediaQuery.textScalerOf(context).scale(60);
+      PlaceResultCard.heightFor(MediaQuery.textScalerOf(context)) + 24;
 
   /// Standing in for the built-in `myLocationEnabled` blue dot, which
   /// google_maps_flutter gives no control over — this custom marker is what
