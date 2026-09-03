@@ -54,16 +54,19 @@ IconData _pinGlyph(PlaceCategoryPin category) {
 
 /// A nearby-place pin (UC-007). [selected] draws the same pin larger and with
 /// a halo, so tapping a card in the results strip visibly picks out its pin
-/// on the map.
+/// on the map. [favorite] recolours the body red — keeping the category glyph
+/// — so the tourist can spot their saved places on the map at a glance.
 Future<BitmapDescriptor> buildPlacePinIcon({
   required PlaceCategoryPin category,
   bool selected = false,
+  bool favorite = false,
 }) {
+  final Color fill = favorite ? AppColors.danger : _pinColor(category);
   return _buildPin(
-    fill: _pinColor(category),
+    fill: fill,
     glyph: _pinGlyph(category),
     width: selected ? 54 : 40,
-    haloColor: selected ? _pinColor(category).withValues(alpha: 0.25) : null,
+    haloColor: selected ? fill.withValues(alpha: 0.25) : null,
   );
 }
 

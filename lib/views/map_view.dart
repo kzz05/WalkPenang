@@ -3,7 +3,9 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../constants/map_constants.dart';
 import '../constants/map_style.dart';
+import '../controllers/favorites_controller.dart';
 import '../controllers/map_controller.dart';
+import '../models/favorite_place.dart';
 import '../models/place_model.dart';
 import '../theme/app_theme.dart';
 import '../utils/distance_format.dart';
@@ -12,6 +14,7 @@ import '../utils/place_marker_icon.dart';
 import '../widgets/map/map_action_button.dart';
 import '../widgets/map/zoom_controls.dart';
 import 'route_summary_view.dart';
+import 'widgets/favorite_heart_button.dart';
 
 /// Screen for UC-007 (nearby pins), UC-008 (live location), and UC-009
 /// (Penang boundary). Tapping a pin hands off to [RouteSummaryView] for
@@ -46,7 +49,12 @@ class MapPanel extends StatefulWidget {
   /// own above it. Null for [MapView], which has an AppBar already.
   final Widget? topBarTrailing;
 
-  const MapPanel({super.key, this.topBarTrailing});
+  /// The app-wide favourites controller (from [HomeView]). When supplied, each
+  /// carousel card gets a heart wired to it. Null when the map is shown on its
+  /// own, in which case the cards have no heart.
+  final FavoritesController? favorites;
+
+  const MapPanel({super.key, this.topBarTrailing, this.favorites});
 
   @override
   State<MapPanel> createState() => _MapPanelState();
@@ -67,10 +75,11 @@ class _MapPanelState extends State<MapPanel> {
   /// [Marker.rotation] then does the work on every heading update.
   BitmapDescriptor? _locationPuckIcon;
 
-  /// One bitmap per pin variant, drawn once at startup rather than per marker
-  /// — a 20-result search would otherwise rasterise 20 near-identical images
-  /// on every refresh.
-  final Map<(PlaceCategoryPin, bool), BitmapDescriptor> _pinIcons = {};
+  /// One bitmap per pin variant, keyed by (category, selected, favorite) and
+  /// drawn once at startup rather than per marker — a 20-result search would
+  /// otherwise rasterise 20 near-identical images on every refresh, and a
+  /// favorite toggle would do it again.
+  final Map<(PlaceCategoryPin, bool, bool), BitmapDescriptor> _pinIcons = {};
 
   /// Tracked from [GoogleMap.onCameraMove] so compass-mode rotation can spin
   /// the map around wherever it's currently centred/zoomed, instead of jumping
@@ -102,13 +111,16 @@ class _MapPanelState extends State<MapPanel> {
 
   Future<void> _loadMarkerIcons() async {
     final puck = await buildLocationPuckIcon(withAccuracyCone: true);
-    final icons = <(PlaceCategoryPin, bool), BitmapDescriptor>{};
+    final icons = <(PlaceCategoryPin, bool, bool), BitmapDescriptor>{};
     for (final category in PlaceCategoryPin.values) {
       for (final selected in [false, true]) {
-        icons[(category, selected)] = await buildPlacePinIcon(
-          category: category,
-          selected: selected,
-        );
+        for (final favorite in [false, true]) {
+          icons[(category, selected, favorite)] = await buildPlacePinIcon(
+            category: category,
+            selected: selected,
+            favorite: favorite,
+          );
+        }
       }
     }
     if (!mounted) return;
@@ -198,6 +210,30 @@ class _MapPanelState extends State<MapPanel> {
     );
   }
 
+  /// Saves or unsaves the place from the carousel card. The shared controller
+  /// means the filled/empty heart is instantly correct here, on the Discovery
+  /// grid, and on the Favorites list.
+  void _toggleFavorite(PlaceModel place) {
+    final favorites = widget.favorites;
+    if (favorites == null) return;
+    final bool added =
+        favorites.toggle(FavoritePlace.fromPlaceModel(place));
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(added ? 'Added to Favorites' : 'Removed from Favorites'),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.only(
+            left: 16,
+            right: 16,
+            bottom: _resultsStripHeight + 24,
+          ),
+        ),
+      );
+  }
+
   /// UC-009 steps 4-6 / A2 -> UC-M04 step 1: validates the chosen pin, then
   /// hands off to the route summary screen.
   void _openRouteSummary(PlaceModel place) {
@@ -221,7 +257,7 @@ class _MapPanelState extends State<MapPanel> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: AnimatedBuilder(
-        animation: _controller,
+        animation: Listenable.merge(<Listenable?>[_controller, widget.favorites]),
         builder: (context, _) {
           final hasResults = _controller.nearbyPlaces.isNotEmpty;
 
@@ -289,6 +325,8 @@ class _MapPanelState extends State<MapPanel> {
                     places: _controller.nearbyPlaces,
                     selectedPlaceId: _controller.selectedPlaceId,
                     distanceOf: _controller.distanceToPlaceMeters,
+                    favorites: widget.favorites,
+                    onToggleFavorite: _toggleFavorite,
                     onPageChanged: (place) =>
                         _highlightPlace(place, scrollStrip: false),
                     onRoute: _openRouteSummary,
@@ -404,7 +442,13 @@ class _MapPanelState extends State<MapPanel> {
   Set<Marker> _buildMarkers() {
     final markers = _controller.nearbyPlaces.map((place) {
       final isSelected = place.placeId == _controller.selectedPlaceId;
-      final icon = _pinIcons[(pinCategoryFor(place.category), isSelected)];
+      final isFavorite =
+          widget.favorites?.isFavorite(place.placeId) ?? false;
+      final icon = _pinIcons[(
+        pinCategoryFor(place.category),
+        isSelected,
+        isFavorite,
+      )];
 
       return Marker(
         markerId: MarkerId(place.placeId),
@@ -672,6 +716,8 @@ class _ResultsStrip extends StatelessWidget {
   final List<PlaceModel> places;
   final String? selectedPlaceId;
   final double Function(PlaceModel) distanceOf;
+  final FavoritesController? favorites;
+  final ValueChanged<PlaceModel> onToggleFavorite;
   final ValueChanged<PlaceModel> onPageChanged;
   final ValueChanged<PlaceModel> onRoute;
 
@@ -681,6 +727,8 @@ class _ResultsStrip extends StatelessWidget {
     required this.places,
     required this.selectedPlaceId,
     required this.distanceOf,
+    required this.favorites,
+    required this.onToggleFavorite,
     required this.onPageChanged,
     required this.onRoute,
   });
@@ -702,6 +750,9 @@ class _ResultsStrip extends StatelessWidget {
               place: place,
               distanceMeters: distanceOf(place),
               isSelected: place.placeId == selectedPlaceId,
+              isFavorite: favorites?.isFavorite(place.placeId) ?? false,
+              onToggleFavorite:
+                  favorites == null ? null : () => onToggleFavorite(place),
               onRoute: () => onRoute(place),
             ),
           );
@@ -715,12 +766,16 @@ class _PlaceCard extends StatelessWidget {
   final PlaceModel place;
   final double distanceMeters;
   final bool isSelected;
+  final bool isFavorite;
+  final VoidCallback? onToggleFavorite;
   final VoidCallback onRoute;
 
   const _PlaceCard({
     required this.place,
     required this.distanceMeters,
     required this.isSelected,
+    required this.isFavorite,
+    required this.onToggleFavorite,
     required this.onRoute,
   });
 
@@ -782,6 +837,15 @@ class _PlaceCard extends StatelessWidget {
                       ),
                     ],
                   ),
+                if (onToggleFavorite != null) ...[
+                  const SizedBox(width: 6),
+                  FavoriteHeartButton(
+                    isFavorite: isFavorite,
+                    onToggle: onToggleFavorite!,
+                    size: 18,
+                    dense: true,
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 6),

@@ -1,25 +1,36 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:walkpenang/models/favorite_place.dart';
 import 'package:walkpenang/models/place.dart';
 import 'package:walkpenang/services/favorites_store.dart';
 
-/// T-FD04.1 / T-FD04.2 — the saved-places list, persisted across restarts.
+/// T-FD04.1 / T-FD04.2 — the one saved-places list for the whole app.
 ///
-/// Writes are fire-and-forget: the in-memory state updates immediately so the
-/// heart icon never lags, and the disk write happens behind it. If the write
-/// fails the UI is already correct, and the next toggle retries the whole set.
+/// A single instance is created by [HomeView] and passed to every screen that
+/// shows a heart (the map carousel, the Discovery grid, the place detail
+/// screen) and to the Favorites list itself, so a toggle anywhere is reflected
+/// everywhere with no reload.
+///
+/// The list is the source of truth: [count] is `favorites.length`, never a
+/// separate id set, so the Favorites header can't drift out of sync with the
+/// rows it shows.
+///
+/// Writes are fire-and-forget: in-memory state updates immediately so the heart
+/// never lags, and the disk write happens behind it. If the write fails the UI
+/// is already correct and the next toggle rewrites the whole list.
 class FavoritesController extends ChangeNotifier {
   FavoritesController({FavoritesStore? store})
       : _store = store ?? const SharedPrefsFavoritesStore();
 
   final FavoritesStore _store;
 
-  final List<Place> _saved = <Place>[];
-  final Map<String, DateTime> _savedAt = <String, DateTime>{};
+  /// Newest first.
+  final List<FavoritePlace> _favorites = <FavoritePlace>[];
 
-  /// IDs restored from disk whose Place object hasn't been seen yet. The feed
-  /// calls [hydrate] as pages load, which moves them into [_saved].
-  final Set<String> _pendingIds = <String>{};
+  /// Session-only cache of full [Place] objects the user has browsed, keyed by
+  /// id. Lets the Favorites list open the rich detail screen for a place seen
+  /// this session. Never affects [count] — it's purely a nav convenience.
+  final Map<String, Place> _fullPlaces = <String, Place>{};
 
   bool _loaded = false;
   bool _disposed = false;
@@ -28,95 +39,81 @@ class FavoritesController extends ChangeNotifier {
   /// empty state over favourites that are about to appear.
   bool get isLoaded => _loaded;
 
-  /// Newest first, matching the mockup's ordering.
-  List<Place> get places => List<Place>.unmodifiable(_saved);
+  List<FavoritePlace> get favorites => List<FavoritePlace>.unmodifiable(_favorites);
 
-  /// Counts restored-but-not-yet-hydrated IDs too, so the badge is correct
-  /// immediately on launch.
-  int get count => _saved.length + _pendingIds.length;
+  int get count => _favorites.length;
 
-  bool isFavorite(Place place) =>
-      _savedAt.containsKey(place.id) || _pendingIds.contains(place.id);
+  bool isFavorite(String placeId) =>
+      _favorites.any((FavoritePlace f) => f.id == placeId);
 
-  DateTime? savedAt(Place place) => _savedAt[place.id];
-
-  /// Reads the persisted IDs. Call once at startup.
+  /// Reads the persisted favourites. Call once at startup.
   Future<void> load() async {
-    final Set<String> ids = await _store.loadIds();
+    final List<FavoritePlace> saved = await _store.load();
     if (_disposed) return;
-    _pendingIds
+    _favorites
       ..clear()
-      ..addAll(ids);
+      ..addAll(saved);
+    _sortNewestFirst();
     _loaded = true;
     notifyListeners();
   }
 
-  /// Attaches full Place objects to IDs restored from disk.
-  ///
-  /// The feed calls this with each page it loads. Places the user saved but
-  /// which no longer appear in any result stay pending — they're counted but
-  /// can't be rendered, which is the honest outcome for a deleted listing.
-  void hydrate(Iterable<Place> candidates) {
-    if (_pendingIds.isEmpty) return;
-
-    bool changed = false;
-    for (final Place place in candidates) {
-      if (_pendingIds.remove(place.id)) {
-        _saved.add(place);
-        _savedAt[place.id] = DateTime.fromMillisecondsSinceEpoch(0);
-        changed = true;
-      }
-    }
-
-    if (changed) notifyListeners();
-  }
-
   /// Returns true if the place ended up saved, false if it was removed — the
   /// caller uses this to pick the right toast message.
-  bool toggle(Place place) {
-    if (isFavorite(place)) {
-      remove(place);
+  bool toggle(FavoritePlace place) {
+    if (isFavorite(place.id)) {
+      remove(place.id);
       return false;
     }
     add(place);
     return true;
   }
 
-  void add(Place place) {
-    if (isFavorite(place)) return;
-    _saved.insert(0, place);
-    _savedAt[place.id] = DateTime.now();
+  void add(FavoritePlace place) {
+    if (isFavorite(place.id)) return;
+    _favorites.insert(0, place);
     notifyListeners();
     _persist();
   }
 
-  void remove(Place place) {
-    if (!isFavorite(place)) return;
-    _saved.removeWhere((Place p) => p.id == place.id);
-    _savedAt.remove(place.id);
-    _pendingIds.remove(place.id);
+  void remove(String placeId) {
+    final int before = _favorites.length;
+    _favorites.removeWhere((FavoritePlace f) => f.id == placeId);
+    if (_favorites.length == before) return;
     notifyListeners();
     _persist();
   }
 
   void clear() {
-    if (_saved.isEmpty && _pendingIds.isEmpty) return;
-    _saved.clear();
-    _savedAt.clear();
-    _pendingIds.clear();
+    if (_favorites.isEmpty) return;
+    _favorites.clear();
     notifyListeners();
     _persist();
   }
 
-  /// Everything currently saved, hydrated or not.
-  Set<String> get savedIds => <String>{..._savedAt.keys, ..._pendingIds};
+  /// Opportunistically remembers full [Place] objects as the Discovery feed
+  /// loads them, so [fullPlace] can hand one back to the Favorites list. Does
+  /// not touch the favourites list or [count].
+  void rememberPlaces(Iterable<Place> places) {
+    for (final Place place in places) {
+      _fullPlaces[place.id] = place;
+    }
+  }
+
+  /// The full [Place] for [placeId] if it's been seen this session, else null.
+  Place? fullPlace(String placeId) => _fullPlaces[placeId];
+
+  void _sortNewestFirst() {
+    _favorites.sort((FavoritePlace a, FavoritePlace b) =>
+        b.savedAt.compareTo(a.savedAt));
+  }
 
   Future<void> _persist() async {
     try {
-      await _store.saveIds(savedIds);
+      await _store.save(List<FavoritePlace>.of(_favorites));
     } catch (error) {
-      // Persistence is best-effort; in-memory state is already correct and
-      // the next toggle rewrites the whole set.
+      // Persistence is best-effort; in-memory state is already correct and the
+      // next toggle rewrites the whole list.
       debugPrint('Failed to persist favourites: $error');
     }
   }

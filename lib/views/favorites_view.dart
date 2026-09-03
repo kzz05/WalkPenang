@@ -4,12 +4,16 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import 'package:walkpenang/controllers/favorites_controller.dart';
-import 'package:walkpenang/models/place.dart';
+import 'package:walkpenang/models/favorite_place.dart';
 import 'package:walkpenang/services/place_repository.dart';
 import 'package:walkpenang/theme/app_theme.dart';
 import 'package:walkpenang/views/place_detail_view.dart';
 
 /// Screen 04 — "My Favorites" (T-FD04.2).
+///
+/// The list and the header count both read [FavoritesController.favorites] — a
+/// single list of [FavoritePlace] — so the header can't say one number while
+/// the list shows another.
 class FavoritesView extends StatelessWidget {
   const FavoritesView({
     super.key,
@@ -27,50 +31,52 @@ class FavoritesView extends StatelessWidget {
         child: ListenableBuilder(
           listenable: favorites,
           builder: (BuildContext context, _) {
-            final List<Place> places = favorites.places;
+            final List<FavoritePlace> places = favorites.favorites;
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                  child: Text(
-                    'My Favorites (${favorites.count})',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.onPrimary,
-                    ),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
+                  child: Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          'My Favorites (${favorites.count})',
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.onPrimary,
+                          ),
+                        ),
+                      ),
+                      if (favorites.count > 0)
+                        TextButton(
+                          onPressed: () => _confirmClearAll(context),
+                          child: Text('Clear all', style: AppType.button),
+                        ),
+                    ],
                   ),
                 ),
                 Expanded(
                   child: places.isEmpty
                       ? const _EmptyFavorites()
                       : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                    itemCount: places.length,
-                    separatorBuilder:
-                        (BuildContext context, int index) =>
-                    const SizedBox(height: 10),
-                    itemBuilder: (BuildContext context, int index) {
-                      final Place place = places[index];
-                      return _FavoriteTile(
-                        key: ValueKey<String>(place.id),
-                        place: place,
-                        savedAt: favorites.savedAt(place),
-                        onRemove: () => _remove(context, place),
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (BuildContext context) =>
-                                PlaceDetailView(
-                                  place: place,
-                                  favorites: favorites,
-                                  repository: repository,
-                                ),
-                          ),
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                          itemCount: places.length,
+                          separatorBuilder:
+                              (BuildContext context, int index) =>
+                                  const SizedBox(height: 10),
+                          itemBuilder: (BuildContext context, int index) {
+                            final FavoritePlace place = places[index];
+                            return _FavoriteTile(
+                              key: ValueKey<String>(place.id),
+                              place: place,
+                              onRemove: () => _remove(context, place),
+                              onTap: () => _openDetail(context, place),
+                            );
+                          },
                         ),
-                      );
-                    },
-                  ),
                 ),
               ],
             );
@@ -80,8 +86,57 @@ class FavoritesView extends StatelessWidget {
     );
   }
 
-  void _remove(BuildContext context, Place place) {
-    favorites.remove(place);
+  void _openDetail(BuildContext context, FavoritePlace place) {
+    // Use the full Place if the user has browsed it this session; otherwise a
+    // minimal stand-in the detail screen enriches once its own fetch lands.
+    final resolved = favorites.fullPlace(place.id) ?? place.toPlace();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => PlaceDetailView(
+          place: resolved,
+          favorites: favorites,
+          repository: repository,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmClearAll(BuildContext context) async {
+    final bool ok = await showDialog<bool>(
+          context: context,
+          builder: (BuildContext ctx) => AlertDialog(
+            title: const Text('Clear all favorites?'),
+            content: const Text(
+              'This removes every saved place. This cannot be undone.',
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text('Cancel', style: AppType.button),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.danger,
+                  foregroundColor: AppColors.card,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: AppRadius.mdAll,
+                  ),
+                ),
+                child: Text('Clear all', style: AppType.button),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (ok) {
+      favorites.clear();
+    }
+  }
+
+  void _remove(BuildContext context, FavoritePlace place) {
+    favorites.remove(place.id);
 
     // Captured before the callback: reaching for ScaffoldMessenger.of inside
     // onPressed risks a stale context once the list has rebuilt.
@@ -90,7 +145,7 @@ class FavoritesView extends StatelessWidget {
     messenger.clearSnackBars();
 
     final ScaffoldFeatureController<SnackBar, SnackBarClosedReason> controller =
-    messenger.showSnackBar(
+        messenger.showSnackBar(
       SnackBar(
         content: Text('Removed ${place.name}'),
         // Effectively disabled — the Timer below owns the lifetime instead.
@@ -115,23 +170,21 @@ class _FavoriteTile extends StatelessWidget {
   const _FavoriteTile({
     super.key,
     required this.place,
-    required this.savedAt,
     required this.onRemove,
     required this.onTap,
   });
 
-  final Place place;
-  final DateTime? savedAt;
+  final FavoritePlace place;
   final VoidCallback onRemove;
   final VoidCallback onTap;
 
-  /// 'Food · 2 days ago'. Favourites restored from disk have no real
-  /// timestamp, so they fall back to just the category.
+  /// 'Food · 2 days ago'. A favourite with no real timestamp falls back to
+  /// just the category.
   String _subtitle() {
-    if (savedAt == null || savedAt!.millisecondsSinceEpoch == 0) {
-      return place.category.sheetLabel;
+    if (place.savedAt.millisecondsSinceEpoch == 0) {
+      return place.categoryLabel;
     }
-    return '${place.category.chipLabel} · ${_ago(savedAt!)}';
+    return '${place.categoryLabel} · ${_ago(place.savedAt)}';
   }
 
   static String _ago(DateTime time) {
@@ -181,28 +234,28 @@ class _FavoriteTile extends StatelessWidget {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(10),
                   child: CachedNetworkImage(
-                    imageUrl: place.imageUrl,
+                    imageUrl: place.photoUrl ?? '',
                     width: 52,
                     height: 52,
                     fit: BoxFit.cover,
                     placeholder: (BuildContext context, String url) =>
                         Container(
-                          width: 52,
-                          height: 52,
-                          color: AppColors.background,
-                        ),
+                      width: 52,
+                      height: 52,
+                      color: AppColors.background,
+                    ),
                     errorWidget:
                         (BuildContext context, String url, Object error) =>
-                        Container(
-                          width: 52,
-                          height: 52,
-                          color: place.category.color,
-                          child: const Icon(
-                            Icons.photo_outlined,
-                            size: 18,
-                            color: AppColors.muted,
-                          ),
-                        ),
+                            Container(
+                      width: 52,
+                      height: 52,
+                      color: AppColors.backgroundDeep,
+                      child: const Icon(
+                        Icons.photo_outlined,
+                        size: 18,
+                        color: AppColors.muted,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
