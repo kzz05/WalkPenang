@@ -59,11 +59,19 @@ class MapActionButton extends StatelessWidget {
               Icon(icon, color: foreground, size: 22),
               if (hasLabel) ...[
                 const SizedBox(width: 8),
-                Text(
-                  label!,
-                  style: AppType.button.copyWith(
-                    color: foreground,
-                    fontSize: 13,
+                // Flexible, because this pill is centred inside the full map
+                // width: at a large text scale "Search this area" is wider
+                // than a narrow screen, and a MainAxisSize.min Row would
+                // overflow rather than let the label give way.
+                Flexible(
+                  child: Text(
+                    label!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.button.copyWith(
+                      color: foreground,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               ],

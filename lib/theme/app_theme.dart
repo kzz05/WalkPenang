@@ -134,6 +134,15 @@ class AppColors {
   /// Anything the Places response typed as neither food nor attraction.
   static const otherPin = Color(0xFF8A7360);
 
+  /// A place the tourist has already routed to. Desaturated on purpose: the
+  /// pins and cards they have dealt with should recede behind the ones they
+  /// have not, without disappearing.
+  static const routedPin = Color(0xFF9E9A94);
+
+  /// Card fill for that same "already dealt with" state — a hair off the
+  /// white card, so the row reads as settled rather than disabled.
+  static const routedSurface = Color(0xFFF1EFEC);
+
   /// Dark casing drawn under the route polyline so the terracotta line stays
   /// readable over both the cream and the night map styles.
   static const routeCasing = Color(0xFF3B2A1D);

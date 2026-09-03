@@ -92,4 +92,12 @@ class MapConstants {
   /// of the map shows what's *ahead* rather than what's already behind.
   /// Applied through `GoogleMap.padding`.
   static const double navigationPuckScreenAnchor = 0.68;
+
+  /// UC-M04: how many "already routed" places are remembered between sessions.
+  ///
+  /// Unlike favourites, this list grows on its own — every route the tourist
+  /// looks at adds to it and nothing ever removes one — so it needs a ceiling.
+  /// Past this many, the oldest entries are dropped: a place routed to
+  /// hundreds of searches ago is no longer what the grey pin is telling them.
+  static const int maxRememberedRoutedPlaces = 200;
 }
