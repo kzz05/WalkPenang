@@ -32,10 +32,15 @@ class PreWalkSummaryView extends StatefulWidget {
   /// then falls back to the external Google Maps hand-off.
   final void Function(BuildContext)? onOpenNavigation;
 
+  /// Forwarded straight to [JourneyFlowView] — see its doc comment. Supplied
+  /// by route_summary_view so the Map module hears about a genuine arrival.
+  final VoidCallback? onJourneyCompleted;
+
   const PreWalkSummaryView({
     super.key,
     required this.controller,
     this.onOpenNavigation,
+    this.onJourneyCompleted,
   });
 
   @override
@@ -58,6 +63,7 @@ class _PreWalkSummaryViewState extends State<PreWalkSummaryView> {
           builder: (_) => JourneyFlowView(
             walkingController: controller,
             onOpenNavigation: widget.onOpenNavigation,
+            onJourneyCompleted: widget.onJourneyCompleted,
           ),
         ),
       );

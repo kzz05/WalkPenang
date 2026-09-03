@@ -485,9 +485,13 @@ class MapController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// UC-M04 steps 3-5: called once the route summary has actually resolved a
-  /// route for [placeId], which is the point the place stops being "somewhere
-  /// I might go" and becomes "somewhere I have checked".
+  /// UC-M05: called once a walking journey to [placeId] has actually
+  /// completed — GPS arrival verified — which is the point the place stops
+  /// being "somewhere I might go" and becomes "somewhere I have been".
+  ///
+  /// Deliberately not called merely because a route was previewed, and not
+  /// called for a journey that was started and then ended early: neither of
+  /// those means the tourist actually went there.
   void markPlaceRouted(String placeId) {
     if (!_routedPlaceIds.add(placeId)) return;
     _trimToCap();

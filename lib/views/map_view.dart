@@ -291,9 +291,10 @@ class _MapPanelState extends State<MapPanel> {
         builder: (_) => RouteSummaryView(
           destination: place,
           origin: LatLng(origin.latitude, origin.longitude),
-          // UC-M04: grey this place out the moment its route resolves, so the
-          // map the tourist comes back to already shows what they checked.
-          onRouteReady: () => _controller.markPlaceRouted(place.placeId),
+          // UC-M05: grey this place out only once the tourist has actually
+          // completed a journey there — not merely previewed a route to it,
+          // and not if a started journey is ended early.
+          onJourneyCompleted: () => _controller.markPlaceRouted(place.placeId),
         ),
       ),
     );
