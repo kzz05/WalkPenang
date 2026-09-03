@@ -56,15 +56,28 @@ IconData _pinGlyph(PlaceCategoryPin category) {
 /// a halo, so tapping a card in the results strip visibly picks out its pin
 /// on the map. [favorite] recolours the body red — keeping the category glyph
 /// — so the tourist can spot their saved places on the map at a glance.
+/// [routed] greys the body for a place the tourist has already got a route to
+/// (UC-M04), so dealt-with pins recede behind the ones still worth a look.
 Future<BitmapDescriptor> buildPlacePinIcon({
   required PlaceCategoryPin category,
   bool selected = false,
   bool favorite = false,
+  bool routed = false,
 }) {
-  final Color fill = favorite ? AppColors.danger : _pinColor(category);
+  // Order matters: "already routed" outranks "saved", because it is the more
+  // recent thing the tourist did to this place. A favorite they have just
+  // priced up should still read as dealt with.
+  final Color fill = routed
+      ? AppColors.routedPin
+      : favorite
+          ? AppColors.danger
+          : _pinColor(category);
   return _buildPin(
     fill: fill,
-    glyph: _pinGlyph(category),
+    // A tick instead of the category glyph: at pin size the colour change
+    // alone is easy to miss against a warm map, and the two together read as
+    // "done" at a glance.
+    glyph: routed ? Icons.check_rounded : _pinGlyph(category),
     width: selected ? 54 : 40,
     haloColor: selected ? fill.withValues(alpha: 0.25) : null,
   );
