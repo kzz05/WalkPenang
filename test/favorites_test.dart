@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:walkpenang/controllers/favorites_controller.dart';
 import 'package:walkpenang/models/favorite_place.dart';
 import 'package:walkpenang/models/place.dart';
+import 'package:walkpenang/models/place_model.dart';
 import 'package:walkpenang/services/favorites_store.dart';
 
 /// T-FD04.3 — favouriting toggle states, empty list, persistent storage sync.
@@ -274,6 +275,42 @@ void main() {
       expect(place.id, 'p1');
       expect(place.category, PlaceCategory.food);
       expect(place.rating, 4.0);
+    });
+  });
+
+  group('FavoritePlace.fromPlaceModel', () {
+    // Regression cover: a favourite saved from the map's carousel card went
+    // through this factory without carrying photoUrl across, so the same
+    // place showed its real photo on the Discovery grid but a broken-image
+    // placeholder on the Favorites page — the two sources disagreeing about
+    // one place is exactly what fromPlaceModel exists to prevent.
+    test('carries the photo across from the map\'s PlaceModel', () {
+      final PlaceModel place = PlaceModel(
+        placeId: 'p1',
+        name: 'Place p1',
+        category: 'attraction',
+        latitude: 5.4,
+        longitude: 100.3,
+        photoUrl: 'https://example.com/p1.jpg',
+      );
+
+      final FavoritePlace favorite = FavoritePlace.fromPlaceModel(place);
+
+      expect(favorite.photoUrl, 'https://example.com/p1.jpg');
+    });
+
+    test('leaves photoUrl null for a place with no photo', () {
+      final PlaceModel place = PlaceModel(
+        placeId: 'p2',
+        name: 'Place p2',
+        category: 'food',
+        latitude: 5.4,
+        longitude: 100.3,
+      );
+
+      final FavoritePlace favorite = FavoritePlace.fromPlaceModel(place);
+
+      expect(favorite.photoUrl, isNull);
     });
   });
 }

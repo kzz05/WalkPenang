@@ -89,6 +89,7 @@ class FavoritePlace {
       longitude: place.longitude,
       rating: place.rating,
       address: place.address,
+      photoUrl: place.photoUrl,
     );
   }
 
