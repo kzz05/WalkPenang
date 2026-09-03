@@ -25,21 +25,21 @@ class RouteSummaryView extends StatefulWidget {
   final PlaceModel destination;
   final LatLng origin;
 
-  /// UC-M04 steps 3-4: fired once, as soon as any travel mode comes back with
-  /// a usable route. [MapPanel] uses it to grey out the pin and card for a
-  /// place the tourist has now priced up, so the map they return to shows
-  /// which options they have already checked.
+  /// UC-M05: fired once the tourist has actually completed a walking journey
+  /// to this destination — forwarded through [PreWalkSummaryView] and
+  /// [JourneyFlowView] to [MapPanel], which uses it to grey out the pin and
+  /// card once there is something real to show: an arrival, not merely a
+  /// route the tourist glanced at.
   ///
-  /// A callback rather than a pop result: the route resolves while the
-  /// tourist is still on this screen, and they may leave it by navigating
-  /// onward rather than by popping back.
-  final VoidCallback? onRouteReady;
+  /// A callback rather than a pop result: the journey plays out several
+  /// screens deep, and the tourist leaves this screen long before it fires.
+  final VoidCallback? onJourneyCompleted;
 
   const RouteSummaryView({
     super.key,
     required this.destination,
     required this.origin,
-    this.onRouteReady,
+    this.onJourneyCompleted,
   });
 
   @override
@@ -85,27 +85,9 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
     });
   }
 
-  /// Guards [RouteSummaryView.onRouteReady] so it fires once per screen — the
-  /// tourist switching between mode tabs afterwards is not new information.
-  bool _reportedRouteReady = false;
-
   void _onControllerChanged() {
     _frameRouteIfNeeded();
-    _reportRouteReadyOnce();
     if (mounted) setState(() {});
-  }
-
-  void _reportRouteReadyOnce() {
-    final report = widget.onRouteReady;
-    if (_reportedRouteReady || report == null || _controller.isLoading) return;
-    // UC-M04 A1: a mode that returned nothing does not count — the place is
-    // only "routed" once at least one mode actually produced a route.
-    final hasUsableRoute = _controller.routesByMode.values.any(
-      (route) => route.routeFound,
-    );
-    if (!hasUsableRoute) return;
-    _reportedRouteReady = true;
-    report();
   }
 
   /// UC-M04 step 5: frames the whole route rather than dropping the tourist at
@@ -202,6 +184,7 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
       MaterialPageRoute(
         builder: (_) => PreWalkSummaryView(
           controller: walkingController,
+          onJourneyCompleted: widget.onJourneyCompleted,
           // UC-M05 from inside a journey: the Active Walking screen's "Open
           // Navigation" opens WalkPenang's own turn-by-turn view rather than
           // handing the tourist to the Google Maps app. The route and place

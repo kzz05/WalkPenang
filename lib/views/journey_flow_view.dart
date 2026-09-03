@@ -43,10 +43,20 @@ class JourneyFlowView extends StatefulWidget {
   /// deep link.
   final void Function(BuildContext)? onOpenNavigation;
 
+  /// Fired once the journey has genuinely finished — GPS check-in verified
+  /// and [JourneyStep.completed] reached — supplied by route_summary_view so
+  /// the Map module can grey out this destination's pin.
+  ///
+  /// Deliberately not fired by [_handleEndJourneyRequest]: ending a journey
+  /// early is the one case this must *not* fire for, since the tourist never
+  /// actually arrived.
+  final VoidCallback? onJourneyCompleted;
+
   const JourneyFlowView({
     super.key,
     required this.walkingController,
     this.onOpenNavigation,
+    this.onJourneyCompleted,
   });
 
   @override
@@ -93,7 +103,14 @@ class _JourneyFlowViewState extends State<JourneyFlowView> {
   /// "Back to Explore" / the completed screen's own back arrow both return
   /// the tourist to the app's root (Home), matching the Figma copy — there
   /// is no "previous state" to go back to once a journey is recorded.
+  ///
+  /// This is also the one place [onJourneyCompleted] fires: every path that
+  /// reaches here does so from [JourneyStep.completed] (see
+  /// [_handleSystemBack] and the `completed` case below) — the tourist's GPS
+  /// arrival was already verified before this screen showed up, regardless
+  /// of whether the reward write that follows it succeeds.
   void _returnHome() {
+    widget.onJourneyCompleted?.call();
     Navigator.of(context, rootNavigator: true)
         .popUntil((route) => route.isFirst);
   }
