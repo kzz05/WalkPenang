@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../controllers/walking_controller.dart';
@@ -83,7 +84,7 @@ class _PreWalkSummaryViewState extends State<PreWalkSummaryView> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _Header(onBack: () => Navigator.of(context).pop()),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 18),
                   Expanded(
                     child: summary == null
                         ? const _MissingRouteData()
@@ -94,7 +95,10 @@ class _PreWalkSummaryViewState extends State<PreWalkSummaryView> {
                             ),
                           ),
                   ),
-                  const SizedBox(height: 24),
+                  // Start Journey sits outside the scroll view, so this gap
+                  // is always clear space between it and the reward note —
+                  // no summary content can slide under the button.
+                  const SizedBox(height: 20),
                   _StartJourneyButton(
                     enabled: summary != null && !_isStarting,
                     loading: _isStarting,
@@ -122,11 +126,18 @@ class _Header extends StatelessWidget {
       children: [
         WpBackButton(onBack: onBack),
         const SizedBox(width: 12),
-        Text(
-          'Journey Preview',
-          style: AppType.heading.copyWith(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
+        // Expanded rather than a bare Text: the title is the only unbounded
+        // child of this Row, so on a narrow phone (or with a larger system
+        // font scale) it would otherwise overflow the row instead of wrapping.
+        Expanded(
+          child: Text(
+            'Journey Preview',
+            style: AppType.heading.copyWith(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
@@ -205,15 +216,17 @@ class _SummaryContent extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _DestinationPhoto(photoUrl: summary.destinationPhotoUrl),
+        const SizedBox(height: 12),
         _DestinationHero(summary: summary),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
         _StatsGrid(
           summary: summary,
           carbonSavedKg: carbonSavedKg,
           caloriesBurned: controller.caloriesBurned,
           onUpdateWeight: () => _openEditProfile(context),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
         _RewardNote(summary: summary),
       ],
     );
@@ -228,17 +241,20 @@ class _DestinationHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Height comes from the pill/name/address themselves. It used to be a
+    // fixed 160 with MainAxisAlignment.end, which bottom-aligned ~100 px of
+    // content and left the rest as dead space above the pill — and would
+    // have overflowed vertically on a destination name long enough to wrap.
     return Container(
       width: double.infinity,
-      height: 160,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: BoxDecoration(
         color: AppColors.primary,
         borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -269,11 +285,86 @@ class _DestinationHero extends StatelessWidget {
               fontSize: 20,
               fontWeight: FontWeight.w700,
             ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 6),
-          WpMonoLabel(summary.areaLabel, size: 10),
+          // Google's formattedAddress runs long; two lines keeps the card
+          // compact without shrinking the type.
+          WpMonoLabel(summary.areaLabel, size: 10, maxLines: 2),
         ],
       ),
+    );
+  }
+}
+
+/// The destination cover image — one photo, so the tourist can see where
+/// they are walking to before setting off.
+///
+/// The URL rides in on [WalkingRouteSummary.destinationPhotoUrl], already
+/// resolved by the nearby search that produced the pin, so this widget
+/// issues no Places request of its own. [CachedNetworkImage] gives disk
+/// caching plus the two states that matter offline — the same treatment the
+/// Discovery module's cards use. Every state occupies the identical fixed
+/// height, so the layout never jumps as bytes arrive.
+class _DestinationPhoto extends StatelessWidget {
+  /// Null for a destination with no photo, or one that reached the journey
+  /// through a flow that carries none — the placeholder shows instead.
+  final String? photoUrl;
+
+  const _DestinationPhoto({required this.photoUrl});
+
+  /// Scales with the screen so the whole summary still fits without
+  /// scrolling on a normal phone, and stays reachable on a short one.
+  static double _heightFor(BuildContext context) =>
+      (MediaQuery.sizeOf(context).height * 0.17).clamp(112.0, 140.0);
+
+  @override
+  Widget build(BuildContext context) {
+    final height = _heightFor(context);
+    final url = photoUrl;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadius.sm),
+      child: SizedBox(
+        width: double.infinity,
+        height: height,
+        child: url == null || url.isEmpty
+            ? const _DestinationPhotoPlaceholder()
+            : CachedNetworkImage(
+                imageUrl: url,
+                fit: BoxFit.cover,
+                fadeInDuration: const Duration(milliseconds: 200),
+                placeholder: (context, _) => const _DestinationPhotoPlaceholder(
+                  showIcon: false,
+                ),
+                errorWidget: (context, _, __) =>
+                    const _DestinationPhotoPlaceholder(),
+              ),
+      ),
+    );
+  }
+}
+
+/// Neutral sand fill standing in for a missing, loading, or failed photo —
+/// never a broken-image glyph.
+class _DestinationPhotoPlaceholder extends StatelessWidget {
+  final bool showIcon;
+
+  const _DestinationPhotoPlaceholder({this.showIcon = true});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.backgroundDeep,
+      alignment: Alignment.center,
+      child: showIcon
+          ? const Icon(
+              Icons.place_outlined,
+              size: 28,
+              color: AppColors.muted,
+            )
+          : null,
     );
   }
 }
@@ -438,7 +529,7 @@ class _RewardNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.backgroundDeep,
         borderRadius: BorderRadius.circular(AppRadius.sm),
