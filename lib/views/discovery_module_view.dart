@@ -18,7 +18,11 @@ import 'package:walkpenang/views/widgets/wp_components.dart';
 /// owns their lifecycle, so the rest of the app doesn't have to know about
 /// them. Nothing inside the module is modified.
 class DiscoveryModuleView extends StatefulWidget {
-  const DiscoveryModuleView({super.key});
+  const DiscoveryModuleView({super.key, required this.favorites});
+
+  /// The app-wide favourites controller, owned by [HomeView]. Shared so a
+  /// heart toggled here shows on the Home map carousel too, and vice versa.
+  final FavoritesController favorites;
 
   @override
   State<DiscoveryModuleView> createState() => _DiscoveryModuleViewState();
@@ -38,21 +42,10 @@ class _DiscoveryModuleViewState extends State<DiscoveryModuleView> {
   late final PlaceRepository _repository = GooglePlacesRepository();
   late final DiscoveryController _discovery =
       DiscoveryController(repository: _repository);
-  final FavoritesController _favorites = FavoritesController();
-
-  @override
-  void initState() {
-    super.initState();
-    // T-FD04.1 — restore saved place IDs from the previous session. The
-    // default store is SharedPrefsFavoritesStore, so favourites survive both
-    // leaving this screen and restarting the app.
-    _favorites.load();
-  }
 
   @override
   void dispose() {
     _discovery.dispose();
-    _favorites.dispose();
     super.dispose();
   }
 
@@ -78,7 +71,7 @@ class _DiscoveryModuleViewState extends State<DiscoveryModuleView> {
           Expanded(
             child: DiscoveryShell(
               discovery: _discovery,
-              favorites: _favorites,
+              favorites: widget.favorites,
               repository: _repository,
             ),
           ),

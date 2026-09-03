@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:walkpenang/models/place.dart';
 import 'package:walkpenang/theme/app_theme.dart';
+import 'package:walkpenang/views/widgets/favorite_heart_button.dart';
 import 'package:walkpenang/views/widgets/star_rating.dart';
 
 /// T-FD02.1 — one tile in the discovery grid (screen 01).
@@ -73,22 +74,11 @@ class PlaceGridCard extends StatelessWidget {
                   Positioned(
                     top: 2,
                     right: 2,
-                    child: IconButton(
-                      onPressed: onFavoriteToggle,
-                      iconSize: 18,
-                      visualDensity: VisualDensity.compact,
-                      tooltip: isFavorite
-                          ? 'Remove from favourites'
-                          : 'Save to favourites',
-                      icon: Icon(
-                        isFavorite
-                            ? Icons.favorite_rounded
-                            : Icons.favorite_border_rounded,
-                        color: isFavorite ? AppColors.danger : AppColors.card,
-                        shadows: const <Shadow>[
-                          Shadow(blurRadius: 4, color: AppColors.scrim),
-                        ],
-                      ),
+                    child: FavoriteHeartButton(
+                      isFavorite: isFavorite,
+                      onToggle: onFavoriteToggle!,
+                      size: 18,
+                      onImage: true,
                     ),
                   ),
               ],
