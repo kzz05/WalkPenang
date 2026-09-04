@@ -45,9 +45,22 @@ class MapConstants {
 
   static const double defaultZoom = 14.0;
 
-  /// UC-008: how far (in metres) the tourist must move before the live
-  /// position marker refreshes while the map screen is open.
+  /// How far (in metres) the tourist must move before a journey-tracking fix
+  /// is delivered. JourneyProgressService leans on this: anything below it is
+  /// treated as jitter around a stationary tourist rather than distance
+  /// walked, so the figure is a correctness bound, not just a battery one.
   static const int locationUpdateDistanceFilterMeters = 5;
+
+  /// UC-008: how often the map screen's live position marker refreshes.
+  ///
+  /// No distance filter and a one-second interval, because this drives what
+  /// the tourist watches. A filter makes the marker sit still until they have
+  /// covered its distance and then jump — at walking pace, a 5 m filter is a
+  /// hop every three or four seconds, which reads as a broken map rather than
+  /// a live one. Journey tracking keeps the filter; the marker does not need
+  /// it, since drawing a metre of GPS jitter costs nothing but a metre.
+  static const int mapUpdateDistanceFilterMeters = 0;
+  static const Duration mapUpdateInterval = Duration(seconds: 1);
 
   /// Compass-follow map rotation (UC-008): skip a camera bearing / puck
   /// rotation update unless the heading has drifted at least this many
@@ -67,6 +80,19 @@ class MapConstants {
   /// them, so a distance filter would just starve the interpolation and make
   /// the marker jump. The browse screen keeps its 5 m filter for battery.
   static const int navigationUpdateDistanceFilterMeters = 0;
+
+  /// How often the platform is asked for a navigation fix.
+  ///
+  /// Must be stated explicitly. A plain LocationSettings sends only accuracy
+  /// and distanceFilter across, and geolocator_android then defaults the
+  /// interval to 5000 ms — pinning setMinUpdateIntervalMillis to the same
+  /// value, so the stream is capped at one fix every five seconds however
+  /// small the distance filter is. The puck would glide for its 1.6 s and
+  /// then sit still for three and a half.
+  ///
+  /// 1 s is what the GPS hardware in a phone actually delivers at its best,
+  /// and what a turn-by-turn screen needs to look live.
+  static const Duration navigationUpdateInterval = Duration(seconds: 1);
 
   /// How long the puck/camera takes to glide from the previous fix to the
   /// new one. Clamped around the actual gap between fixes so the marker
