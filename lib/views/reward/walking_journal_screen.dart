@@ -7,9 +7,7 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
 import '../../controllers/journal_controller.dart';
-import '../../dao/in_memory_reward_data.dart';
 import '../../dao/journal_dao.dart';
-import '../../debug/demo_journey_flow_view.dart';
 import '../../models/journal_entry_model.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/reward/journal_entry_tile.dart';
@@ -56,39 +54,9 @@ class _WalkingJournalScreenState extends State<WalkingJournalScreen> {
     super.dispose();
   }
 
-  /// Swaps between live Firestore data and the seeded in-memory tourist,
-  /// exactly as the statistics dashboard does — so the journal can be shown
-  /// with seven journeys behind it rather than however many the demo phone
-  /// has actually walked. Debug builds only.
-  void _toggleDemoMode() {
-    final wasDemo = _controller.isDemo;
-    final previous = _controller;
-
-    setState(() {
-      _controller = wasDemo
-          ? _liveController()
-          : JournalController(
-              userId: DemoRewardData.userId,
-              journalDao: DemoRewardData.journalDao(),
-              isDemo: true,
-            );
-    });
-
-    previous.dispose();
-    _controller.load();
-  }
-
   void _openEntry(JournalEntryModel entry) {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => JournalDetailScreen(entry: entry)),
-    );
-  }
-
-  Widget? _demoAction() {
-    if (!kDebugMode) return null;
-    return WpOutlineButton(
-      label: _controller.isDemo ? 'use live data' : 'preview with demo data',
-      onPressed: _toggleDemoMode,
     );
   }
 
@@ -143,24 +111,21 @@ class _WalkingJournalScreenState extends State<WalkingJournalScreen> {
         detail: kDebugMode ? '${_controller.error}' : null,
         actionLabel: 'retry',
         onAction: _controller.load,
-        secondary: _demoAction(),
       );
     }
 
     if (_controller.userId.isEmpty) {
-      return RewardMessageState(
+      return const RewardMessageState(
         title: 'Sign in to see your journal',
         body: 'Your journeys are tied to your account.',
-        secondary: _demoAction(),
       );
     }
 
     if (_controller.isEmpty) {
-      return RewardMessageState(
+      return const RewardMessageState(
         title: 'No journeys yet',
         body: 'Pick a place on the map and walk there — '
             'completed journeys show up here.',
-        secondary: _demoAction(),
       );
     }
 
@@ -174,32 +139,9 @@ class _WalkingJournalScreenState extends State<WalkingJournalScreen> {
         // short to overflow.
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.only(bottom: 24),
-        itemCount: _controller.entries.length + (kDebugMode ? 1 : 0),
+        itemCount: _controller.entries.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
-          if (index == _controller.entries.length) {
-            return Padding(
-              padding: const EdgeInsets.only(top: 14),
-              child: Column(
-                children: [
-                  _demoAction() ?? const SizedBox.shrink(),
-                  const SizedBox(height: 10),
-                  // The lecturer demo entry point, kept when walking_view.dart
-                  // was deleted — it drives the real journey screens against
-                  // fakes with no GPS or Firebase.
-                  WpOutlineButton(
-                    label: 'demo walking journey',
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const DemoJourneyFlowView(),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-
           final entry = _controller.entries[index];
           return JournalEntryTile(
             entry: entry,

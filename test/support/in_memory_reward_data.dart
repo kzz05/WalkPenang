@@ -6,27 +6,27 @@
 // Owner    : Tang Khuan Zhi (2414351)
 // ---------------------------------------------------------------------------
 //
-// In-memory implementations of the two Module 5 DAO contracts.
+// In-memory implementations of the Module 5 DAO contracts, and a seeded
+// tourist to run them against.
 //
-// Two jobs. They are the test doubles the controller is unit tested against,
-// and they back the dashboard's demo mode so the reward screens can be walked
-// through — badges locking and unlocking as check-ins accumulate — without a
-// Firebase project, a signed-in tourist, or 50 km of real walking.
-//
-// Nothing here writes to Firestore, so demo mode can never touch live data.
+// Test support only. They let the reward screens be pumped — badges locking
+// and unlocking as check-ins accumulate — without a Firebase project, a
+// signed-in tourist, or 50 km of real walking. They used to live in lib/ and
+// additionally back an in-app demo mode; the app now reads live data only, so
+// the seed data lives with the tests that need it.
 
-import '../models/badge_model.dart';
-import '../models/check_in_result.dart';
-import '../models/journal_entry_model.dart';
-import '../models/leaderboard_entry_model.dart';
-import '../models/reward_model.dart';
-import '../models/transport_mode.dart';
-import '../models/user_badge_model.dart';
-import '../utils/reward_constants.dart';
-import 'badge_dao.dart';
-import 'journal_dao.dart';
-import 'leaderboard_dao.dart';
-import 'reward_dao.dart';
+import 'package:walkpenang/models/badge_model.dart';
+import 'package:walkpenang/models/check_in_result.dart';
+import 'package:walkpenang/models/journal_entry_model.dart';
+import 'package:walkpenang/models/leaderboard_entry_model.dart';
+import 'package:walkpenang/models/reward_model.dart';
+import 'package:walkpenang/models/transport_mode.dart';
+import 'package:walkpenang/models/user_badge_model.dart';
+import 'package:walkpenang/utils/reward_constants.dart';
+import 'package:walkpenang/dao/badge_dao.dart';
+import 'package:walkpenang/dao/journal_dao.dart';
+import 'package:walkpenang/dao/leaderboard_dao.dart';
+import 'package:walkpenang/dao/reward_dao.dart';
 
 /// Cumulative totals held in memory.
 class InMemoryRewardDao implements RewardDao {

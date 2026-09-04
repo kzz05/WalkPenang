@@ -14,8 +14,8 @@
 // points rather than left to be worked out from two numbers.
 //
 // Reached from the statistics dashboard, and built the same way it is: the
-// controller is injected by tests and by demo mode, and otherwise wired to
-// Firestore for the signed-in tourist.
+// controller is injected by tests, and otherwise wired to Firestore for the
+// signed-in tourist.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -23,7 +23,6 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
 import '../../controllers/leaderboard_controller.dart';
-import '../../dao/in_memory_reward_data.dart';
 import '../../dao/leaderboard_dao.dart';
 import '../../dao/reward_dao.dart';
 import '../../theme/app_theme.dart';
@@ -32,9 +31,9 @@ import '../../widgets/reward/message_state.dart';
 import '../widgets/wp_components.dart';
 
 class LeaderboardScreen extends StatefulWidget {
-  /// Injected by tests and by demo mode. Left null in the app, where the
-  /// screen builds a Firestore-backed controller for the signed-in tourist —
-  /// matching StatsDashboardScreen and WalkingJournalScreen.
+  /// Injected by tests. Left null in the app, where the screen builds a
+  /// Firestore-backed controller for the signed-in tourist — matching
+  /// StatsDashboardScreen and WalkingJournalScreen.
   final LeaderboardController? controller;
 
   const LeaderboardScreen({super.key, this.controller});
@@ -71,36 +70,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     super.dispose();
   }
 
-  /// Swaps between live Firestore data and the seeded in-memory board, as the
-  /// dashboard and the journal do — so the screen can be demonstrated with a
-  /// full field of tourists rather than however many have installed the app.
-  /// Debug builds only.
-  void _toggleDemoMode() {
-    final wasDemo = _controller.isDemo;
-    final previous = _controller;
-
-    setState(() {
-      _controller = wasDemo
-          ? _liveController()
-          : LeaderboardController(
-              userId: DemoRewardData.userId,
-              leaderboardDao: DemoRewardData.leaderboardDao(),
-              isDemo: true,
-            );
-    });
-
-    previous.dispose();
-    _controller.load();
-  }
-
-  Widget? _demoAction() {
-    if (!kDebugMode) return null;
-    return WpOutlineButton(
-      label: _controller.isDemo ? 'use live data' : 'preview with demo data',
-      onPressed: _toggleDemoMode,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -115,15 +84,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               children: [
                 WpBackBar(onBack: () => Navigator.of(context).maybePop()),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text('Leaderboard', style: AppType.display),
-                    ),
-                    if (_controller.isDemo)
-                      const WpChip('demo data', uppercase: true),
-                  ],
-                ),
+                Text('Leaderboard', style: AppType.display),
                 const SizedBox(height: 6),
                 const WpMonoLabel('ranked by lifetime points'),
                 const SizedBox(height: 20),
@@ -156,16 +117,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         detail: kDebugMode ? '${_controller.error}' : null,
         actionLabel: 'retry',
         onAction: _controller.load,
-        secondary: _demoAction(),
       );
     }
 
     if (_controller.isEmpty) {
-      return RewardMessageState(
+      return const RewardMessageState(
         title: 'Nobody on the board yet',
         body: 'Complete a walk and check in — the first tourist to earn '
             'points takes first place.',
-        secondary: _demoAction(),
       );
     }
 
@@ -207,10 +166,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               // stopped rather than inventing a number.
               rankOverride: '${_controller.limit}+',
             ),
-          ],
-          if (kDebugMode) ...[
-            const SizedBox(height: 20),
-            _demoAction() ?? const SizedBox.shrink(),
           ],
         ],
       ),

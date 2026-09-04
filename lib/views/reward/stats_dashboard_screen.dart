@@ -19,19 +19,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
-import '../../controllers/leaderboard_controller.dart';
 import '../../controllers/reward_controller.dart';
 import '../../dao/badge_dao.dart';
-import '../../dao/in_memory_reward_data.dart';
 import '../../dao/leaderboard_dao.dart';
 import '../../dao/reward_dao.dart';
 import '../../models/badge_model.dart';
-import '../../models/check_in_result.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/reward/badge_card.dart';
-import '../../widgets/reward/badge_unlock_notification.dart';
 import '../../widgets/reward/message_state.dart';
-import '../../widgets/reward/points_notification.dart';
 import '../../widgets/reward/stat_summary_card.dart';
 import '../widgets/wp_components.dart';
 import 'badge_detail_screen.dart';
@@ -39,8 +34,8 @@ import 'badge_gallery_screen.dart';
 import 'leaderboard_screen.dart';
 
 class StatsDashboardScreen extends StatefulWidget {
-  /// Injected by tests and by demo mode. Left null in the app, where the
-  /// screen builds a Firestore-backed controller for the signed-in tourist.
+  /// Injected by tests. Left null in the app, where the screen builds a
+  /// Firestore-backed controller for the signed-in tourist.
   final RewardController? controller;
 
   const StatsDashboardScreen({super.key, this.controller});
@@ -84,85 +79,6 @@ class _StatsDashboardScreenState extends State<StatsDashboardScreen> {
     super.dispose();
   }
 
-  /// Swaps the screen between live Firestore data and the seeded in-memory
-  /// tourist. Debug builds only — it exists so the reward screens can be
-  /// walked through without 50 km of real walking behind them.
-  void _toggleDemoMode() {
-    final wasDemo = _controller.isDemo;
-    final previous = _controller;
-
-    setState(() {
-      _controller = wasDemo
-          ? _liveController()
-          : RewardController(
-              userId: DemoRewardData.userId,
-              rewardDao: DemoRewardData.rewardDao(),
-              badgeDao: DemoRewardData.badgeDao(),
-              isDemo: true,
-            );
-    });
-
-    previous.dispose();
-    _controller.load();
-  }
-
-  /// The last check-in handed to the controller, kept so it can be submitted
-  /// a second time to demonstrate the idempotency guard.
-  CheckInResult? _lastCheckIn;
-
-  /// Runs a *new* check-in through the real award path — points formula,
-  /// ledger guard, badge evaluation — against the in-memory DAOs.
-  ///
-  /// Only offered in demo mode. Against Firestore this would write a reward
-  /// for a check-in that never happened, so it is deliberately not available
-  /// on live data.
-  Future<void> _simulateCheckIn() {
-    final now = DateTime.now();
-    return _award(
-      CheckInResult(
-        // Unique per press, so each one is a genuinely new check-in rather
-        // than a retry the guard would reject. A tourist who visits five
-        // attractions has earned five awards.
-        checkInId: 'demo_${now.microsecondsSinceEpoch}',
-        userId: DemoRewardData.userId,
-        destinationId: 'demo_destination',
-        // Values Module 4 would have calculated. Module 5 never derives them.
-        distanceKm: 2.1,
-        carbonSavedKg: 0.44,
-        caloriesBurned: 126.0,
-        checkInTime: now,
-      ),
-    );
-  }
-
-  /// Re-submits the previous check-in unchanged, reusing its checkInId.
-  ///
-  /// This is the retry Module 4 would make after a dropped response or an app
-  /// restart mid-award, and it must pay out nothing the second time (T-R01.5).
-  /// Demonstrating it on screen matters because the guard is invisible when it
-  /// works — the totals simply do not move.
-  Future<void> _repeatLastCheckIn() {
-    final last = _lastCheckIn;
-    if (last == null) return Future.value();
-    return _award(last);
-  }
-
-  Future<void> _award(CheckInResult result) async {
-    final outcome = await _controller.onCheckInVerified(result);
-
-    if (!mounted) return;
-    setState(() => _lastCheckIn = result);
-    showPointsConfirmation(context, outcome);
-
-    final unlocked = outcome.newlyEarnedBadgeIds
-        .map(BadgeCatalogue.byId)
-        .whereType<BadgeModel>()
-        .toList();
-    if (unlocked.isNotEmpty) {
-      await showBadgeUnlockConfirmation(context, unlocked);
-    }
-  }
-
   Future<void> _openGallery() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -177,17 +93,7 @@ class _StatsDashboardScreenState extends State<StatsDashboardScreen> {
   Future<void> _openLeaderboard() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => LeaderboardScreen(
-          // Demo mode carries through, so the board can be shown alongside the
-          // seeded dashboard rather than dropping back to live data mid-demo.
-          controller: _controller.isDemo
-              ? LeaderboardController(
-                  userId: DemoRewardData.userId,
-                  leaderboardDao: DemoRewardData.leaderboardDao(),
-                  isDemo: true,
-                )
-              : null,
-        ),
+        builder: (_) => const LeaderboardScreen(),
       ),
     );
   }
@@ -246,15 +152,13 @@ class _StatsDashboardScreenState extends State<StatsDashboardScreen> {
         detail: kDebugMode ? '${_controller.error}' : null,
         actionLabel: 'retry',
         onAction: _controller.load,
-        secondary: _demoAction(),
       );
     }
 
     if (_controller.userId.isEmpty) {
-      return RewardMessageState(
+      return const RewardMessageState(
         title: 'Sign in to see rewards',
         body: 'Points and badges are tied to your account.',
-        secondary: _demoAction(),
       );
     }
 
@@ -266,28 +170,7 @@ class _StatsDashboardScreenState extends State<StatsDashboardScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
         children: [
-          Row(
-            children: [
-              Expanded(child: Text('Rewards', style: AppType.display)),
-              if (_controller.isDemo)
-                const WpChip('demo data', uppercase: true),
-              if (kDebugMode) ...[
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: _toggleDemoMode,
-                  tooltip: _controller.isDemo
-                      ? 'Switch to live data'
-                      : 'Preview with demo data',
-                  icon: Icon(
-                    _controller.isDemo
-                        ? Icons.cloud_outlined
-                        : Icons.science_outlined,
-                    color: AppColors.muted,
-                  ),
-                ),
-              ],
-            ],
-          ),
+          Text('Rewards', style: AppType.display),
           const SizedBox(height: 6),
           const WpMonoLabel('your walking totals'),
           const SizedBox(height: 20),
@@ -351,75 +234,7 @@ class _StatsDashboardScreenState extends State<StatsDashboardScreen> {
           WpOutlineButton(label: 'view all badges', onPressed: _openGallery),
           const SizedBox(height: 10),
           WpOutlineButton(label: 'leaderboard', onPressed: _openLeaderboard),
-
-          if (_controller.isDemo) ...[
-            const SizedBox(height: 12),
-            WpPrimaryButton(
-              label: 'simulate a check-in',
-              onPressed: _simulateCheckIn,
-            ),
-            const SizedBox(height: 10),
-            // Greyed until there is a check-in to repeat, because before the
-            // first press there is nothing to retry.
-            _DisableableOutlineButton(
-              label: 'repeat last check-in',
-              onPressed: _lastCheckIn == null ? null : _repeatLastCheckIn,
-            ),
-            const SizedBox(height: 10),
-            const WpMonoLabel(
-              'demo only — runs the real points and badge rules against '
-              'in-memory data. repeating a check-in awards nothing.',
-              align: TextAlign.center,
-            ),
-          ],
         ],
-      ),
-    );
-  }
-
-  /// Offered alongside the empty and error states so the screens can still be
-  /// demonstrated when there is nothing to read.
-  Widget? _demoAction() {
-    if (!kDebugMode || _controller.isDemo) return null;
-    return WpOutlineButton(
-      label: 'preview with demo data',
-      onPressed: _toggleDemoMode,
-    );
-  }
-}
-
-/// WpOutlineButton with a disabled state.
-///
-/// Local to this screen rather than added to wp_components.dart, because that
-/// file is the shared design system and only the demo controls need this.
-class _DisableableOutlineButton extends StatelessWidget {
-  final String label;
-  final VoidCallback? onPressed;
-
-  const _DisableableOutlineButton({required this.label, this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = onPressed != null;
-
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: AppColors.outline),
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: const RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
-        ),
-        // The colour is set on the TextStyle, not through the button's
-        // foregroundColor: AppType.button carries its own colour, which would
-        // win over the button theme and leave a disabled label looking live.
-        child: Text(
-          label.toUpperCase(),
-          style: AppType.button.copyWith(
-            color: enabled ? AppColors.onPrimary : AppColors.muted,
-          ),
-        ),
       ),
     );
   }

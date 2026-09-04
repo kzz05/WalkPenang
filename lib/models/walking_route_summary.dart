@@ -110,25 +110,6 @@ class WalkingRouteSummary {
   /// Whether this route has a usable distance/duration — checked before
   /// starting a journey so a bad calculation from upstream is caught.
   bool get isValid => distanceKm > 0 && estimatedDuration > Duration.zero;
-
-  /// Debug-only fixture, kept for lib/debug/demo_journey_flow_view.dart and
-  /// the widget tests — the Fort Cornwallis walk from the "02 · Pre-Walk
-  /// Summary v2" Figma prototype. The real path no longer uses it: journeys
-  /// now start from a tapped place via [WalkingRouteSummary.fromDestination].
-  /// Coordinates are Fort Cornwallis's real public location in George Town,
-  /// so US-W05/UC-W06 arrival verification behaves sensibly in the debug
-  /// flow.
-  static const demo = WalkingRouteSummary(
-    destinationName: 'Fort Cornwallis',
-    areaLabel: 'George Town Heritage Zone',
-    distanceKm: 2.4,
-    estimatedDuration: Duration(minutes: 32),
-    rewardPoints: 15,
-    rewardBadgeLabel: 'a heritage badge for Fort Cornwallis',
-    destinationId: 'demo-fort-cornwallis',
-    destinationLatitude: 5.4229,
-    destinationLongitude: 100.3402,
-  );
 }
 
 /// Walking-only environmental/health benefits derived from a route's

@@ -10,10 +10,10 @@
 // ArrivalVerificationService / JourneyProgressService / CheckInRepository).
 //
 // Every dependency is injected, so lib/views/journey_flow_view.dart wires
-// this to real GPS + Firestore + the real RewardController, and
-// lib/debug/demo_journey_flow_view.dart wires the exact same controller
-// class to fakes for a lecturer demo. Neither the controller nor the three
-// views it drives contain an `if (demoMode)` branch anywhere.
+// this to real GPS + Firestore + the real RewardController, while
+// test/support/demo_journey_flow_view.dart wires the exact same controller
+// class to fakes. Neither the controller nor the three views it drives
+// contain an `if (demoMode)` branch anywhere.
 
 import 'dart:async';
 

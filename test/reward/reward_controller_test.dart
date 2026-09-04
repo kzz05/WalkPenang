@@ -16,7 +16,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:walkpenang/controllers/reward_controller.dart';
-import 'package:walkpenang/dao/in_memory_reward_data.dart';
+import '../support/in_memory_reward_data.dart';
 import 'package:walkpenang/models/badge_model.dart';
 import 'package:walkpenang/models/check_in_result.dart';
 import 'package:walkpenang/utils/reward_constants.dart';
@@ -184,7 +184,6 @@ void main() {
         userId: DemoRewardData.userId,
         rewardDao: DemoRewardData.rewardDao(),
         badgeDao: DemoRewardData.badgeDao(),
-        isDemo: true,
       );
 
       await seeded.load();

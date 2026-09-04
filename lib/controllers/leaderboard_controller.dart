@@ -10,8 +10,8 @@
 // reads the top of the board, and ranks it.
 //
 // Holds no Firestore types — both DAOs are injected as their abstractions, so
-// the screen's demo mode swaps in an in-memory board exactly as the statistics
-// dashboard and the walking journal do.
+// the tests drive it with an in-memory board and no Firebase project, exactly
+// as the statistics dashboard and the walking journal do.
 
 import 'package:flutter/foundation.dart';
 
@@ -26,7 +26,6 @@ class LeaderboardController extends ChangeNotifier {
     required LeaderboardDao leaderboardDao,
     RewardDao? rewardDao,
     this.limit = RewardConstants.leaderboardPageSize,
-    this.isDemo = false,
   })  : _leaderboardDao = leaderboardDao,
         _rewardDao = rewardDao;
 
@@ -34,9 +33,6 @@ class LeaderboardController extends ChangeNotifier {
   /// nobody is signed in — the board still renders, it just has nobody to
   /// point at, and the screen says so.
   final String userId;
-
-  /// True when backed by the in-memory demo board rather than Firestore.
-  final bool isDemo;
 
   /// How many rows to fetch.
   final int limit;

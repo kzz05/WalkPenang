@@ -10,7 +10,7 @@
 //
 // The contract is an abstract class so the controller depends on the
 // abstraction and the dashboard can be driven by an in-memory double with no
-// Firebase project (see dao/in_memory_reward_data.dart).
+// Firebase project (see test/support/in_memory_reward_data.dart).
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

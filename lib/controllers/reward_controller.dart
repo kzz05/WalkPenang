@@ -14,8 +14,7 @@
 //
 // Deliberately free of package:cloud_firestore. Both DAOs are injected as
 // abstractions, so this class can be driven by an in-memory double with no
-// Firebase project — which is what makes the dashboard runnable in a demo and
-// unit testable at the same time.
+// Firebase project — which is what makes it unit testable.
 
 import 'package:flutter/foundation.dart';
 
@@ -40,21 +39,15 @@ class RewardController extends ChangeNotifier implements RewardService {
   ///
   /// Optional rather than required because the standings are a read model:
   /// points are awarded correctly whether or not anything mirrors them, and
-  /// every existing caller — the tests, the demo, Module 4's hand-off —
-  /// should not have to supply a DAO to award a point.
+  /// every existing caller — the tests, Module 4's hand-off — should not
+  /// have to supply a DAO to award a point.
   final LeaderboardDao? _leaderboardDao;
-
-  /// True when the DAOs behind this controller are in-memory demo doubles
-  /// rather than Firestore. The dashboard surfaces this so a screenshot of
-  /// seeded data can never be mistaken for a real tourist's totals.
-  final bool isDemo;
 
   RewardController({
     required this.userId,
     required RewardDao rewardDao,
     required BadgeDao badgeDao,
     LeaderboardDao? leaderboardDao,
-    this.isDemo = false,
   })  : _rewardDao = rewardDao,
         _badgeDao = badgeDao,
         _leaderboardDao = leaderboardDao;

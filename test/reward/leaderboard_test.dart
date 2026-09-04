@@ -17,7 +17,7 @@
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:walkpenang/controllers/leaderboard_controller.dart';
-import 'package:walkpenang/dao/in_memory_reward_data.dart';
+import '../support/in_memory_reward_data.dart';
 import 'package:walkpenang/dao/leaderboard_dao.dart';
 import 'package:walkpenang/dao/reward_dao.dart';
 import 'package:walkpenang/models/check_in_result.dart';

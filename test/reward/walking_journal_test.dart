@@ -15,7 +15,7 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:walkpenang/controllers/journal_controller.dart';
-import 'package:walkpenang/dao/in_memory_reward_data.dart';
+import '../support/in_memory_reward_data.dart';
 import 'package:walkpenang/dao/journal_dao.dart';
 import 'package:walkpenang/models/journal_entry_model.dart';
 import 'package:walkpenang/models/transport_mode.dart';

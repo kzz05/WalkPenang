@@ -84,10 +84,9 @@ class WalkingController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Called with the calculated route once it's available — today that's
-  /// [WalkingRouteSummary.demo] seeded by [WalkingView], but this is the
-  /// seam the Map & GPS module should call into once it can resolve a
-  /// destination and calculate a real walking route.
+  /// Called with the calculated route once it's available. The Map & GPS
+  /// module calls into this seam from the route summary, having resolved the
+  /// tapped destination and calculated a real walking route to it.
   void setRouteSummary(WalkingRouteSummary? summary) {
     _routeSummary = summary;
     notifyListeners();
