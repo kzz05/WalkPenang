@@ -8,9 +8,17 @@ import '../models/user_profile.dart';
 
 class ProfileStore {
   static const _key = 'user_profile';
-  final _firestore = FirebaseFirestore.instance;
-  final _storage = FirebaseStorage.instance;
-  final _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore;
+
+  // Resolved on first use rather than at construction, so a test can build the
+  // store with an injected Firestore without a Firebase app existing.
+  late final FirebaseStorage _storage = FirebaseStorage.instance;
+  late final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  /// [firestore] is injectable for tests, the same way FirestoreRewardDao
+  /// takes one. Left null, it resolves to the live instance as before.
+  ProfileStore({FirebaseFirestore? firestore})
+      : _firestore = firestore ?? FirebaseFirestore.instance;
 
   // Upload Profile Avatar File to Firebase Storage
   Future<String?> uploadProfileImage(File imageFile, String uid) async {
@@ -46,8 +54,23 @@ class ProfileStore {
     await saveLocal(profile);
     final firebaseUser = _auth.currentUser;
     if (firebaseUser != null) {
-      await _firestore.collection('users').doc(firebaseUser.uid).set(profile.toMap());
+      await saveToCloud(firebaseUser.uid, profile);
     }
+  }
+
+  /// Writes the profile fields into users/{uid}, leaving every other field of
+  /// that document alone.
+  ///
+  /// Merging rather than replacing: the reward module keeps the tourist's
+  /// cumulative totals (points, check-ins, distance, carbon, calories) in this
+  /// same document and UserProfile carries none of them, so a bare set() wiped
+  /// them -- zeroing the statistics dashboard and the tourist's leaderboard row
+  /// every time a profile was edited.
+  Future<void> saveToCloud(String uid, UserProfile profile) async {
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .set(profile.toMap(), SetOptions(merge: true));
   }
 
   Future<UserProfile?> loadLocal() async {
