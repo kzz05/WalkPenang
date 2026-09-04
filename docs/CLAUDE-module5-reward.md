@@ -188,6 +188,25 @@ UC510 Unlock badges	FR-R02	models/badge_model.dart, models/user_badge_model.dart
 UC520 View walking journal	FR-R03	models/journal_entry_model.dart, dao/journal_dao.dart, views/reward/journal_detail_screen.dart
 UC530 View statistics dashboard	FR-R04	models/reward_model.dart
 Badge gallery	FR-R05	views/reward/badge_gallery_screen.dart, views/reward/badge_detail_screen.dart
+UC540 Compare standing against other tourists	FR-R06	models/leaderboard_entry_model.dart, dao/leaderboard_dao.dart, controllers/leaderboard_controller.dart, views/reward/leaderboard_screen.dart
+
+Leaderboard (UC540 / FR-R06)
+
+Ranks every tourist by lifetime points, highest first, reached from the statistics dashboard.
+
+The standings are a separate top-level `leaderboard` collection, not a query over `users`. Ranking every tourist means reading every tourist's row, and a tourist document carries email, phone number, weight and height — none of which belongs on a leaderboard (NFR-04). So the five public fields (displayName, photoUrl, totalPoints, totalCheckIns, totalDistanceMetres) are mirrored into their own collection, one document per tourist keyed by user id, and `users/{userId}/{document=**}` stays owner-only.
+
+It is a read model. Points are awarded correctly whether or not anything mirrors them; a failed mirror costs a stale row and nothing else. Two things write it, both of which absorb their own failures:
+
+- `RewardController.onCheckInVerified` publishes after an award, so the board is current the moment a walk finishes.
+- `LeaderboardController.load` republishes the signed-in tourist's own row before reading the board — which is what enrols a tourist who earned points before this screen existed, and what gets a renamed tourist's new name onto the board.
+
+Because the app is client-only with no Cloud Function to write the row on a tourist's behalf, the security rule pins each published total to what the tourist document actually says (`get(/databases/$(database)/documents/users/$(userId))`). Without that clause any tourist could set their own totalPoints to 99999 and take first place without walking. Delete is denied, so a low score cannot be hidden and republished on a better day.
+
+Ranking is standard competition ranking — ties share a rank and the next position skips (1, 2, 2, 4). Splitting a tie would have the board claim one tourist out-walked another on identical points. Display order within a tie falls to distance, then name, then user id. `LeaderboardRanking` is pure Dart so those rules are unit tested directly.
+
+The board fetches a page (`RewardConstants.leaderboardPageSize`, 50) ordered on a single field, which Firestore indexes automatically — do not add an entry to firestore.indexes.json for it. A tourist ranking below the page still sees their own row, pinned underneath and labelled "50+" rather than given a precise position the client cannot know without counting everyone ahead of them.
+
 Testing expectations
 
 The module owner is Testing Lead, so test quality carries weight beyond correctness. Business rules are pure functions and must be covered with no Firebase dependency.

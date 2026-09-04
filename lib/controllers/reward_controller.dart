@@ -20,6 +20,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../dao/badge_dao.dart';
+import '../dao/leaderboard_dao.dart';
 import '../dao/reward_dao.dart';
 import '../models/badge_model.dart';
 import '../models/check_in_result.dart';
@@ -33,6 +34,16 @@ class RewardController extends ChangeNotifier implements RewardService {
   final RewardDao _rewardDao;
   final BadgeDao _badgeDao;
 
+  /// Optional (UC540). When supplied, an award also mirrors the tourist's new
+  /// totals into the public standings, so the leaderboard is current the
+  /// moment they finish a walk instead of only when they next open it.
+  ///
+  /// Optional rather than required because the standings are a read model:
+  /// points are awarded correctly whether or not anything mirrors them, and
+  /// every existing caller — the tests, the demo, Module 4's hand-off —
+  /// should not have to supply a DAO to award a point.
+  final LeaderboardDao? _leaderboardDao;
+
   /// True when the DAOs behind this controller are in-memory demo doubles
   /// rather than Firestore. The dashboard surfaces this so a screenshot of
   /// seeded data can never be mistaken for a real tourist's totals.
@@ -42,9 +53,11 @@ class RewardController extends ChangeNotifier implements RewardService {
     required this.userId,
     required RewardDao rewardDao,
     required BadgeDao badgeDao,
+    LeaderboardDao? leaderboardDao,
     this.isDemo = false,
   })  : _rewardDao = rewardDao,
-        _badgeDao = badgeDao;
+        _badgeDao = badgeDao,
+        _leaderboardDao = leaderboardDao;
 
   // --- State the views render ----------------------------------------------
 
@@ -225,11 +238,32 @@ class RewardController extends ChangeNotifier implements RewardService {
     if (_definitions.isEmpty) {
       _definitions = await _badgeDao.fetchDefinitions();
     }
+
+    await _publishStanding(updatedStats);
     notifyListeners();
 
     return RewardOutcome(
       pointsAwarded: points,
       newlyEarnedBadgeIds: newlyEarned.map((b) => b.id).toList(growable: false),
     );
+  }
+
+  /// Mirrors [stats] into the public standings (UC540).
+  ///
+  /// Failure is caught and dropped on purpose. The points are already
+  /// committed by the time this runs, and the standings are derived data that
+  /// the leaderboard screen republishes whenever it is opened — so a failed
+  /// mirror costs a stale row until then, while letting it propagate would
+  /// turn a successful check-in into a visible error and invite the tourist
+  /// to retry an award that has already been made.
+  Future<void> _publishStanding(RewardModel stats) async {
+    final leaderboardDao = _leaderboardDao;
+    if (leaderboardDao == null) return;
+
+    try {
+      await leaderboardDao.publishEntry(userId: userId, stats: stats);
+    } catch (error) {
+      debugPrint('Reward: could not publish leaderboard standing — $error');
+    }
   }
 }

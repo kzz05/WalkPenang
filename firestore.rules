@@ -75,6 +75,52 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ---- Leaderboard (UC540 / FR-R06) ------------------------------------
+    //
+    // Public standings, one document per tourist, keyed by user id.
+    //
+    // This collection exists precisely so that the users/ block above can stay
+    // owner-only. Ranking every tourist means reading every tourist's row, and
+    // a tourist document carries email, phone number, weight and height —
+    // none of which belongs on a leaderboard (NFR-04). So the five public
+    // fields are mirrored here and nothing else is.
+    //
+    // Read: any signed-in tourist. The board is the whole point.
+    //
+    // Write: your own row only, and the totals are pinned to what the tourist
+    // document actually says. Without that last clause any tourist could set
+    // their own totalPoints to 99999 and take first place without walking,
+    // since this is a client-only app with no Cloud Function to write the row
+    // on their behalf. `get()` costs one extra document read per publish,
+    // which is the right price for a score that cannot be forged.
+    //
+    // No delete: a tourist removing their row to hide a low score, then
+    // republishing on a good day, would make the board mean nothing.
+    //
+    // A tourist with no document under users/ is denied outright — get()
+    // returns null and the field access errors. That is the right outcome:
+    // there are no totals to check the claim against, so there is nothing to
+    // publish. FirestoreLeaderboardDao only publishes above zero points, and
+    // a tourist cannot have points without the document those points were
+    // incremented on.
+    match /leaderboard/{userId} {
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(userId)
+                    && request.resource.data.totalPoints is int
+                    && request.resource.data.totalPoints ==
+                       get(/databases/$(database)/documents/users/$(userId))
+                         .data.get('totalPoints', 0)
+                    && request.resource.data.totalCheckIns ==
+                       get(/databases/$(database)/documents/users/$(userId))
+                         .data.get('totalCheckIns', 0)
+                    && request.resource.data.totalDistanceMetres ==
+                       get(/databases/$(database)/documents/users/$(userId))
+                         .data.get('totalDistanceMetres', 0)
+                    && request.resource.data.displayName is string
+                    && request.resource.data.displayName.size() <= 60;
+      allow delete: if false;
+    }
+
     // ---- Email OTP -------------------------------------------------------
     //
     // Denied to every client, deliberately — this is not an oversight to be
