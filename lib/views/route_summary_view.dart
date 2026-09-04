@@ -10,6 +10,7 @@ import '../models/route_step.dart';
 import '../models/walking_route_summary.dart';
 import '../controllers/walking_controller.dart';
 import '../services/profile_store.dart';
+import '../services/route_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/distance_format.dart';
 import '../utils/duration_format.dart';
@@ -35,11 +36,16 @@ class RouteSummaryView extends StatefulWidget {
   /// screens deep, and the tourist leaves this screen long before it fires.
   final VoidCallback? onJourneyCompleted;
 
+  /// Injected only by tests, which cannot reach the Directions API. Production
+  /// callers leave it null and [RouteSummaryController] builds the real one.
+  final RouteService? routeService;
+
   const RouteSummaryView({
     super.key,
     required this.destination,
     required this.origin,
     this.onJourneyCompleted,
+    this.routeService,
   });
 
   @override
@@ -49,10 +55,27 @@ class RouteSummaryView extends StatefulWidget {
 class _RouteSummaryViewState extends State<RouteSummaryView> {
   late final RouteSummaryController _controller = RouteSummaryController(
     destination: widget.destination,
+    routeService: widget.routeService,
   );
   GoogleMapController? _mapController;
   BitmapDescriptor? _originIcon;
   BitmapDescriptor? _destinationIcon;
+
+  /// Whether the summary card is showing its full body. Collapsed, it keeps
+  /// only the grab handle and a one-line summary, so the tourist can look at
+  /// the route on the map without leaving the screen.
+  bool _cardExpanded = true;
+
+  /// The card's measured height, used to keep the camera framing and the zoom
+  /// controls clear of it. Measured rather than predicted: the card's content
+  /// changes between the loading, error and summary states, and again between
+  /// walking (which offers Start Journey) and the modes that do not.
+  double _cardHeight = _fallbackCardHeight;
+
+  /// Used for the frame before the card has been laid out and measured.
+  static const double _fallbackCardHeight = 260;
+
+  final GlobalKey _cardKey = GlobalKey();
 
   /// The route the camera was last framed around. Re-framing only when this
   /// changes stops the map fighting a tourist who has panned to inspect part
@@ -88,6 +111,22 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
   void _onControllerChanged() {
     _frameRouteIfNeeded();
     if (mounted) setState(() {});
+  }
+
+  /// Reads the card's real height after each frame. Only calls setState when
+  /// the value actually moved, or measuring would schedule the rebuild that
+  /// triggers the next measurement, forever.
+  void _measureCard() {
+    final box = _cardKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+
+    final height = box.size.height;
+    if (!mounted || (height - _cardHeight).abs() < 1) return;
+    setState(() => _cardHeight = height);
+  }
+
+  void _toggleCard() {
+    setState(() => _cardExpanded = !_cardExpanded);
   }
 
   /// UC-M04 step 5: frames the whole route rather than dropping the tourist at
@@ -246,6 +285,8 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
 
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _measureCard());
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Stack(
@@ -275,7 +316,7 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
             child: AnimatedSize(
               duration: const Duration(milliseconds: 220),
               alignment: Alignment.bottomCenter,
-              child: _buildSummaryCard(),
+              child: KeyedSubtree(key: _cardKey, child: _buildSummaryCard()),
             ),
           ),
         ],
@@ -306,8 +347,11 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
           myLocationButtonEnabled: false,
           mapToolbarEnabled: false,
           // Leaves room for the mode tabs above and the summary card below,
-          // so a framed route never lands underneath either of them.
-          padding: const EdgeInsets.only(top: 140, bottom: 260),
+          // so a framed route never lands underneath either of them. The
+          // bottom follows the card's measured height, so collapsing it hands
+          // the freed space back to the map instead of reserving a gap for a
+          // card that is no longer there.
+          padding: EdgeInsets.only(top: 140, bottom: _cardHeight),
           polylines: hasRoute
               ? {
                   Polyline(
@@ -349,7 +393,7 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
         ),
         Positioned(
           right: 12,
-          bottom: 272,
+          bottom: _cardHeight + 12,
           child: ZoomControls(mapController: _mapController),
         ),
       ],
@@ -376,6 +420,8 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
       route: route,
       mode: _controller.selectedMode,
       errorMessage: _controller.errorMessage,
+      expanded: _cardExpanded,
+      onToggle: _toggleCard,
       onCancel: () => Navigator.of(context).pop(),
       onNavigate: route.routeFound ? () => _startNavigation(context) : null,
       // UC-W01: walking only. Driving and public transport earn no points and
@@ -625,6 +671,11 @@ class _SummaryCard extends StatelessWidget {
   final VoidCallback? onStartJourney;
   final VoidCallback? onShowSteps;
 
+  /// False once the tourist has swiped the card down to look at the map. The
+  /// destination and its ETA stay on the handle; everything else is dropped.
+  final bool expanded;
+  final VoidCallback onToggle;
+
   const _SummaryCard({
     required this.destination,
     required this.route,
@@ -634,6 +685,8 @@ class _SummaryCard extends StatelessWidget {
     required this.onNavigate,
     required this.onStartJourney,
     required this.onShowSteps,
+    required this.expanded,
+    required this.onToggle,
   });
 
   @override
@@ -641,29 +694,63 @@ class _SummaryCard extends StatelessWidget {
     final arrival = DateTime.now().add(Duration(minutes: route.durationMinutes));
 
     return _CardShell(
-      child: Column(
+      header: _CardHandle(
+        expanded: expanded,
+        onToggle: onToggle,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              destination.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppType.heading.copyWith(color: Colors.white),
+            ),
+            if (expanded && destination.address != null) ...[
+              const SizedBox(height: 2),
+              Text(
+                destination.address!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppType.body.copyWith(
+                  color: AppColors.onSurfaceMuted,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+            // Collapsed, the address gives way to the figures the tourist
+            // collapsed the card to compare against the map.
+            if (!expanded && route.routeFound) ...[
+              const SizedBox(height: 4),
+              Text(
+                '${formatEtaMinutes(route.durationMinutes)}  ·  '
+                '${formatDistanceKm(route.distanceKm)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppType.body.copyWith(
+                  color: AppColors.onSurfaceMuted,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      child: !expanded
+          ? const SizedBox(width: double.infinity)
+          // Capped and scrollable so a tourist running a large system font
+          // scale can still reach Navigate, rather than the card growing past
+          // the top of the screen. Same idiom as CategoryFilterSheet.
+          : ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.55,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            destination.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppType.heading.copyWith(color: Colors.white),
-          ),
-          if (destination.address != null) ...[
-            const SizedBox(height: 2),
-            Text(
-              destination.address!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppType.body.copyWith(
-                color: AppColors.onSurfaceMuted,
-                fontSize: 13,
-              ),
-            ),
-          ],
-          const SizedBox(height: 16),
           if (route.routeFound)
             Row(
               children: [
@@ -803,6 +890,65 @@ class _SummaryCard extends StatelessWidget {
             ],
           ),
         ],
+                ),
+              ),
+            ),
+    );
+  }
+}
+
+/// The always-visible strip at the top of the summary card: a grab pill above
+/// whatever summary line the card wants to keep on show. Dragging it down
+/// collapses the card so the route is readable on the map behind it; dragging
+/// up — or tapping anywhere on the strip — brings it back.
+class _CardHandle extends StatelessWidget {
+  final bool expanded;
+  final VoidCallback onToggle;
+  final Widget child;
+
+  const _CardHandle({
+    required this.expanded,
+    required this.onToggle,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      // Opaque, so the whole strip answers a drag rather than only the pill
+      // and the glyphs of the text sitting under it.
+      behavior: HitTestBehavior.opaque,
+      onTap: onToggle,
+      onVerticalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        // A drag that barely moved is a touch while reading, not a swipe, and
+        // should not pull the card out from under the tourist.
+        if (velocity.abs() < 100) return;
+        final wantsExpanded = velocity < 0;
+        if (wantsExpanded != expanded) onToggle();
+      },
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 44,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(
+                  // The steps sheet's pill is AppColors.outline, which all but
+                  // disappears on this card's sand fill.
+                  color: AppColors.onSurfaceMuted,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            child,
+          ],
+        ),
       ),
     );
   }
@@ -894,18 +1040,23 @@ class _ErrorCard extends StatelessWidget {
 /// share a silhouette.
 class _CardShell extends StatelessWidget {
   final Widget child;
-  const _CardShell({required this.child});
+
+  /// Drawn above [child] and outside the shell's horizontal padding, so a
+  /// draggable header can span the card's full width. Null on the loading and
+  /// error cards, which have nothing to collapse.
+  final Widget? header;
+
+  const _CardShell({required this.child, this.header});
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
+
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.fromLTRB(
-        20,
-        20,
-        20,
-        20 + MediaQuery.viewPaddingOf(context).bottom,
-      ),
+      // The top padding moves into the header when there is one, so the grab
+      // handle sits close to the card's edge the way a sheet handle should.
+      padding: EdgeInsets.fromLTRB(0, header == null ? 20 : 8, 0, 0),
       decoration: const BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.md)),
@@ -913,7 +1064,16 @@ class _CardShell extends StatelessWidget {
           BoxShadow(color: Color(0x40000000), blurRadius: 20, offset: Offset(0, -4)),
         ],
       ),
-      child: child,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (header != null) header!,
+          Padding(
+            padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + bottomInset),
+            child: child,
+          ),
+        ],
+      ),
     );
   }
 }
