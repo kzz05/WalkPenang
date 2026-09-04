@@ -148,6 +148,14 @@ class BadgeEmblem extends StatelessWidget {
       ),
     );
 
+    // A parent narrower than [size] would otherwise squeeze the SizedBox and
+    // leave the painter's per-axis scale stretching the shield into a sliver
+    // — silently, because SizedBox enforces the incoming constraint rather
+    // than overflowing, so nothing reaches the console. BoxFit.scaleDown
+    // letterboxes instead: byte-identical rendering under loose constraints,
+    // a uniformly smaller badge under tight ones.
+    artwork = FittedBox(fit: BoxFit.scaleDown, child: artwork);
+
     if (locked) {
       artwork = Opacity(
         opacity: RewardTokens.lockedBadgeOpacity,

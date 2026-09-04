@@ -46,6 +46,15 @@ class PlacesService {
     final places = json['places'] as List<dynamic>?;
     if (places == null) return [];
 
-    return places.cast<Map<String, dynamic>>().map(PlaceModel.fromJson).toList();
+    // The photo reference rides along on this one response — no extra
+    // request — so a pin already knows its cover image by the time the
+    // Walking module's Journey Preview asks for one.
+    return places
+        .cast<Map<String, dynamic>>()
+        .map((json) => PlaceModel.fromJson(
+              json,
+              photoUrlBuilder: _mapService.buildPlacePhotoUrl,
+            ))
+        .toList();
   }
 }

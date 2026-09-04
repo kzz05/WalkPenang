@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:walkpenang/controllers/favorites_controller.dart';
+import 'package:walkpenang/models/favorite_place.dart';
 import 'package:walkpenang/models/place.dart';
 import 'package:walkpenang/models/rating_summary.dart';
 import 'package:walkpenang/models/review.dart';
@@ -103,7 +104,8 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
   }
 
   void _toggleFavorite() {
-    final bool added = widget.favorites.toggle(widget.place);
+    final bool added =
+        widget.favorites.toggle(FavoritePlace.fromPlace(widget.place));
     setState(() => _showSavedBanner = added);
 
     ScaffoldMessenger.of(context)
@@ -153,7 +155,7 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
       body: ListenableBuilder(
         listenable: widget.favorites,
         builder: (BuildContext context, _) {
-          final bool isFavorite = widget.favorites.isFavorite(place);
+          final bool isFavorite = widget.favorites.isFavorite(place.id);
 
           return CustomScrollView(
             slivers: <Widget>[

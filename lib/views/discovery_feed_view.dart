@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:walkpenang/controllers/discovery_controller.dart';
 import 'package:walkpenang/controllers/favorites_controller.dart';
+import 'package:walkpenang/models/favorite_place.dart';
 import 'package:walkpenang/models/place.dart';
 import 'package:walkpenang/models/search_filters.dart';
 import 'package:walkpenang/services/place_repository.dart';
@@ -52,10 +53,11 @@ class _DiscoveryFeedViewState extends State<DiscoveryFeedView> {
     super.dispose();
   }
 
-  /// T-FD04.1 — attaches Place objects to favourite IDs restored from disk,
-  /// so a saved place shows its heart filled as soon as it appears.
+  /// Hands each loaded page to the favourites controller so the Favorites list
+  /// can open the rich detail screen for a place browsed this session. Does not
+  /// affect the favourites list or its count.
   void _onPlacesChanged() {
-    widget.favorites.hydrate(widget.controller.places);
+    widget.favorites.rememberPlaces(widget.controller.places);
   }
 
   void _onScroll() {
@@ -82,7 +84,8 @@ class _DiscoveryFeedViewState extends State<DiscoveryFeedView> {
   }
 
   void _toggleFavorite(Place place) {
-    final bool added = widget.favorites.toggle(place);
+    final bool added =
+        widget.favorites.toggle(FavoritePlace.fromPlace(place));
     ScaffoldMessenger.of(context)
     // clearSnackBars drops the whole queue, not just the visible one, so
     // rapid taps can't stack up into a toast that seems to never leave.
@@ -209,7 +212,7 @@ class _DiscoveryFeedViewState extends State<DiscoveryFeedView> {
                 return PlaceGridCard(
                   key: ValueKey<String>(place.id),
                   place: place,
-                  isFavorite: widget.favorites.isFavorite(place),
+                  isFavorite: widget.favorites.isFavorite(place.id),
                   onTap: () => _openDetail(place),
                   onFavoriteToggle: () => _toggleFavorite(place),
                 );

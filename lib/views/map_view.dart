@@ -3,13 +3,15 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../constants/map_constants.dart';
 import '../constants/map_style.dart';
+import '../controllers/favorites_controller.dart';
 import '../controllers/map_controller.dart';
+import '../models/favorite_place.dart';
 import '../models/place_model.dart';
 import '../theme/app_theme.dart';
-import '../utils/distance_format.dart';
 import '../utils/location_puck_icon.dart';
 import '../utils/place_marker_icon.dart';
 import '../widgets/map/map_action_button.dart';
+import '../widgets/map/place_result_card.dart';
 import '../widgets/map/zoom_controls.dart';
 import 'route_summary_view.dart';
 
@@ -46,7 +48,12 @@ class MapPanel extends StatefulWidget {
   /// own above it. Null for [MapView], which has an AppBar already.
   final Widget? topBarTrailing;
 
-  const MapPanel({super.key, this.topBarTrailing});
+  /// The app-wide favourites controller (from [HomeView]). When supplied, each
+  /// carousel card gets a heart wired to it. Null when the map is shown on its
+  /// own, in which case the cards have no heart.
+  final FavoritesController? favorites;
+
+  const MapPanel({super.key, this.topBarTrailing, this.favorites});
 
   @override
   State<MapPanel> createState() => _MapPanelState();
@@ -59,7 +66,18 @@ class _MapPanelState extends State<MapPanel> {
 
   /// Height of the results strip, shared by the strip itself and by whatever
   /// has to sit clear of it.
-  static const double _resultsStripHeight = 152;
+  ///
+  /// Not a constant, because the card inside is mostly text and its height
+  /// therefore tracks the system font size. Measured across 320/360/412dp, the
+  /// card's height turns out not to depend on the screen width at all, only on
+  /// the scale.
+  ///
+  /// The card owns this measurement now — [PlaceResultCard.heightFor] — rather
+  /// than the strip carrying its own formula for someone else's layout. The 24
+  /// added here is the only part that is genuinely the strip's: its own 8 top
+  /// and 16 bottom padding, applied in [_ResultsStrip].
+  double get _resultsStripHeight =>
+      PlaceResultCard.heightFor(MediaQuery.textScalerOf(context)) + 24;
 
   /// Standing in for the built-in `myLocationEnabled` blue dot, which
   /// google_maps_flutter gives no control over — this custom marker is what
@@ -67,10 +85,24 @@ class _MapPanelState extends State<MapPanel> {
   /// [Marker.rotation] then does the work on every heading update.
   BitmapDescriptor? _locationPuckIcon;
 
-  /// One bitmap per pin variant, drawn once at startup rather than per marker
-  /// — a 20-result search would otherwise rasterise 20 near-identical images
-  /// on every refresh.
-  final Map<(PlaceCategoryPin, bool), BitmapDescriptor> _pinIcons = {};
+  /// One bitmap per pin variant, keyed by (category, selected, favorite,
+  /// routed) and drawn once at startup rather than per marker — a 20-result
+  /// search would otherwise rasterise 20 near-identical images on every
+  /// refresh, and a favorite toggle would do it again.
+  final Map<(PlaceCategoryPin, bool, bool, bool), BitmapDescriptor> _pinIcons =
+      {};
+
+  /// A routed pin is grey with a tick whatever its category, and whether or
+  /// not it is saved. Normalising the key here keeps one bitmap per routed
+  /// state instead of twelve identical ones.
+  (PlaceCategoryPin, bool, bool, bool) _pinIconKey({
+    required PlaceCategoryPin category,
+    required bool selected,
+    required bool favorite,
+    required bool routed,
+  }) => routed
+      ? (PlaceCategoryPin.food, selected, false, true)
+      : (category, selected, favorite, false);
 
   /// Tracked from [GoogleMap.onCameraMove] so compass-mode rotation can spin
   /// the map around wherever it's currently centred/zoomed, instead of jumping
@@ -88,6 +120,9 @@ class _MapPanelState extends State<MapPanel> {
     super.initState();
     _controller.addListener(_onControllerChanged);
     _controller.loadMap();
+    // Independent of loadMap: the grey "already routed" pins do not need a
+    // location permission, so they must not be gated behind one.
+    _controller.restoreRoutedPlaces();
     _loadMarkerIcons();
   }
 
@@ -102,14 +137,35 @@ class _MapPanelState extends State<MapPanel> {
 
   Future<void> _loadMarkerIcons() async {
     final puck = await buildLocationPuckIcon(withAccuracyCone: true);
-    final icons = <(PlaceCategoryPin, bool), BitmapDescriptor>{};
+    final icons = <(PlaceCategoryPin, bool, bool, bool), BitmapDescriptor>{};
     for (final category in PlaceCategoryPin.values) {
       for (final selected in [false, true]) {
-        icons[(category, selected)] = await buildPlacePinIcon(
-          category: category,
-          selected: selected,
-        );
+        for (final favorite in [false, true]) {
+          icons[_pinIconKey(
+            category: category,
+            selected: selected,
+            favorite: favorite,
+            routed: false,
+          )] = await buildPlacePinIcon(
+            category: category,
+            selected: selected,
+            favorite: favorite,
+          );
+        }
       }
+    }
+    // UC-M04: the two grey "already routed" variants, selected and not.
+    for (final selected in [false, true]) {
+      icons[_pinIconKey(
+        category: PlaceCategoryPin.food,
+        selected: selected,
+        favorite: false,
+        routed: true,
+      )] = await buildPlacePinIcon(
+        category: PlaceCategoryPin.food,
+        selected: selected,
+        routed: true,
+      );
     }
     if (!mounted) return;
     setState(() {
@@ -198,6 +254,30 @@ class _MapPanelState extends State<MapPanel> {
     );
   }
 
+  /// Saves or unsaves the place from the carousel card. The shared controller
+  /// means the filled/empty heart is instantly correct here, on the Discovery
+  /// grid, and on the Favorites list.
+  void _toggleFavorite(PlaceModel place) {
+    final favorites = widget.favorites;
+    if (favorites == null) return;
+    final bool added =
+        favorites.toggle(FavoritePlace.fromPlaceModel(place));
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(added ? 'Added to Favorites' : 'Removed from Favorites'),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            bottom: _resultsStripHeight + 24,
+          ),
+        ),
+      );
+  }
+
   /// UC-009 steps 4-6 / A2 -> UC-M04 step 1: validates the chosen pin, then
   /// hands off to the route summary screen.
   void _openRouteSummary(PlaceModel place) {
@@ -211,6 +291,10 @@ class _MapPanelState extends State<MapPanel> {
         builder: (_) => RouteSummaryView(
           destination: place,
           origin: LatLng(origin.latitude, origin.longitude),
+          // UC-M05: grey this place out only once the tourist has actually
+          // completed a journey there — not merely previewed a route to it,
+          // and not if a started journey is ended early.
+          onJourneyCompleted: () => _controller.markPlaceRouted(place.placeId),
         ),
       ),
     );
@@ -221,7 +305,7 @@ class _MapPanelState extends State<MapPanel> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: AnimatedBuilder(
-        animation: _controller,
+        animation: Listenable.merge(<Listenable?>[_controller, widget.favorites]),
         builder: (context, _) {
           final hasResults = _controller.nearbyPlaces.isNotEmpty;
 
@@ -289,6 +373,10 @@ class _MapPanelState extends State<MapPanel> {
                     places: _controller.nearbyPlaces,
                     selectedPlaceId: _controller.selectedPlaceId,
                     distanceOf: _controller.distanceToPlaceMeters,
+                    isRoutedOf: (place) =>
+                        _controller.isPlaceRouted(place.placeId),
+                    favorites: widget.favorites,
+                    onToggleFavorite: _toggleFavorite,
                     onPageChanged: (place) =>
                         _highlightPlace(place, scrollStrip: false),
                     onRoute: _openRouteSummary,
@@ -404,7 +492,14 @@ class _MapPanelState extends State<MapPanel> {
   Set<Marker> _buildMarkers() {
     final markers = _controller.nearbyPlaces.map((place) {
       final isSelected = place.placeId == _controller.selectedPlaceId;
-      final icon = _pinIcons[(pinCategoryFor(place.category), isSelected)];
+      final isFavorite =
+          widget.favorites?.isFavorite(place.placeId) ?? false;
+      final icon = _pinIcons[_pinIconKey(
+        category: pinCategoryFor(place.category),
+        selected: isSelected,
+        favorite: isFavorite,
+        routed: _controller.isPlaceRouted(place.placeId),
+      )];
 
       return Marker(
         markerId: MarkerId(place.placeId),
@@ -612,16 +707,19 @@ class _RadiusChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    // Wrap rather than Row: at a large system font size on a narrow phone the
+    // three pills come out wider than the screen, and a Row has nowhere to put
+    // the excess — it just overflows on the right. Wrap drops the last chip
+    // onto a second line instead, so the control survives every text scale.
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
       children: [
         for (final radius in MapConstants.radiusOptions)
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: _RadiusChip(
-              label: '${radius.toStringAsFixed(0)} km',
-              isSelected: controller.searchRadiusKm == radius,
-              onTap: () => controller.setSearchRadius(radius),
-            ),
+          _RadiusChip(
+            label: '${radius.toStringAsFixed(0)} km',
+            isSelected: controller.searchRadiusKm == radius,
+            onTap: () => controller.setSearchRadius(radius),
           ),
       ],
     );
@@ -672,6 +770,9 @@ class _ResultsStrip extends StatelessWidget {
   final List<PlaceModel> places;
   final String? selectedPlaceId;
   final double Function(PlaceModel) distanceOf;
+  final bool Function(PlaceModel) isRoutedOf;
+  final FavoritesController? favorites;
+  final ValueChanged<PlaceModel> onToggleFavorite;
   final ValueChanged<PlaceModel> onPageChanged;
   final ValueChanged<PlaceModel> onRoute;
 
@@ -681,6 +782,9 @@ class _ResultsStrip extends StatelessWidget {
     required this.places,
     required this.selectedPlaceId,
     required this.distanceOf,
+    required this.isRoutedOf,
+    required this.favorites,
+    required this.onToggleFavorite,
     required this.onPageChanged,
     required this.onRoute,
   });
@@ -698,139 +802,18 @@ class _ResultsStrip extends StatelessWidget {
           final place = places[index];
           return Padding(
             padding: EdgeInsets.fromLTRB(12, 8, index == places.length - 1 ? 12 : 0, 16),
-            child: _PlaceCard(
+            child: PlaceResultCard(
               place: place,
               distanceMeters: distanceOf(place),
               isSelected: place.placeId == selectedPlaceId,
+              isRouted: isRoutedOf(place),
+              isFavorite: favorites?.isFavorite(place.placeId) ?? false,
+              onToggleFavorite:
+                  favorites == null ? null : () => onToggleFavorite(place),
               onRoute: () => onRoute(place),
             ),
           );
         },
-      ),
-    );
-  }
-}
-
-class _PlaceCard extends StatelessWidget {
-  final PlaceModel place;
-  final double distanceMeters;
-  final bool isSelected;
-  final VoidCallback onRoute;
-
-  const _PlaceCard({
-    required this.place,
-    required this.distanceMeters,
-    required this.isSelected,
-    required this.onRoute,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isFood = place.category == 'food';
-    final accent = isFood
-        ? AppColors.foodPin
-        : place.category == 'attraction'
-            ? AppColors.attractionPin
-            : AppColors.otherPin;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: AppRadius.smAll,
-        border: Border.all(
-          color: isSelected ? accent : Colors.transparent,
-          width: 2,
-        ),
-        boxShadow: const [
-          BoxShadow(color: Color(0x2B000000), blurRadius: 12, offset: Offset(0, 4)),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 10, 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  isFood ? Icons.restaurant : Icons.photo_camera,
-                  size: 13,
-                  color: accent,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  isFood ? 'FOOD' : 'ATTRACTION',
-                  style: AppType.mono.copyWith(color: accent),
-                ),
-                const Spacer(),
-                if (place.isOpenNow)
-                  Row(
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: const BoxDecoration(
-                          color: AppColors.success,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        'OPEN',
-                        style: AppType.mono.copyWith(color: AppColors.success),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              place.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: AppType.body.copyWith(fontSize: 15),
-            ),
-            const Spacer(),
-            Row(
-              children: [
-                if (place.rating != null) ...[
-                  const Icon(Icons.star_rounded, size: 15, color: AppColors.primary),
-                  const SizedBox(width: 3),
-                  Text(
-                    place.rating!.toStringAsFixed(1),
-                    style: AppType.monoValue,
-                  ),
-                  const SizedBox(width: 10),
-                ],
-                if (distanceMeters.isFinite)
-                  Text(
-                    formatDistanceMeters(distanceMeters),
-                    style: AppType.monoValue.copyWith(color: AppColors.muted),
-                  ),
-                const Spacer(),
-                // UC-M04 step 1: the one action that leaves this screen.
-                TextButton(
-                  onPressed: onRoute,
-                  style: TextButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: AppColors.onPrimary,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    minimumSize: const Size(0, 32),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: AppRadius.mdAll,
-                    ),
-                  ),
-                  child: Text(
-                    'Route',
-                    style: AppType.button.copyWith(fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }

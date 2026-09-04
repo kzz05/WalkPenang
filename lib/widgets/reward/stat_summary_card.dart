@@ -107,24 +107,31 @@ class StatSummaryCard extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: AppColors.muted),
           const SizedBox(height: 14),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Flexible(
-                child: Text(
+          // Three of these tiles sit side by side on a phone, so each number
+          // gets roughly 50dp — less once the tourist has the system font
+          // scaled up. Ellipsising is the wrong failure here: "2.48" cut to
+          // "2…" reads as a different figure rather than as a truncation, so
+          // the value and its unit scale down together instead. They stay a
+          // baseline Row, so the unit still sits on the number's baseline.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
                   value,
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                   style: AppType.stat.copyWith(fontSize: 22),
                 ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                unit,
-                style: AppType.mono.copyWith(fontSize: 11),
-              ),
-            ],
+                const SizedBox(width: 4),
+                Text(
+                  unit,
+                  style: AppType.mono.copyWith(fontSize: 11),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 6),
           WpMonoLabel(label),

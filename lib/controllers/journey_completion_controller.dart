@@ -67,9 +67,17 @@ class JourneyCompletionController extends ChangeNotifier {
     // revoked, GPS switched off) must not take the journey with it. KM
     // COVERED then simply stays unavailable, exactly as it read before any
     // progress source existed.
-    _progressSubscription =
-        _journeyProgressService.metresWalked().listen((metres) {
-      _metresWalked = metres;
+    _progressSubscription = _journeyProgressService
+        .track(
+          destinationLatitude: routeSummary.destinationLatitude,
+          destinationLongitude: routeSummary.destinationLongitude,
+        )
+        .listen((update) {
+      _metresWalked = update.metresWalked;
+      // The first fix of the journey sets the denominator, which is what
+      // makes the bar start at 0%: at that moment current == initial.
+      _initialMetresToDestination ??= update.metresToDestination;
+      _metresToDestination = update.metresToDestination;
       notifyListeners();
     }, onError: (_) {});
   }
@@ -97,7 +105,7 @@ class JourneyCompletionController extends ChangeNotifier {
   final JourneyProgressService _journeyProgressService;
 
   Timer? _elapsedTimer;
-  StreamSubscription<double>? _progressSubscription;
+  StreamSubscription<JourneyProgressUpdate>? _progressSubscription;
   Duration _elapsed = Duration.zero;
   Duration? _completedDuration;
 
@@ -106,6 +114,13 @@ class JourneyCompletionController extends ChangeNotifier {
   /// "tracked, and you have not moved" — the Active Walking tiles render the
   /// former as unavailable rather than as a fabricated 0.0.
   double? _metresWalked;
+
+  /// How far the destination was on the journey's first fix, and how far it
+  /// is now. Together they answer "how much closer am I?", which is a
+  /// different question from [kmCovered]'s "how far have I walked?" — a
+  /// tourist can walk a kilometre in circles and close no distance at all.
+  double? _initialMetresToDestination;
+  double? _metresToDestination;
 
   /// Distance genuinely covered, never the route's planned distance.
   double? get kmCovered =>
@@ -148,6 +163,12 @@ class JourneyCompletionController extends ChangeNotifier {
   bool _completing = false;
   bool _completed = false;
 
+  /// True once the tourist backed out of an active journey (the "End
+  /// Journey?" confirmation on the Active Walking screen). Latches the
+  /// controller closed so nothing can still verify, complete or reward
+  /// after the screen has been popped.
+  bool _cancelled = false;
+
   /// True once a completion attempt has been claimed — the client-side
   /// duplicate-completion guard, on top of Module 5's own server-side
   /// idempotency (points ledger + rewardProcessed flag).
@@ -163,6 +184,8 @@ class JourneyCompletionController extends ChangeNotifier {
         elapsedTime: _elapsed,
         plannedDistanceKm: routeSummary.distanceKm,
         kmCovered: kmCovered,
+        initialMetresToDestination: _initialMetresToDestination,
+        metresToDestination: _metresToDestination,
         minutesRemaining: minutesRemaining,
         carbonSavedKg: carbonSavedKg,
         caloriesBurned: caloriesBurned,
@@ -224,7 +247,9 @@ class JourneyCompletionController extends ChangeNotifier {
   /// UC-W05 step "User completes journey" -> UC-W06: moves to Verify
   /// Location and immediately runs the first GPS check.
   Future<void> beginVerification() async {
-    if (_completed || _step == JourneyStep.verifyingLocation) return;
+    if (_cancelled || _completed || _step == JourneyStep.verifyingLocation) {
+      return;
+    }
 
     _step = JourneyStep.verifyingLocation;
     _verifyPhase = VerifyLocationPhase.checking;
@@ -296,7 +321,9 @@ class JourneyCompletionController extends ChangeNotifier {
 
   /// "Try Again" on the blocked card.
   Future<void> retryVerification() async {
-    if (_completed || _step != JourneyStep.verifyingLocation) return;
+    if (_cancelled || _completed || _step != JourneyStep.verifyingLocation) {
+      return;
+    }
     _verifyPhase = VerifyLocationPhase.checking;
     notifyListeners();
     await _checkArrival();
@@ -306,12 +333,31 @@ class JourneyCompletionController extends ChangeNotifier {
   /// both Active Walking's and Verify Location's own [beginVerification]
   /// entry — returns to Active Walking without abandoning the journey.
   void continueWalking() {
-    if (_completed) return;
+    if (_cancelled || _completed) return;
     _step = JourneyStep.active;
     _verifyPhase = null;
     _blockReason = null;
     _clearLastFix();
     notifyListeners();
+  }
+
+  /// The tourist abandoned an active journey — the "Yes, End Journey"
+  /// answer to the Active Walking back-button confirmation.
+  ///
+  /// Deliberately *not* a completion: no check-in is written, no reward is
+  /// requested, and [step] never reaches [JourneyStep.completed]. It only
+  /// tears down the two things that would otherwise keep running behind a
+  /// popped screen (the elapsed timer and the progress stream) and latches
+  /// the controller so a late callback cannot restart verification or
+  /// completion. [dispose] still runs its own cancels, which stay harmless
+  /// no-ops after this.
+  void cancelJourney() {
+    if (_cancelled || _completed) return;
+    _cancelled = true;
+    _elapsedTimer?.cancel();
+    _elapsedTimer = null;
+    _progressSubscription?.cancel();
+    _progressSubscription = null;
   }
 
   // --- Journey Completed (UC-W05 handoff to Module 5) -----------------------
@@ -322,7 +368,7 @@ class JourneyCompletionController extends ChangeNotifier {
   /// [VerifyLocationPhase.verified] — VerifyLocationView only renders this
   /// action in that phase, but the guard holds even if invoked otherwise.
   Future<void> completeJourney() async {
-    if (_completed || _completing) return;
+    if (_cancelled || _completed || _completing) return;
     if (_verifyPhase != VerifyLocationPhase.verified) return;
 
     _completing = true;

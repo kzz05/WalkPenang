@@ -13,6 +13,7 @@ import '../services/compass_service.dart';
 import '../services/location_service.dart';
 import '../services/map_service.dart';
 import '../services/places_service.dart';
+import '../services/routed_places_store.dart';
 import '../utils/angle_utils.dart';
 
 /// What the tourist can actually *do* about the message currently on screen.
@@ -45,16 +46,20 @@ class MapController extends ChangeNotifier {
     BoundaryValidatorService? boundaryValidatorService,
     PlacesService? placesService,
     CompassService? compassService,
+    RoutedPlacesStore? routedPlacesStore,
   })  : _locationService = locationService ?? LocationService(),
         _boundaryValidatorService =
             boundaryValidatorService ?? BoundaryValidatorService(),
         _placesService = placesService ?? PlacesService(MapService()),
-        _compassService = compassService ?? CompassService();
+        _compassService = compassService ?? CompassService(),
+        _routedPlacesStore =
+            routedPlacesStore ?? const SharedPrefsRoutedPlacesStore();
 
   final LocationService _locationService;
   final BoundaryValidatorService _boundaryValidatorService;
   final PlacesService _placesService;
   final CompassService _compassService;
+  final RoutedPlacesStore _routedPlacesStore;
 
   StreamSubscription<GpsLocation>? _locationSubscription;
   StreamSubscription<double?>? _compassSubscription;
@@ -69,6 +74,20 @@ class MapController extends ChangeNotifier {
   /// map or by scrolling to its card. Drawn larger than the rest so the map
   /// and the results strip always agree on what's selected.
   String? selectedPlaceId;
+
+  /// UC-M04: places the tourist has already got a working route to. Their pin
+  /// and card go grey, so a tourist working through a busy search can see at a
+  /// glance which options they have already priced up.
+  ///
+  /// Restored from [RoutedPlacesStore] on startup and written back on every
+  /// change, so the grey survives closing the app. A plain `Set` literal is a
+  /// LinkedHashSet, so iteration order is insertion order — which is what lets
+  /// [_trimToCap] drop the *oldest* marks rather than arbitrary ones.
+  final Set<String> _routedPlaceIds = <String>{};
+
+  bool _disposed = false;
+
+  bool isPlaceRouted(String placeId) => _routedPlaceIds.contains(placeId);
 
   /// Messages are split by source so they can't overwrite each other: a GPS
   /// tick arriving a second after "No places found nearby" used to wipe that
@@ -444,6 +463,70 @@ class MapController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Reads the persisted "already routed" ids. Call once at startup, alongside
+  /// [loadMap] — deliberately separate from it, because the grey pins do not
+  /// depend on a location permission and should still be right on a map the
+  /// tourist opened with GPS switched off.
+  Future<void> restoreRoutedPlaces() async {
+    final List<String> saved;
+    try {
+      saved = await _routedPlacesStore.load();
+    } catch (error) {
+      // Best-effort, like the write: an unreadable preferences store costs the
+      // tourist their grey pins, and must not throw out of app startup.
+      debugPrint('Failed to restore routed places: $error');
+      return;
+    }
+    if (_disposed || saved.isEmpty) return;
+    // Union rather than replace: a route can resolve while this read is still
+    // in flight, and that fresher mark must not be dropped on the floor.
+    _routedPlaceIds.addAll(saved);
+    _trimToCap();
+    notifyListeners();
+  }
+
+  /// UC-M05: called once a walking journey to [placeId] has actually
+  /// completed — GPS arrival verified — which is the point the place stops
+  /// being "somewhere I might go" and becomes "somewhere I have been".
+  ///
+  /// Deliberately not called merely because a route was previewed, and not
+  /// called for a journey that was started and then ended early: neither of
+  /// those means the tourist actually went there.
+  void markPlaceRouted(String placeId) {
+    if (!_routedPlaceIds.add(placeId)) return;
+    _trimToCap();
+    notifyListeners();
+    _persistRoutedPlaces();
+  }
+
+  /// Forgets every "already routed" place, on disk as well as in memory — the
+  /// way out of a map where so much has gone grey it stops being useful.
+  void clearRoutedPlaces() {
+    if (_routedPlaceIds.isEmpty) return;
+    _routedPlaceIds.clear();
+    notifyListeners();
+    _persistRoutedPlaces();
+  }
+
+  void _trimToCap() {
+    final int excess =
+        _routedPlaceIds.length - MapConstants.maxRememberedRoutedPlaces;
+    if (excess <= 0) return;
+    // Insertion-ordered, so the leading entries are the oldest marks.
+    _routedPlaceIds.removeAll(_routedPlaceIds.take(excess).toList());
+  }
+
+  /// Fire-and-forget, matching [FavoritesController]: in-memory state is
+  /// already correct and is what draws the pins, and the next mark rewrites
+  /// the whole list anyway — so a failed write must not block or unwind the UI.
+  Future<void> _persistRoutedPlaces() async {
+    try {
+      await _routedPlacesStore.save(_routedPlaceIds.toList(growable: false));
+    } catch (error) {
+      debugPrint('Failed to persist routed places: $error');
+    }
+  }
+
   /// Runs whatever [messageAction] currently offers, so the tourist fixes the
   /// problem from the banner instead of hunting for the right settings screen.
   Future<void> runMessageAction() async {
@@ -502,6 +585,7 @@ class MapController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _locationSubscription?.cancel();
     _compassSubscription?.cancel();
     super.dispose();
