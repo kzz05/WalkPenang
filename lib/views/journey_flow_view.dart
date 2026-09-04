@@ -1,27 +1,19 @@
 // Walking & Carbon Module — the real journey-completion flow (UC-W05,
-// UC-W06), pushed by PreWalkSummaryView once Start Journey succeeds.
+// UC-W06), pushed by PreWalkSummaryView once Start Journey succeeds and
+// re-pushed by the mini bar when a minimised journey is re-opened.
 //
-// This widget owns a JourneyCompletionController wired to real GPS
-// (ArrivalVerificationService's default LocationArrivalVerificationService),
-// real Firestore persistence (FirestoreCheckInRepository) and the real
-// Reward Module (RewardController, constructed exactly the way the reward
-// screens already do — see stats_dashboard_screen.dart). It does not modify
-// ActiveWalkingView, VerifyLocationView or JourneyCompletedView — it only
-// swaps between them based on JourneyCompletionController.step.
+// The journey itself belongs to JourneySession, not to this route: its
+// controller is wired there to real GPS (ArrivalVerificationService's default
+// LocationArrivalVerificationService), real Firestore persistence
+// (FirestoreCheckInRepository) and the real Reward Module. This widget only
+// swaps between ActiveWalkingView, VerifyLocationView and JourneyCompletedView
+// based on JourneyCompletionController.step, so it can be popped and rebuilt
+// as often as the tourist likes without the journey noticing.
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../controllers/journey_completion_controller.dart';
-import '../controllers/reward_controller.dart';
-import '../controllers/walking_controller.dart';
-import '../dao/badge_dao.dart';
-import '../dao/reward_dao.dart';
-import '../services/check_in_repository.dart';
-import '../services/journey_progress_service.dart';
-import '../services/map_service.dart';
-import '../services/navigation_launcher_service.dart';
+import '../controllers/journey_session.dart';
 import '../theme/app_theme.dart';
 import 'active_walking_view.dart';
 import 'journey_completed_view.dart';
@@ -29,75 +21,27 @@ import 'reward/stats_dashboard_screen.dart';
 import 'verify_location_view.dart';
 
 class JourneyFlowView extends StatefulWidget {
-  /// The same WalkingController instance PreWalkSummaryView used — read
-  /// once here for its already-validated routeSummary and its already
-  /// computed carbon/calorie figures (US-W03/US-W04), never recomputed.
-  final WalkingController walkingController;
-
-  /// Opens the app's own turn-by-turn view for this journey, supplied by
-  /// route_summary_view where the RouteResult lives.
-  ///
-  /// When null — the debug journey flow, which runs with no map — the Active
-  /// Walking screen falls back to
-  /// [JourneyCompletionController.openExternalNavigation] and its Google Maps
-  /// deep link.
-  final void Function(BuildContext)? onOpenNavigation;
-
-  /// Fired once the journey has genuinely finished — GPS check-in verified
-  /// and [JourneyStep.completed] reached — supplied by route_summary_view so
-  /// the Map module can grey out this destination's pin.
-  ///
-  /// Deliberately not fired by [_handleEndJourneyRequest]: ending a journey
-  /// early is the one case this must *not* fire for, since the tourist never
-  /// actually arrived.
-  final VoidCallback? onJourneyCompleted;
-
-  const JourneyFlowView({
-    super.key,
-    required this.walkingController,
-    this.onOpenNavigation,
-    this.onJourneyCompleted,
-  });
+  const JourneyFlowView({super.key});
 
   @override
   State<JourneyFlowView> createState() => _JourneyFlowViewState();
 }
 
 class _JourneyFlowViewState extends State<JourneyFlowView> {
+  final JourneySession _session = JourneySession.instance;
+
+  /// The running journey. Non-null for the lifetime of this route: the two
+  /// things that clear it — completing and ending — both pop this route in the
+  /// same breath.
   late final JourneyCompletionController _controller;
 
   @override
   void initState() {
     super.initState();
-
-    // Guaranteed non-null/valid here: PreWalkSummaryView only reaches this
-    // screen after WalkingController.startJourney() succeeds, which itself
-    // requires a non-null, valid routeSummary.
-    final summary = widget.walkingController.routeSummary!;
-    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-    final firestore = FirebaseFirestore.instance;
-
-    _controller = JourneyCompletionController(
-      routeSummary: summary,
-      userId: uid,
-      carbonSavedKg: widget.walkingController.carbonSavedKg,
-      caloriesBurned: widget.walkingController.caloriesBurned,
-      rewardService: RewardController(
-        userId: uid,
-        rewardDao: FirestoreRewardDao(firestore: firestore),
-        badgeDao: FirestoreBadgeDao(firestore: firestore),
-      ),
-      checkInRepository: FirestoreCheckInRepository(firestore: firestore),
-      // Live KM COVERED / MIN REMAINING on the Active Walking screen.
-      journeyProgressService: LocationJourneyProgressService(),
-      navigationLauncherService: NavigationLauncherService(MapService()),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+    _controller = _session.controller!;
+    // The journey's own screen is on top, so the mini bar must not also be
+    // advertising it.
+    _session.markExpanded();
   }
 
   /// "Back to Explore" / the completed screen's own back arrow both return
@@ -110,7 +54,8 @@ class _JourneyFlowViewState extends State<JourneyFlowView> {
   /// arrival was already verified before this screen showed up, regardless
   /// of whether the reward write that follows it succeeds.
   void _returnHome() {
-    widget.onJourneyCompleted?.call();
+    _session.onJourneyCompleted?.call();
+    _session.end();
     Navigator.of(context, rootNavigator: true)
         .popUntil((route) => route.isFirst);
   }
@@ -165,16 +110,20 @@ class _JourneyFlowViewState extends State<JourneyFlowView> {
     if (!mounted) return;
 
     _controller.cancelJourney();
+    _session.end();
     Navigator.of(context).pop();
   }
 
-  /// The Android system back button / back gesture, routed to whatever the
-  /// step currently on screen does with its own back control — so the
-  /// hardware gesture and the drawn arrow always agree.
+  /// The Android system back button / back gesture.
+  ///
+  /// On an active journey this minimises rather than offering to end it: back
+  /// is the gesture for "I want to be somewhere else", which is now something
+  /// the tourist can have without giving up the walk. Ending is still one tap
+  /// away — the drawn back arrow, or the mini bar — and both still ask first.
   void _handleSystemBack() {
     switch (_controller.step) {
       case JourneyStep.active:
-        _handleEndJourneyRequest();
+        _session.minimize();
       case JourneyStep.verifyingLocation:
         // Back out of verification only, never out of the journey: the
         // tourist returns to Active Walking with the timer still running.
@@ -207,10 +156,11 @@ class _JourneyFlowViewState extends State<JourneyFlowView> {
                 // In-app navigation when the Map module handed us a way to
                 // open it; the external Google Maps hand-off only as a
                 // fallback, which is what the debug flow still takes.
-                onOpenNavigation: widget.onOpenNavigation != null
-                    ? () => widget.onOpenNavigation!(context)
+                onOpenNavigation: _session.openNavigation != null
+                    ? () => _session.openNavigation!(context)
                     : _controller.openExternalNavigation,
                 onCompleteJourney: _controller.beginVerification,
+                onMinimize: _session.minimize,
               );
             case JourneyStep.verifyingLocation:
               return VerifyLocationView(

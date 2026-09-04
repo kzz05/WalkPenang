@@ -404,4 +404,68 @@ void main() {
       expect(controller.step, JourneyStep.verifyingLocation);
     });
   });
+
+  // UC-M05 arrival -> UC-W06 in one tap. The navigation screen has already
+  // told the tourist they have arrived; verifyAndComplete is what stops the
+  // app then asking them to say so twice more.
+  group('one-tap arrival', () {
+    test('a passing check completes the journey without a second call',
+        () async {
+      final rewardService = _CountingRewardService();
+      final checkIns = _RecordingCheckInRepository();
+      final controller = _buildController(
+        arrival: _ScriptedArrivalService(const ArrivalCheckReading.success(42)),
+        reward: rewardService,
+        checkInRepository: checkIns,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.verifyAndComplete();
+
+      expect(controller.step, JourneyStep.completed);
+      expect(controller.isCompleted, isTrue);
+      expect(rewardService.callCount, 1);
+      expect(checkIns.saved, hasLength(1));
+    });
+
+    test('a failed check stops at Verify Location with its reason', () async {
+      final rewardService = _CountingRewardService();
+      final controller = _buildController(
+        arrival:
+            _ScriptedArrivalService(const ArrivalCheckReading.success(260)),
+        reward: rewardService,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.verifyAndComplete();
+
+      // The tourist is left on the one screen that can explain why and offer
+      // a retry — completing anyway would reward a journey never verified.
+      expect(controller.step, JourneyStep.verifyingLocation);
+      expect(
+          controller.verifyLocationUiData.phase, VerifyLocationPhase.blocked);
+      expect(controller.verifyLocationUiData.blockReason,
+          VerifyBlockReason.tooFar);
+      expect(controller.isCompleted, isFalse);
+      expect(rewardService.callCount, 0);
+    });
+
+    test('does not verify at all once the journey was given up', () async {
+      final arrival =
+          _ScriptedArrivalService(const ArrivalCheckReading.success(42));
+      final rewardService = _CountingRewardService();
+      final controller = _buildController(
+        arrival: arrival,
+        reward: rewardService,
+      );
+      addTearDown(controller.dispose);
+
+      controller.cancelJourney();
+      await controller.verifyAndComplete();
+
+      expect(arrival.callCount, 0);
+      expect(controller.isCompleted, isFalse);
+      expect(rewardService.callCount, 0);
+    });
+  });
 }

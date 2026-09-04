@@ -32,12 +32,20 @@ class NavigationView extends StatefulWidget {
   final LatLng origin;
   final TransportMode mode;
 
+  /// Finishes the journey this navigation belongs to, straight from the
+  /// arrival card. Supplied by route_summary_view when navigation was opened
+  /// from inside a walking journey; null when it was opened from the route
+  /// summary alone, where there is no journey to complete and the card keeps
+  /// its plain "Done".
+  final VoidCallback? onCompleteJourney;
+
   const NavigationView({
     super.key,
     required this.route,
     required this.destination,
     required this.origin,
     required this.mode,
+    this.onCompleteJourney,
   });
 
   @override
@@ -344,36 +352,57 @@ class _NavigationViewState extends State<NavigationView>
     Navigator.of(context).pop();
   }
 
-  /// Leaving mid-route throws away the route *and* the check-in the tourist
-  /// was walking towards, and the exit control necessarily sits within reach
-  /// of a thumb holding the phone — so it asks first. Arriving skips the
-  /// question: at that point there's nothing left to lose.
+  /// The exit control sits within reach of a thumb holding the phone, so it
+  /// asks first. Arriving skips the question: at that point there is nothing
+  /// left to lose.
+  ///
+  /// What it asks depends on whether a journey is running, because the two
+  /// cases lose completely different things and the wording has to say which.
+  /// Inside a journey this closes the directions and nothing else — the walk,
+  /// its timer and its check-in all carry on, and directions reopen from the
+  /// walking screen. The dialog used to say "End navigation?" and "no check-in
+  /// will be recorded" in both cases, which described ending the *journey*:
+  /// tourists read it as the walk being thrown away and stayed on a screen
+  /// they wanted to leave.
   Future<void> _confirmExit() async {
     if (_controller.hasArrived) {
       _exitNavigation();
       return;
     }
 
+    final inJourney = widget.onCompleteJourney != null;
+
     final shouldExit = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('End navigation?'),
+        title: Text(inJourney ? 'Close directions?' : 'Stop navigation?'),
         content: Text(
-          'You will stop navigating to ${widget.destination.name}, and no '
-          'check-in will be recorded.',
+          inJourney
+              ? 'Your journey to ${widget.destination.name} keeps running — '
+                  'the timer, your distance and your check-in are all '
+                  'unaffected. You can reopen directions at any time.'
+              : 'You will stop navigating to ${widget.destination.name} and '
+                  'go back to the map. No journey is being recorded, so '
+                  'nothing is lost.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text('Keep going', style: AppType.button.copyWith(fontSize: 14)),
+            child: Text(
+              inJourney ? 'Stay in directions' : 'Keep going',
+              style: AppType.button.copyWith(fontSize: 14),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: Text(
-              'End',
+              inJourney ? 'Close directions' : 'Stop navigation',
               style: AppType.button.copyWith(
                 fontSize: 14,
-                color: AppColors.warning,
+                // Only destructive outside a journey, where it is the route
+                // itself being given up. Colouring the in-journey action as a
+                // warning is what made it read as "end the walk".
+                color: inJourney ? null : AppColors.warning,
               ),
             ),
           ),
@@ -478,6 +507,7 @@ class _NavigationViewState extends State<NavigationView>
                             key: const ValueKey('arrived'),
                             destinationName: widget.destination.name,
                             onDone: _exitNavigation,
+                            onCompleteJourney: widget.onCompleteJourney,
                           )
                         : _ProgressBar(
                             key: const ValueKey('progress'),
@@ -873,10 +903,17 @@ class _ArrivedCard extends StatelessWidget {
   final String destinationName;
   final VoidCallback onDone;
 
+  /// When a journey is running, arriving *is* completing it — the tourist has
+  /// just been told they are there, and sending them back to the walking
+  /// screen to say so again reads as the app not having noticed. This runs the
+  /// UC-W06 check itself; only a check that fails puts a screen in their way.
+  final VoidCallback? onCompleteJourney;
+
   const _ArrivedCard({
     super.key,
     required this.destinationName,
     required this.onDone,
+    this.onCompleteJourney,
   });
 
   @override
@@ -933,13 +970,16 @@ class _ArrivedCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: onDone,
+              onPressed: onCompleteJourney ?? onDone,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: const RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
               ),
-              child: Text('Done', style: AppType.button),
+              child: Text(
+                onCompleteJourney == null ? 'Done' : 'Complete Journey',
+                style: AppType.button,
+              ),
             ),
           ),
         ],

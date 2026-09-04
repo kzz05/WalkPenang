@@ -3,6 +3,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../constants/map_style.dart';
 import '../models/transport_mode.dart';
+import '../controllers/journey_session.dart';
 import '../controllers/route_summary_controller.dart';
 import '../models/place_model.dart';
 import '../models/route_result.dart';
@@ -186,6 +187,13 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
     if (route == null || !route.routeFound) return;
 
     final navigator = Navigator.of(context);
+    // Read now, not inside the callback below: minimising a journey pops this
+    // screen, and its controller with it, while the journey — and the
+    // navigation the Active Walking screen can still open — carry on. The
+    // destination and origin are captured for the same reason.
+    final mode = _controller.selectedMode;
+    final destination = widget.destination;
+    final origin = widget.origin;
 
     // The walking module needs the tourist's body weight for its calorie
     // estimate (US-W04). Loaded here rather than threaded down from HomeView
@@ -234,13 +242,17 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
               MaterialPageRoute(
                 builder: (_) => NavigationView(
                   route: route,
-                  destination: widget.destination,
+                  destination: destination,
                   // Where the route was calculated from, not where the
                   // tourist is now — NavigationController uses this only as
                   // the opening camera target and snaps to live GPS on its
                   // first fix.
-                  origin: widget.origin,
-                  mode: _controller.selectedMode,
+                  origin: origin,
+                  mode: mode,
+                  // Arriving finishes the journey from here: the arrival card
+                  // closes navigation and runs the UC-W06 check itself.
+                  onCompleteJourney: () => JourneySession.instance
+                      .completeFromNavigation(navContext),
                 ),
               ),
             );
