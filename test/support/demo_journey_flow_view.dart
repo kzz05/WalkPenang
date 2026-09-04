@@ -1,22 +1,18 @@
-// Interactive lecturer demo for the Walking journey-completion flow
-// (Active Walking -> Verify Location -> Journey Completed), reusing the
-// exact same production views as journey_flow_view.dart, driven by one live
+// Test harness for the Walking journey-completion flow (Active Walking ->
+// Verify Location -> Journey Completed), reusing the exact same production
+// views as journey_flow_view.dart, driven by one live
 // JourneyCompletionController wired entirely to the fakes in
 // fake_journey_dependencies.dart.
 //
-// Debug-only: only ever reachable when kDebugMode is true (see the entry
-// point guard in ../views/reward/walking_journal_screen.dart). Never reads
-// real GPS, never
-// writes to Firestore, never calls the real Reward Module — see
-// fake_journey_dependencies.dart for how each dependency guarantees that.
+// Never reads real GPS, never writes to Firestore, never calls the real
+// Reward Module — see fake_journey_dependencies.dart for how each dependency
+// guarantees that.
 //
-// This is deliberately separate from journey_ui_preview_main.dart, which
-// stays untouched as the fixed-state Figma preview
-// (`flutter run -t lib/debug/journey_ui_preview_main.dart`) — a gallery of
-// static samples with its own `main()`. This widget is reached from inside
-// the running app instead, and drives the same three views live, through
-// real (fake-backed) state transitions rather than static per-state
-// samples — including a working "Complete Journey" -> reward result path.
+// It used to double as an in-app lecturer demo reachable from the walking
+// journal in debug builds. The app no longer offers that route, so this
+// stays purely as what test/views/demo_journey_flow_view_test.dart drives:
+// the three real views through real state transitions, including the
+// "Complete Journey" -> reward result path.
 //
 // No `if (demoMode)` branch exists anywhere in the three views or in
 // JourneyCompletionController: this file's only job is to supply that
@@ -24,12 +20,12 @@
 
 import 'package:flutter/material.dart';
 
-import '../controllers/journey_completion_controller.dart';
-import '../models/walking_route_summary.dart';
-import '../views/active_walking_view.dart';
-import '../views/journey_completed_view.dart';
-import '../views/verify_location_view.dart';
+import 'package:walkpenang/controllers/journey_completion_controller.dart';
+import 'package:walkpenang/views/active_walking_view.dart';
+import 'package:walkpenang/views/journey_completed_view.dart';
+import 'package:walkpenang/views/verify_location_view.dart';
 import 'fake_journey_dependencies.dart';
+import 'walking_fixtures.dart';
 
 class DemoJourneyFlowView extends StatefulWidget {
   const DemoJourneyFlowView({super.key});
@@ -45,7 +41,7 @@ class _DemoJourneyFlowViewState extends State<DemoJourneyFlowView> {
   void initState() {
     super.initState();
     _controller = JourneyCompletionController(
-      routeSummary: WalkingRouteSummary.demo,
+      routeSummary: demoRouteSummary,
       // Matches Module 5's own DemoRewardData.userId convention
       // (dao/in_memory_reward_data.dart) — clearly not a real tourist ID.
       userId: 'demo_tourist',

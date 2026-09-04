@@ -17,7 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:walkpenang/controllers/reward_controller.dart';
-import 'package:walkpenang/dao/in_memory_reward_data.dart';
+import '../support/in_memory_reward_data.dart';
 import 'package:walkpenang/models/badge_model.dart';
 import 'package:walkpenang/views/reward/badge_detail_screen.dart';
 import 'package:walkpenang/views/reward/badge_gallery_screen.dart';
@@ -30,7 +30,6 @@ RewardController demoController() => RewardController(
       userId: DemoRewardData.userId,
       rewardDao: DemoRewardData.rewardDao(),
       badgeDao: DemoRewardData.badgeDao(),
-      isDemo: true,
     );
 
 RewardController emptyController() => RewardController(
@@ -64,27 +63,6 @@ Future<void> pump(
   await tester.pumpAndSettle();
 }
 
-/// Scrolls a demo control into view and returns its finder.
-///
-/// The demo buttons sit at the bottom of the dashboard's scrolling list,
-/// below the fold on a phone-sized screen — and a list child that has not
-/// been scrolled to has not been built, so it cannot be found, let alone
-/// tapped. Every test that drives one has to scroll to it first.
-Future<Finder> revealControl(WidgetTester tester, String label) async {
-  final finder = find.text(label);
-  await tester.scrollUntilVisible(
-    finder,
-    200,
-    // The dashboard has two scrollables — this vertical list, and the badge
-    // strip scrolling horizontally inside it — so the default finder matches
-    // both and throws. The list is built first, so it is the one to drive;
-    // scrolling the badge strip would never reach a button below the fold.
-    scrollable: find.byType(Scrollable).first,
-  );
-  await tester.pumpAndSettle();
-  return finder;
-}
-
 void main() {
   testWidgets('dashboard shows the totals and the badge set', (tester) async {
     await pump(tester, StatsDashboardScreen(controller: demoController()));
@@ -98,9 +76,6 @@ void main() {
       find.textContaining('3 OF ${BadgeCatalogue.all.length} UNLOCKED'),
       findsOneWidget,
     );
-
-    // Demo data must always be labelled as such on screen.
-    expect(find.text('DEMO DATA'), findsOneWidget);
 
     for (final badge in BadgeCatalogue.all) {
       expect(find.text(badge.name), findsWidgets, reason: badge.name);
@@ -248,61 +223,5 @@ void main() {
 
     expect(find.text('EARNED 19 JUL 2026'), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsNothing);
-  });
-
-  testWidgets('simulating a check-in updates the dashboard live',
-      (tester) async {
-    await pump(tester, StatsDashboardScreen(controller: demoController()));
-
-    // 2.1 km at 10 + 21 points takes the balance from 194 to 225.
-    await tester.tap(await revealControl(tester, 'SIMULATE A CHECK-IN'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('225'), findsOneWidget);
-    expect(find.textContaining('+31 points'), findsOneWidget);
-  });
-
-  testWidgets('repeat is disabled until there is a check-in to repeat',
-      (tester) async {
-    await pump(tester, StatsDashboardScreen(controller: demoController()));
-
-    OutlinedButton repeatButton() => tester.widget<OutlinedButton>(
-          find.ancestor(
-            of: find.text('REPEAT LAST CHECK-IN'),
-            matching: find.byType(OutlinedButton),
-          ),
-        );
-
-    await revealControl(tester, 'REPEAT LAST CHECK-IN');
-    expect(repeatButton().onPressed, isNull);
-
-    await tester.tap(await revealControl(tester, 'SIMULATE A CHECK-IN'));
-    await tester.pumpAndSettle();
-
-    await revealControl(tester, 'REPEAT LAST CHECK-IN');
-    expect(repeatButton().onPressed, isNotNull);
-  });
-
-  testWidgets('repeating a check-in awards nothing a second time (T-R01.5)',
-      (tester) async {
-    await pump(tester, StatsDashboardScreen(controller: demoController()));
-
-    await tester.tap(await revealControl(tester, 'SIMULATE A CHECK-IN'));
-    await tester.pumpAndSettle();
-    expect(find.text('225'), findsOneWidget);
-
-    // Let the first confirmation clear, then bring the repeat button into
-    // view — it sits below the fold on a phone-sized screen.
-    await tester.pump(const Duration(seconds: 4));
-    await revealControl(tester, 'REPEAT LAST CHECK-IN');
-
-    // The same checkInId again — the retry Module 4 would make after a
-    // dropped response. The guard must leave the balance where it is.
-    await tester.tap(find.text('REPEAT LAST CHECK-IN'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('225'), findsOneWidget);
-    expect(find.textContaining('already counted'), findsOneWidget);
-    expect(find.text('FROM 8 CHECK-INS'), findsOneWidget);
   });
 }

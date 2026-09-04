@@ -18,7 +18,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:walkpenang/controllers/leaderboard_controller.dart';
-import 'package:walkpenang/dao/in_memory_reward_data.dart';
+import '../support/in_memory_reward_data.dart';
 import 'package:walkpenang/models/leaderboard_entry_model.dart';
 import 'package:walkpenang/views/reward/leaderboard_screen.dart';
 import 'package:walkpenang/widgets/reward/leaderboard_row.dart';
@@ -34,7 +34,6 @@ LeaderboardController demoBoard({
       entries: entries ?? DemoRewardData.standings,
     ),
     limit: limit,
-    isDemo: true,
   );
 }
 

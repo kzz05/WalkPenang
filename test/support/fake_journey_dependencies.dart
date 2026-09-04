@@ -1,18 +1,16 @@
-// Debug-only fake dependencies for the interactive Demo Walking Journey
-// (see demo_journey_flow_view.dart). None of these touch GPS, Firestore, or
-// the real Reward Module — they exist so the real ActiveWalkingView,
-// VerifyLocationView and JourneyCompletedView can be driven end-to-end for a
-// lecturer demonstration with no network, GPS, or Firebase project required.
+// Fake dependencies for the journey-completion flow. None of these touch
+// GPS, Firestore, or the real Reward Module — they exist so the real
+// ActiveWalkingView, VerifyLocationView and JourneyCompletedView can be
+// driven end-to-end with no network, GPS, or Firebase project required.
 //
-// Reused by test/controllers/journey_completion_controller_test.dart and
-// test/views/demo_journey_flow_view_test.dart, so the same fakes back both
-// the live demo and its test coverage.
+// Used by test/controllers/journey_completion_controller_test.dart and
+// test/views/demo_journey_flow_view_test.dart via demo_journey_flow_view.dart.
 
-import '../controllers/reward_service.dart';
-import '../models/check_in_result.dart';
-import '../services/arrival_verification_service.dart';
-import '../services/check_in_repository.dart';
-import '../services/journey_progress_service.dart';
+import 'package:walkpenang/controllers/reward_service.dart';
+import 'package:walkpenang/models/check_in_result.dart';
+import 'package:walkpenang/services/arrival_verification_service.dart';
+import 'package:walkpenang/services/check_in_repository.dart';
+import 'package:walkpenang/services/journey_progress_service.dart';
 
 /// Always reports the tourist within [MapConstants.checkInThresholdMeters],
 /// after [delay] so the "Checking your location…" (04a) state is actually

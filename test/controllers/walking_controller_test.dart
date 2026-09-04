@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:walkpenang/controllers/walking_controller.dart';
 import 'package:walkpenang/models/transport_mode.dart';
 import 'package:walkpenang/models/user_profile.dart';
-import 'package:walkpenang/models/walking_route_summary.dart';
+import '../support/walking_fixtures.dart';
 
 UserProfile _profileWithWeight(double weightKg) => UserProfile(
       nickname: 'Test User',
@@ -52,7 +52,7 @@ void main() {
     test('reflects the current route summary once Walking is selected', () {
       final controller = WalkingController()
         ..selectMode(TransportMode.walking)
-        ..setRouteSummary(WalkingRouteSummary.demo);
+        ..setRouteSummary(demoRouteSummary);
       expect(controller.carbonSavedKg, closeTo(0.504, 1e-9));
     });
   });
@@ -62,7 +62,7 @@ void main() {
         () {
       final controller = WalkingController()
         ..selectMode(TransportMode.walking)
-        ..setRouteSummary(WalkingRouteSummary.demo)
+        ..setRouteSummary(demoRouteSummary)
         ..setUserProfile(_profileWithWeight(65));
       expect(controller.caloriesBurned, closeTo(140.4, 1e-9));
     });
@@ -70,7 +70,7 @@ void main() {
     test('is null when Driving is selected, even with a valid profile', () {
       final controller = WalkingController()
         ..selectMode(TransportMode.driving)
-        ..setRouteSummary(WalkingRouteSummary.demo)
+        ..setRouteSummary(demoRouteSummary)
         ..setUserProfile(_profileWithWeight(65));
       expect(controller.caloriesBurned, isNull);
     });
@@ -80,14 +80,14 @@ void main() {
         'profile', () {
       final controller = WalkingController()
         ..selectMode(TransportMode.publicTransport)
-        ..setRouteSummary(WalkingRouteSummary.demo)
+        ..setRouteSummary(demoRouteSummary)
         ..setUserProfile(_profileWithWeight(65));
       expect(controller.caloriesBurned, isNull);
     });
 
     test('is null when no transport mode is selected', () {
       final controller = WalkingController()
-        ..setRouteSummary(WalkingRouteSummary.demo)
+        ..setRouteSummary(demoRouteSummary)
         ..setUserProfile(_profileWithWeight(65));
       expect(controller.caloriesBurned, isNull);
     });
@@ -95,7 +95,7 @@ void main() {
     test('is null when the profile has never been set', () {
       final controller = WalkingController()
         ..selectMode(TransportMode.walking)
-        ..setRouteSummary(WalkingRouteSummary.demo);
+        ..setRouteSummary(demoRouteSummary);
       expect(controller.caloriesBurned, isNull);
     });
 
@@ -103,7 +103,7 @@ void main() {
       for (final weight in [0.0, -65.0, double.nan, double.infinity]) {
         final controller = WalkingController()
           ..selectMode(TransportMode.walking)
-          ..setRouteSummary(WalkingRouteSummary.demo)
+          ..setRouteSummary(demoRouteSummary)
           ..setUserProfile(_profileWithWeight(weight));
         expect(controller.caloriesBurned, isNull, reason: 'weight=$weight');
       }
@@ -120,7 +120,7 @@ void main() {
         () {
       final controller = WalkingController()
         ..selectMode(TransportMode.walking)
-        ..setRouteSummary(WalkingRouteSummary.demo)
+        ..setRouteSummary(demoRouteSummary)
         ..setUserProfile(_profileWithWeight(0));
       expect(controller.caloriesBurned, isNull);
 

@@ -6,8 +6,8 @@
 // ---------------------------------------------------------------------------
 //
 // Drives WalkingJournalScreen. Holds no Firestore types — the DAO is injected
-// as its abstraction, so the screen's demo mode swaps in an in-memory tourist
-// exactly as the statistics dashboard does.
+// as its abstraction, so the tests drive it with an in-memory tourist and no
+// Firebase project, exactly as the statistics dashboard's controller does.
 
 import 'package:flutter/foundation.dart';
 
@@ -18,16 +18,12 @@ class JournalController extends ChangeNotifier {
   JournalController({
     required this.userId,
     required JournalDao journalDao,
-    this.isDemo = false,
   }) : _journalDao = journalDao;
 
   /// The signed-in tourist. Empty when nobody is — the screen shows its
   /// signed-out state rather than an empty journal, because "you have walked
   /// nothing" and "we do not know who you are" are different messages.
   final String userId;
-
-  /// True when backed by the in-memory demo tourist rather than Firestore.
-  final bool isDemo;
 
   final JournalDao _journalDao;
 

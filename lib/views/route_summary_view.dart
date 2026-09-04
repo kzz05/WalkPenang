@@ -174,9 +174,9 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
   /// UC-W01 -> UC-W05: starts a recorded walking journey to this place.
   ///
   /// This is the seam the Walking module documented on WalkingRouteSummary
-  /// and never had connected: until now that module ran on
-  /// WalkingRouteSummary.demo, so every journey was to Fort Cornwallis
-  /// regardless of the pin the tourist actually tapped.
+  /// and never had connected: until now that module ran on a fixed Fort
+  /// Cornwallis fixture, so every journey went there regardless of the pin
+  /// the tourist actually tapped.
   ///
   /// Offered for walking only. Driving and public transport earn no points
   /// and save no carbon (FR-W01), so there is nothing to record — those

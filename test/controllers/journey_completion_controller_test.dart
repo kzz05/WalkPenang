@@ -9,7 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:walkpenang/controllers/journey_completion_controller.dart';
 import 'package:walkpenang/controllers/reward_service.dart';
-import 'package:walkpenang/debug/fake_journey_dependencies.dart';
+import '../support/fake_journey_dependencies.dart';
 import 'package:walkpenang/models/check_in_result.dart';
 import 'package:walkpenang/models/journey_reward_ui_state.dart';
 import 'package:walkpenang/models/verify_location_ui_data.dart';

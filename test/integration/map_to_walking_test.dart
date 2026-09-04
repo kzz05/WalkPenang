@@ -2,7 +2,7 @@
 //
 // The seam these cover was designed long before it was connected:
 // WalkingRouteSummary documented the contract, and walking_view.dart carried
-// a TODO(map-gps) seeding WalkingRouteSummary.demo, so every journey went to
+// a TODO(map-gps) seeding demoRouteSummary, so every journey went to
 // Fort Cornwallis whatever pin the tourist had actually tapped. The route
 // summary now builds a real summary from the tapped place.
 //
@@ -28,6 +28,7 @@ import 'package:walkpenang/services/arrival_verification_service.dart';
 import 'package:walkpenang/services/check_in_repository.dart';
 import 'package:walkpenang/services/journey_progress_service.dart';
 import 'package:walkpenang/utils/reward_constants.dart';
+import '../support/walking_fixtures.dart';
 
 /// Stands in for a place the Map module resolved and a route it calculated.
 WalkingRouteSummary _summaryFor(
@@ -122,7 +123,7 @@ void main() {
       expect(summary.rewardPoints, RewardPoints.forCheckInKm(distanceKm: 2.3));
       expect(
         summary.rewardPoints,
-        isNot(WalkingRouteSummary.demo.rewardPoints),
+        isNot(demoRouteSummary.rewardPoints),
       );
     });
 

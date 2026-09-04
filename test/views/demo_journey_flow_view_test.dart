@@ -10,7 +10,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:walkpenang/debug/demo_journey_flow_view.dart';
+import '../support/demo_journey_flow_view.dart';
 
 void main() {
   testWidgets(

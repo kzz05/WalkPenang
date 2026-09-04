@@ -11,8 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:walkpenang/controllers/walking_controller.dart';
 import 'package:walkpenang/models/transport_mode.dart';
 import 'package:walkpenang/models/user_profile.dart';
-import 'package:walkpenang/models/walking_route_summary.dart';
 import 'package:walkpenang/views/pre_walk_summary_view.dart';
+import '../support/walking_fixtures.dart';
 
 UserProfile _profileWithWeight(double weightKg) => UserProfile(
       nickname: 'Test User',
@@ -27,7 +27,7 @@ void main() {
       "the profile's body weight is invalid", (tester) async {
     final controller = WalkingController()
       ..selectMode(TransportMode.walking)
-      ..setRouteSummary(WalkingRouteSummary.demo)
+      ..setRouteSummary(demoRouteSummary)
       ..setUserProfile(_profileWithWeight(0));
 
     await tester.pumpWidget(MaterialApp(
@@ -46,7 +46,7 @@ void main() {
       (tester) async {
     final controller = WalkingController()
       ..selectMode(TransportMode.walking)
-      ..setRouteSummary(WalkingRouteSummary.demo)
+      ..setRouteSummary(demoRouteSummary)
       ..setUserProfile(_profileWithWeight(65));
 
     await tester.pumpWidget(MaterialApp(
@@ -64,7 +64,7 @@ void main() {
       'Profile route', (tester) async {
     final controller = WalkingController()
       ..selectMode(TransportMode.walking)
-      ..setRouteSummary(WalkingRouteSummary.demo)
+      ..setRouteSummary(demoRouteSummary)
       ..setUserProfile(_profileWithWeight(-1));
 
     final pushedRoutes = <Route<dynamic>>[];
