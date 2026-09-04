@@ -233,7 +233,7 @@ class MapController extends ChangeNotifier {
 
   void _startLocationUpdates() {
     _locationSubscription?.cancel();
-    _locationSubscription = _locationService.startLocationUpdates().listen(
+    _locationSubscription = _locationService.startMapUpdates().listen(
       _applyLocation,
       onError: (Object _) {
         _setGpsMessage(MapErrorMessages.locationTimeout, MapMessageAction.retry);

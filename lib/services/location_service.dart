@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:geolocator/geolocator.dart';
 
 import '../constants/map_constants.dart';
@@ -69,32 +70,75 @@ class LocationService {
     return _toGpsLocation(position);
   }
 
-  /// UC-008 step 7: continuous updates for the live position marker while
-  /// the map screen is on screen.
+  /// Journey tracking: fixes filtered to [MapConstants
+  /// .locationUpdateDistanceFilterMeters] so a stationary tourist's GPS
+  /// jitter is never counted as distance walked.
   Stream<GpsLocation> startLocationUpdates() {
     return Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
+      locationSettings: _settings(
         accuracy: LocationAccuracy.high,
         distanceFilter: MapConstants.locationUpdateDistanceFilterMeters,
+        interval: MapConstants.mapUpdateInterval,
       ),
     ).map(_toGpsLocation);
   }
 
-  /// UC-M05: the navigation-grade variant of [startLocationUpdates].
+  /// UC-008 step 7: the map screen's live position marker.
   ///
-  /// Two deliberate differences from the browse-screen stream: no distance
-  /// filter, because [NavigationView] interpolates the puck between fixes and
-  /// a filter would starve that interpolation into a 5 m stutter; and
-  /// `bestForNavigation` accuracy, which asks the platform for the fused
-  /// sensor + GPS fix rate a turn-by-turn screen needs. Both cost battery,
-  /// which is why they're scoped to the navigation screen only.
-  Stream<GpsLocation> startNavigationUpdates() {
+  /// Unfiltered and once a second, because this is the one the tourist is
+  /// looking at — see [MapConstants.mapUpdateDistanceFilterMeters]. Distance
+  /// walked is not derived from this stream, so an unfiltered fix costs
+  /// nothing but a metre of drawn wobble.
+  Stream<GpsLocation> startMapUpdates() {
     return Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: MapConstants.navigationUpdateDistanceFilterMeters,
+      locationSettings: _settings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: MapConstants.mapUpdateDistanceFilterMeters,
+        interval: MapConstants.mapUpdateInterval,
       ),
     ).map(_toGpsLocation);
+  }
+
+  /// UC-M05: the navigation-grade variant of [startMapUpdates].
+  ///
+  /// `bestForNavigation` accuracy asks the platform for the fused sensor + GPS
+  /// fix rate a turn-by-turn screen needs. It costs battery, which is why it
+  /// is scoped to the navigation screen only.
+  Stream<GpsLocation> startNavigationUpdates() {
+    return Geolocator.getPositionStream(
+      locationSettings: _settings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: MapConstants.navigationUpdateDistanceFilterMeters,
+        interval: MapConstants.navigationUpdateInterval,
+      ),
+    ).map(_toGpsLocation);
+  }
+
+  /// Platform settings for a position stream.
+  ///
+  /// Android needs [AndroidSettings] rather than a plain [LocationSettings]:
+  /// only the Android subclass carries `intervalDuration` across the channel.
+  /// Without it geolocator_android defaults to 5000 ms *and* pins the minimum
+  /// update interval to the same figure — one fix every five seconds, whatever
+  /// the distance filter says. That is invisible from Dart, and it is what made
+  /// both the map marker and the navigation puck move in five-second hops.
+  LocationSettings _settings({
+    required LocationAccuracy accuracy,
+    required int distanceFilter,
+    required Duration interval,
+  }) {
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return AndroidSettings(
+        accuracy: accuracy,
+        distanceFilter: distanceFilter,
+        intervalDuration: interval,
+      );
+    }
+
+    return LocationSettings(
+      accuracy: accuracy,
+      distanceFilter: distanceFilter,
+    );
   }
 
   /// UC-008 A2: flags a weak fix without discarding it.
