@@ -14,6 +14,7 @@
 // widgets are actually laid out, never in flutter analyze.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:walkpenang/controllers/reward_controller.dart';
 import 'package:walkpenang/dao/in_memory_reward_data.dart';
@@ -22,6 +23,7 @@ import 'package:walkpenang/views/reward/badge_detail_screen.dart';
 import 'package:walkpenang/views/reward/badge_gallery_screen.dart';
 import 'package:walkpenang/views/reward/stats_dashboard_screen.dart';
 import 'package:walkpenang/widgets/reward/badge_card.dart';
+import 'package:walkpenang/widgets/reward/badge_emblem.dart';
 import 'package:walkpenang/widgets/reward/stat_summary_card.dart';
 
 RewardController demoController() => RewardController(
@@ -37,7 +39,13 @@ RewardController emptyController() => RewardController(
       badgeDao: InMemoryBadgeDao(),
     );
 
-Future<void> pump(WidgetTester tester, Widget screen) async {
+Future<void> pump(
+  WidgetTester tester,
+  Widget screen, {
+  // Samsung phones ship with the system font scaled above 1.0 out of the box,
+  // so a tile that only fits at 1.0 is broken on a real device.
+  double textScale = 1.0,
+}) async {
   // A representative phone. Fixing the size makes an overflow deterministic
   // rather than dependent on the default 800x600 test window.
   tester.view.physicalSize = const Size(1170, 2532);
@@ -45,7 +53,14 @@ Future<void> pump(WidgetTester tester, Widget screen) async {
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
 
-  await tester.pumpWidget(MaterialApp(home: screen));
+  await tester.pumpWidget(
+    MaterialApp(
+      home: MediaQuery(
+        data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
+        child: screen,
+      ),
+    ),
+  );
   await tester.pumpAndSettle();
 }
 
@@ -68,6 +83,68 @@ void main() {
 
     for (final badge in BadgeCatalogue.all) {
       expect(find.text(badge.name), findsWidgets, reason: badge.name);
+    }
+  });
+
+  // The strip once divided a single Row between every badge in the catalogue,
+  // which left each emblem roughly 1dp wide. SizedBox enforces a constraint
+  // that tight rather than overflowing, so no RenderFlex error was thrown and
+  // the test above still passed while the artwork rendered as a sliver. This
+  // asserts the geometry those tests cannot see.
+  testWidgets('dashboard badge emblems keep their size and aspect',
+      (tester) async {
+    await pump(tester, StatsDashboardScreen(controller: demoController()));
+
+    final emblems = find.descendant(
+      of: find.byType(BadgeCard),
+      matching: find.byType(BadgeEmblem),
+    );
+    expect(emblems, findsWidgets);
+
+    for (var i = 0; i < tester.widgetList(emblems).length; i++) {
+      final size = tester.getSize(emblems.at(i));
+      expect(
+        size.width,
+        greaterThan(60),
+        reason: 'emblem $i is squeezed: $size',
+      );
+      // The artwork is authored in a 120 x 140 box; anything else means it
+      // was scaled per-axis instead of letterboxed.
+      expect(
+        size.width / size.height,
+        closeTo(120 / 140, 0.01),
+        reason: 'emblem $i is distorted: $size',
+      );
+    }
+  });
+
+  // "2.61" ellipsised to "2…" reads as a different number rather than as
+  // truncated text, so a stat tile must never clip its value. Three tiles
+  // across a phone is tight at a 1.0 font scale and tighter above it, which
+  // is where this last broke.
+  testWidgets('stat tile values are never clipped, even at a large font scale',
+      (tester) async {
+    for (final scale in [1.0, 1.3]) {
+      await pump(
+        tester,
+        StatsDashboardScreen(controller: demoController()),
+        textScale: scale,
+      );
+
+      // The demo totals: 12.4 km, 2.61 kg saved, 744 kcal.
+      for (final value in ['12.4', '2.61', '744']) {
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.descendant(
+            of: find.byType(StatSummaryCard),
+            matching: find.text(value),
+          ),
+        );
+        expect(
+          paragraph.didExceedMaxLines,
+          isFalse,
+          reason: '$value is clipped at a ${scale}x font scale',
+        );
+      }
     }
   });
 
