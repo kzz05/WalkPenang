@@ -49,6 +49,19 @@ Future<void> pump(WidgetTester tester, Widget screen) async {
   await tester.pumpAndSettle();
 }
 
+/// Scrolls a demo control into view and returns its finder.
+///
+/// The demo buttons sit at the bottom of the dashboard's scrolling list,
+/// below the fold on a phone-sized screen — and a list child that has not
+/// been scrolled to has not been built, so it cannot be found, let alone
+/// tapped. Every test that drives one has to scroll to it first.
+Future<Finder> revealControl(WidgetTester tester, String label) async {
+  final finder = find.text(label);
+  await tester.scrollUntilVisible(finder, 200);
+  await tester.pumpAndSettle();
+  return finder;
+}
+
 void main() {
   testWidgets('dashboard shows the totals and the badge set', (tester) async {
     await pump(tester, StatsDashboardScreen(controller: demoController()));
@@ -157,7 +170,7 @@ void main() {
     await pump(tester, StatsDashboardScreen(controller: demoController()));
 
     // 2.1 km at 10 + 21 points takes the balance from 194 to 225.
-    await tester.tap(find.text('SIMULATE A CHECK-IN'));
+    await tester.tap(await revealControl(tester, 'SIMULATE A CHECK-IN'));
     await tester.pumpAndSettle();
 
     expect(find.text('225'), findsOneWidget);
@@ -175,11 +188,13 @@ void main() {
           ),
         );
 
+    await revealControl(tester, 'REPEAT LAST CHECK-IN');
     expect(repeatButton().onPressed, isNull);
 
-    await tester.tap(find.text('SIMULATE A CHECK-IN'));
+    await tester.tap(await revealControl(tester, 'SIMULATE A CHECK-IN'));
     await tester.pumpAndSettle();
 
+    await revealControl(tester, 'REPEAT LAST CHECK-IN');
     expect(repeatButton().onPressed, isNotNull);
   });
 
@@ -187,15 +202,14 @@ void main() {
       (tester) async {
     await pump(tester, StatsDashboardScreen(controller: demoController()));
 
-    await tester.tap(find.text('SIMULATE A CHECK-IN'));
+    await tester.tap(await revealControl(tester, 'SIMULATE A CHECK-IN'));
     await tester.pumpAndSettle();
     expect(find.text('225'), findsOneWidget);
 
     // Let the first confirmation clear, then bring the repeat button into
     // view — it sits below the fold on a phone-sized screen.
     await tester.pump(const Duration(seconds: 4));
-    await tester.ensureVisible(find.text('REPEAT LAST CHECK-IN'));
-    await tester.pumpAndSettle();
+    await revealControl(tester, 'REPEAT LAST CHECK-IN');
 
     // The same checkInId again — the retry Module 4 would make after a
     // dropped response. The guard must leave the balance where it is.

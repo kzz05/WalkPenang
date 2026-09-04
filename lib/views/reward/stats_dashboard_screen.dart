@@ -19,9 +19,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
+import '../../controllers/leaderboard_controller.dart';
 import '../../controllers/reward_controller.dart';
 import '../../dao/badge_dao.dart';
 import '../../dao/in_memory_reward_data.dart';
+import '../../dao/leaderboard_dao.dart';
 import '../../dao/reward_dao.dart';
 import '../../models/badge_model.dart';
 import '../../models/check_in_result.dart';
@@ -34,6 +36,7 @@ import '../../widgets/reward/stat_summary_card.dart';
 import '../widgets/wp_components.dart';
 import 'badge_detail_screen.dart';
 import 'badge_gallery_screen.dart';
+import 'leaderboard_screen.dart';
 
 class StatsDashboardScreen extends StatefulWidget {
   /// Injected by tests and by demo mode. Left null in the app, where the
@@ -68,6 +71,10 @@ class _StatsDashboardScreenState extends State<StatsDashboardScreen> {
       userId: uid,
       rewardDao: FirestoreRewardDao(firestore: firestore),
       badgeDao: FirestoreBadgeDao(firestore: firestore),
+      // Supplied so a check-in updates the tourist's public standing as part
+      // of the same award (UC540), rather than only when they next open the
+      // leaderboard.
+      leaderboardDao: FirestoreLeaderboardDao(firestore: firestore),
     );
   }
 
@@ -160,6 +167,27 @@ class _StatsDashboardScreenState extends State<StatsDashboardScreen> {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => BadgeGalleryScreen(controller: _controller),
+      ),
+    );
+  }
+
+  /// The leaderboard (UC540). Pushed rather than embedded: it ranks every
+  /// tourist, while everything else on this screen is about one tourist, and
+  /// mixing the two under one scroll makes neither readable.
+  Future<void> _openLeaderboard() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => LeaderboardScreen(
+          // Demo mode carries through, so the board can be shown alongside the
+          // seeded dashboard rather than dropping back to live data mid-demo.
+          controller: _controller.isDemo
+              ? LeaderboardController(
+                  userId: DemoRewardData.userId,
+                  leaderboardDao: DemoRewardData.leaderboardDao(),
+                  isDemo: true,
+                )
+              : null,
+        ),
       ),
     );
   }
@@ -321,6 +349,8 @@ class _StatsDashboardScreenState extends State<StatsDashboardScreen> {
           _BadgeStrip(controller: _controller, onTapBadge: _openBadge),
           const SizedBox(height: 16),
           WpOutlineButton(label: 'view all badges', onPressed: _openGallery),
+          const SizedBox(height: 10),
+          WpOutlineButton(label: 'leaderboard', onPressed: _openLeaderboard),
 
           if (_controller.isDemo) ...[
             const SizedBox(height: 12),

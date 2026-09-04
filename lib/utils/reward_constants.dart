@@ -126,6 +126,36 @@ class RewardConstants {
   /// Badges a tourist has earned, one document per badge.
   static const String userBadgesCollection = 'user_badges';
 
+  /// Public standings (UC540), one document per tourist, keyed by user ID.
+  ///
+  /// A read model mirrored from the cumulative fields below — never the
+  /// source of truth for a points balance. It exists as its own collection so
+  /// that ranking every tourist does not require reading every tourist's
+  /// profile; see dao/leaderboard_dao.dart for the full reasoning.
+  static const String leaderboardCollection = 'leaderboard';
+
+  // --- Leaderboard (UC540) -------------------------------------------------
+
+  /// How many rows the board fetches.
+  ///
+  /// Deliberately a page rather than the whole collection: the screen exists
+  /// to show a tourist who is ahead of them and by how much, and nobody
+  /// scrolls to rank 400 for motivation. A tourist who ranks below this still
+  /// sees their own standing — LeaderboardController fetches their row
+  /// separately rather than leaving them off the screen.
+  static const int leaderboardPageSize = 50;
+
+  // --- Fields on the tourist document owned by Module 1 --------------------
+  //
+  // Read by Module 5 when mirroring a row into the standings, never written.
+  // Named here rather than reused from UserProfile because that class is a
+  // Module 1 type and this is the wire name Module 5 depends on; the two
+  // being equal today should not make a rename on one silently rename the
+  // other.
+
+  static const String profileNicknameField = 'nickname';
+  static const String profilePhotoUrlField = 'photoUrl';
+
   // --- Cumulative fields on the tourist document (T-R01.2) -----------------
   //
   // Every one of these is written with FieldValue.increment() and never

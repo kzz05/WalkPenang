@@ -18,11 +18,14 @@
 import '../models/badge_model.dart';
 import '../models/check_in_result.dart';
 import '../models/journal_entry_model.dart';
+import '../models/leaderboard_entry_model.dart';
 import '../models/reward_model.dart';
 import '../models/transport_mode.dart';
 import '../models/user_badge_model.dart';
+import '../utils/reward_constants.dart';
 import 'badge_dao.dart';
 import 'journal_dao.dart';
+import 'leaderboard_dao.dart';
 import 'reward_dao.dart';
 
 /// Cumulative totals held in memory.
@@ -97,6 +100,52 @@ class InMemoryBadgeDao implements BadgeDao {
         () => UserBadgeModel(badgeId: badge.id, dateEarned: stamp),
       );
     }
+  }
+}
+
+/// Public standings held in memory.
+class InMemoryLeaderboardDao implements LeaderboardDao {
+  InMemoryLeaderboardDao({List<LeaderboardEntryModel> entries = const []})
+      : _entries = {for (final entry in entries) entry.userId: entry};
+
+  final Map<String, LeaderboardEntryModel> _entries;
+
+  @override
+  Future<List<LeaderboardEntryModel>> fetchTopEntries({
+    int limit = RewardConstants.leaderboardPageSize,
+  }) async {
+    // Ordered and capped here rather than trusted from the caller, so this
+    // behaves like the Firestore implementation's orderBy + limit however the
+    // list was built — the same reason InMemoryJournalDao sorts.
+    final sorted = _entries.values.toList()
+      ..sort((a, b) => b.totalPoints.compareTo(a.totalPoints));
+    return sorted.take(limit).toList(growable: false);
+  }
+
+  @override
+  Future<LeaderboardEntryModel?> fetchEntry(String userId) async =>
+      _entries[userId];
+
+  @override
+  Future<void> publishEntry({
+    required String userId,
+    required RewardModel stats,
+  }) async {
+    if (userId.isEmpty || stats.totalPoints <= 0) return;
+
+    final existing = _entries[userId];
+    _entries[userId] = LeaderboardEntryModel(
+      userId: userId,
+      // There is no profile collection in memory to read a name from, so an
+      // existing row keeps its name and a new one gets the default — which is
+      // exactly what the Firestore implementation does for a tourist whose
+      // profile carries no nickname.
+      displayName: existing?.displayName ?? kDefaultWalkerName,
+      photoUrl: existing?.photoUrl,
+      totalPoints: stats.totalPoints,
+      totalCheckIns: stats.totalCheckIns,
+      totalDistanceMetres: stats.totalDistanceMetres,
+    );
   }
 }
 
@@ -187,7 +236,74 @@ class DemoRewardData {
     );
   }
 
+  /// The demo board (UC540), with the demo tourist sitting fourth.
+  ///
+  /// Reconciled with the points formula the same way [entries] is: every row
+  /// is 10 points per check-in plus 1 per 0.1 km, so a tutor can check any
+  /// name on the board against the rule. The demo tourist's row is
+  /// [stats] exactly, not an approximation of it.
+  ///
+  /// Fourth place rather than first on purpose. First place would show the
+  /// podium but not the line the screen is actually for — "11 points behind
+  /// the tourist above you" — and that line is what a leaderboard is for.
+  /// Daniel and Priya are level on points *and* distance, so the board also
+  /// demonstrates the tie rule: both hold 5th and the next tourist is 7th.
+  static List<LeaderboardEntryModel> get standings => [
+        const LeaderboardEntryModel(
+          userId: 'demo_mei_ling',
+          displayName: 'Mei Ling',
+          totalPoints: 512,
+          totalCheckIns: 18,
+          totalDistanceMetres: 33200,
+        ),
+        const LeaderboardEntryModel(
+          userId: 'demo_arjun',
+          displayName: 'Arjun Rao',
+          totalPoints: 388,
+          totalCheckIns: 14,
+          totalDistanceMetres: 24800,
+        ),
+        const LeaderboardEntryModel(
+          userId: 'demo_siti',
+          displayName: 'Siti Nurhaliza',
+          totalPoints: 205,
+          totalCheckIns: 8,
+          totalDistanceMetres: 12500,
+        ),
+        LeaderboardEntryModel(
+          userId: userId,
+          displayName: 'You',
+          totalPoints: stats.totalPoints,
+          totalCheckIns: stats.totalCheckIns,
+          totalDistanceMetres: stats.totalDistanceMetres,
+        ),
+        const LeaderboardEntryModel(
+          userId: 'demo_daniel',
+          displayName: 'Daniel Tan',
+          totalPoints: 150,
+          totalCheckIns: 6,
+          totalDistanceMetres: 9000,
+        ),
+        const LeaderboardEntryModel(
+          userId: 'demo_priya',
+          displayName: 'Priya Menon',
+          totalPoints: 150,
+          totalCheckIns: 6,
+          totalDistanceMetres: 9000,
+        ),
+        const LeaderboardEntryModel(
+          userId: 'demo_wong',
+          displayName: 'Wong Jia Hui',
+          totalPoints: 96,
+          totalCheckIns: 4,
+          totalDistanceMetres: 5600,
+        ),
+      ];
+
   static InMemoryRewardDao rewardDao() => InMemoryRewardDao(initial: stats);
+
+  static InMemoryLeaderboardDao leaderboardDao() =>
+      InMemoryLeaderboardDao(entries: standings);
 
   static InMemoryBadgeDao badgeDao() =>
       InMemoryBadgeDao(earned: earnedBadges);
