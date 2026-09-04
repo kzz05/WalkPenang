@@ -17,12 +17,18 @@ class ActiveWalkingView extends StatelessWidget {
   final VoidCallback? onOpenNavigation;
   final VoidCallback? onCompleteJourney;
 
+  /// Sends the journey to the mini bar and the tourist back to whatever else
+  /// they wanted to do. Null where there is nowhere to minimise to — the debug
+  /// flow, which is the journey screens and nothing else.
+  final VoidCallback? onMinimize;
+
   const ActiveWalkingView({
     super.key,
     required this.data,
     this.onBack,
     this.onOpenNavigation,
     this.onCompleteJourney,
+    this.onMinimize,
   });
 
   @override
@@ -35,7 +41,7 @@ class ActiveWalkingView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Header(onBack: onBack),
+              _Header(onBack: onBack, onMinimize: onMinimize),
               const SizedBox(height: 32),
               Expanded(
                 child: SingleChildScrollView(
@@ -58,8 +64,9 @@ class ActiveWalkingView extends StatelessWidget {
 
 class _Header extends StatelessWidget {
   final VoidCallback? onBack;
+  final VoidCallback? onMinimize;
 
-  const _Header({required this.onBack});
+  const _Header({required this.onBack, this.onMinimize});
 
   @override
   Widget build(BuildContext context) {
@@ -97,7 +104,31 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(width: 32),
+        // Balances the back button when there is nowhere to minimise to, so
+        // the JOURNEY ACTIVE pill stays centred either way.
+        if (onMinimize == null)
+          const SizedBox(width: 40)
+        else
+          Tooltip(
+            message: 'Keep walking, use the app',
+            child: InkWell(
+              onTap: onMinimize,
+              customBorder: const CircleBorder(),
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.outline),
+                ),
+                child: const Icon(
+                  Icons.keyboard_arrow_down,
+                  size: 22,
+                  color: AppColors.onPrimary,
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }

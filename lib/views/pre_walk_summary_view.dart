@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../controllers/journey_session.dart';
 import '../controllers/walking_controller.dart';
 import '../models/user_profile.dart';
 import '../models/walking_route_summary.dart';
@@ -58,14 +59,16 @@ class _PreWalkSummaryViewState extends State<PreWalkSummaryView> {
     final controller = widget.controller;
     if (controller.journeyStartStatus == JourneyStartStatus.success) {
       controller.acknowledgeJourneyStart();
+      // The journey is handed to JourneySession rather than to the route: it
+      // has to outlive JourneyFlowView so the tourist can minimise it and go
+      // and do something else while the walk keeps being recorded.
+      JourneySession.instance.start(
+        walking: controller,
+        openNavigation: widget.onOpenNavigation,
+        onJourneyCompleted: widget.onJourneyCompleted,
+      );
       Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => JourneyFlowView(
-            walkingController: controller,
-            onOpenNavigation: widget.onOpenNavigation,
-            onJourneyCompleted: widget.onJourneyCompleted,
-          ),
-        ),
+        MaterialPageRoute(builder: (_) => const JourneyFlowView()),
       );
     } else if (controller.journeyStartError != null) {
       ScaffoldMessenger.of(context).showSnackBar(

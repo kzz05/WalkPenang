@@ -260,6 +260,23 @@ class JourneyCompletionController extends ChangeNotifier {
     await _checkArrival();
   }
 
+  /// UC-M05 -> UC-W06 in one tap: the navigation screen has already detected
+  /// arrival, so the tourist should not have to ask for a check they have
+  /// visibly passed.
+  ///
+  /// The check itself is not skipped. It is the same one-shot GPS fix against
+  /// [MapConstants.checkInThresholdMeters] that the Verify Location screen
+  /// runs — navigation's own arrival is a running estimate off a live stream,
+  /// and a journey may only be rewarded on a deliberate fix. Anything other
+  /// than a pass simply leaves the tourist on Verify Location, which is the
+  /// only screen that can show the reason and offer a retry.
+  Future<void> verifyAndComplete() async {
+    await beginVerification();
+    if (_verifyPhase == VerifyLocationPhase.verified) {
+      await completeJourney();
+    }
+  }
+
   // --- Verify Location (UC-W06) ---------------------------------------------
 
   Future<void> _checkArrival() async {
