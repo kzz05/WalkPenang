@@ -38,19 +38,23 @@ class VerifyLocationView extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
+        // Tightened from 24/32/24 so the too-far state — the tallest of
+        // the three — fits a normal phone without scrolling: the tourist
+        // has to be able to read the distance rows and reach Try Again /
+        // Continue Walking without a swipe.
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+          padding: const EdgeInsets.fromLTRB(24, 14, 24, 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _Header(data: data, onBack: onBack),
-              const SizedBox(height: 32),
+              const SizedBox(height: 14),
               Expanded(
                 child: SingleChildScrollView(
                   child: _Content(data: data),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 14),
               _Footer(
                 data: data,
                 onCompleteJourney: onCompleteJourney,
@@ -104,7 +108,7 @@ class _Header extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 4),
         Text(
           _stateLabel(data),
           style: AppType.mono.copyWith(
@@ -132,7 +136,7 @@ class _Content extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _RadiusZoneCard(ringColor: _ringColor, data: data),
-        const SizedBox(height: 14),
+        const SizedBox(height: 10),
         switch (data.phase) {
           VerifyLocationPhase.checking => _CheckingCard(data: data),
           VerifyLocationPhase.verified => _VerifiedCard(data: data),
@@ -140,7 +144,7 @@ class _Content extends StatelessWidget {
         },
         if (data.phase == VerifyLocationPhase.blocked &&
             data.blockReason == VerifyBlockReason.tooFar) ...[
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           _DistanceCheckCard(data: data),
         ],
       ],
@@ -164,7 +168,10 @@ class _RadiusZoneCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const height = 180.0;
+    // Enough to keep the destination pin, the tourist's pin and the whole
+    // radius circle framed together (VerificationRadiusMap fits all three
+    // to these bounds), while giving the cards below it room on screen.
+    const height = 148.0;
 
     if (data.hasDestinationPosition) {
       return Stack(
@@ -183,7 +190,7 @@ class _RadiusZoneCard extends StatelessWidget {
             height: height,
           ),
           Padding(
-            padding: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.only(bottom: 8),
             child: _RadiusZoneChip(radiusMeters: data.radiusMeters),
           ),
         ],
@@ -199,8 +206,8 @@ class _RadiusZoneCard extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _DashedRadiusRing(color: ringColor, size: 110),
-          const SizedBox(height: 12),
+          _DashedRadiusRing(color: ringColor, size: 92),
+          const SizedBox(height: 10),
           _RadiusZoneChip(radiusMeters: data.radiusMeters),
         ],
       ),
@@ -218,7 +225,7 @@ class _RadiusZoneChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 2),
       decoration: const BoxDecoration(
         color: AppColors.card,
         borderRadius: AppRadius.mdAll,
@@ -452,31 +459,31 @@ class _BlockedCard extends StatelessWidget {
       background: AppColors.dangerTint,
       children: [
         Container(
-          width: 56,
-          height: 56,
+          width: 42,
+          height: 42,
           decoration: const BoxDecoration(
               color: AppColors.danger, shape: BoxShape.circle),
-          child: const Icon(Icons.priority_high, color: Colors.white, size: 28),
+          child: const Icon(Icons.priority_high, color: Colors.white, size: 22),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
         Text(copy.headline,
             textAlign: TextAlign.center,
             style: AppType.heading.copyWith(fontSize: 18)),
         if (data.blockReason == VerifyBlockReason.tooFar &&
             distance != null) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             'YOU ARE ${distance.round()} M FROM DESTINATION',
             style: AppType.mono.copyWith(
                 fontSize: 11, letterSpacing: 0.8, color: AppColors.danger),
           ),
         ],
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         Text(
           copy.message,
           textAlign: TextAlign.center,
           style: AppType.body
-              .copyWith(fontSize: 13, color: AppColors.muted),
+              .copyWith(fontSize: 13, height: 1.3, color: AppColors.muted),
         ),
       ],
     );
@@ -493,7 +500,7 @@ class _StateCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -519,7 +526,7 @@ class _DistanceCheckCard extends StatelessWidget {
     final distance = data.currentDistanceMeters;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       decoration: BoxDecoration(
         color: AppColors.card,
         borderRadius: BorderRadius.circular(16),
@@ -557,7 +564,7 @@ class _DistanceRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 14),
+      padding: const EdgeInsets.symmetric(vertical: 9),
       child: Row(
         children: [
           Expanded(

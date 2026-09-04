@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../controllers/favorites_controller.dart';
 import '../controllers/home_controller.dart';
 import '../models/user_profile.dart';
 import '../theme/app_theme.dart';
@@ -27,9 +28,22 @@ class HomeView extends StatefulWidget {
 class _HomeViewState extends State<HomeView> {
   late final HomeController _controller = HomeController(widget.profile);
 
+  /// The one favourites controller for the whole session. Shared with the map
+  /// carousel below and handed to the Discovery module when it's pushed, so a
+  /// heart toggled on any screen updates every other screen with no reload.
+  final FavoritesController _favorites = FavoritesController();
+
+  @override
+  void initState() {
+    super.initState();
+    // T-FD04.1 — restore saved places from the previous session.
+    _favorites.load();
+  }
+
   @override
   void dispose() {
     _controller.dispose();
+    _favorites.dispose();
     super.dispose();
   }
 
@@ -74,7 +88,7 @@ class _HomeViewState extends State<HomeView> {
   Future<void> _openDiscoveryModule() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => const DiscoveryModuleView(),
+        builder: (_) => DiscoveryModuleView(favorites: _favorites),
       ),
     );
   }
@@ -111,7 +125,10 @@ class _HomeViewState extends State<HomeView> {
       // overlay row, level with the radius chips.
       body: SafeArea(
         bottom: false,
-        child: MapPanel(topBarTrailing: _buildAccountButton()),
+        child: MapPanel(
+          topBarTrailing: _buildAccountButton(),
+          favorites: _favorites,
+        ),
       ),
       bottomNavigationBar: WpBottomNav(
         currentIndex: 0,

@@ -77,14 +77,18 @@ class _ScriptedArrivalService implements ArrivalVerificationService {
   }
 }
 
-/// Replays a scripted cumulative-distance stream in place of GPS.
+/// Replays a scripted progress stream in place of GPS.
 class _ScriptedProgressService implements JourneyProgressService {
-  _ScriptedProgressService(this.metres);
+  _ScriptedProgressService(this.updates);
 
-  final Stream<double> metres;
+  final Stream<JourneyProgressUpdate> updates;
 
   @override
-  Stream<double> metresWalked() => metres;
+  Stream<JourneyProgressUpdate> track({
+    required double destinationLatitude,
+    required double destinationLongitude,
+  }) =>
+      updates;
 }
 
 class _StubRewardService implements RewardService {
@@ -191,8 +195,8 @@ void main() {
     // passed kmCovered or minutesRemaining, so both tiles sat on their
     // "not available" state for an entire journey.
 
-    JourneyCompletionController controllerWith(
-      Stream<double> metres, {
+    JourneyCompletionController controllerFrom(
+      Stream<JourneyProgressUpdate> updates, {
       TransportMode mode = TransportMode.walking,
     }) {
       final controller = JourneyCompletionController(
@@ -202,10 +206,25 @@ void main() {
         checkInRepository: _RecordingCheckInRepository(),
         arrivalVerificationService:
             _ScriptedArrivalService(const ArrivalCheckReading.success(42)),
-        journeyProgressService: _ScriptedProgressService(metres),
+        journeyProgressService: _ScriptedProgressService(updates),
       );
       addTearDown(controller.dispose);
       return controller;
+    }
+
+    /// These tests are about KM COVERED, so they script walked metres and
+    /// hold the destination a constant 500 m away.
+    JourneyCompletionController controllerWith(
+      Stream<double> metres, {
+      TransportMode mode = TransportMode.walking,
+    }) {
+      return controllerFrom(
+        metres.map((m) => JourneyProgressUpdate(
+              metresWalked: m,
+              metresToDestination: 500,
+            )),
+        mode: mode,
+      );
     }
 
     test('reports nothing until the first fix lands', () {
@@ -275,6 +294,174 @@ void main() {
       expect(
         controller.journeyCompletedUiData.completedDistanceKm,
         isNot(closeTo(2.0, 1e-9)),
+      );
+    });
+  });
+
+  group('journey progress bar', () {
+    // The bug this group exists for: the bar used to read
+    // kmCovered / plannedDistanceKm, so it measured how far the tourist had
+    // physically walked instead of how much closer they had got. On a 0.6 km
+    // route, 0.5 km of wandering showed a nearly full bar while Verify
+    // Location still reported 817 m to go. Progress is now the distance
+    // actually closed on the destination, which can fall as well as rise.
+
+    /// Scripts a walk as (cumulative metres walked, metres still to go).
+    JourneyCompletionController walk(List<List<double>> fixes) {
+      final controller = JourneyCompletionController(
+        routeSummary: _summaryFor(TransportMode.walking, distanceKm: 2.0),
+        userId: 'tourist_001',
+        rewardService: _StubRewardService(),
+        checkInRepository: _RecordingCheckInRepository(),
+        arrivalVerificationService:
+            _ScriptedArrivalService(const ArrivalCheckReading.success(42)),
+        journeyProgressService: _ScriptedProgressService(
+          Stream<JourneyProgressUpdate>.fromIterable(
+            fixes.map((f) => JourneyProgressUpdate(
+                  metresWalked: f[0],
+                  metresToDestination: f[1],
+                )),
+          ),
+        ),
+      );
+      addTearDown(controller.dispose);
+      return controller;
+    }
+
+    double progressOf(JourneyCompletionController c) =>
+        c.activeWalkingUiData.progressFraction;
+
+    test('A · starts at 0% on the first fix, 600 m from the destination',
+        () async {
+      final controller = walk([
+        [0, 600],
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(progressOf(controller), closeTo(0.0, 1e-9));
+    });
+
+    test('B · halfway in when the remaining 600 m becomes 300 m', () async {
+      final controller = walk([
+        [0, 600],
+        [400, 300],
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(progressOf(controller), closeTo(0.5, 1e-9));
+    });
+
+    test('C · falls back when the tourist walks away from the destination',
+        () async {
+      final controller = walk([
+        [0, 600],
+        [400, 300],
+      ]);
+      await Future<void>.delayed(Duration.zero);
+      final atHalfway = progressOf(controller);
+
+      final backedOff = walk([
+        [0, 600],
+        [400, 300],
+        [600, 450],
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(atHalfway, closeTo(0.5, 1e-9));
+      expect(progressOf(backedOff), closeTo(0.25, 1e-9));
+      expect(progressOf(backedOff), lessThan(atHalfway));
+    });
+
+    test('D · walking in circles moves KM COVERED but not the bar', () async {
+      final controller = walk([
+        [0, 600],
+        [400, 300],
+        [900, 305],
+        [1400, 298],
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      // A further kilometre on the clock...
+      expect(controller.kmCovered, closeTo(1.4, 1e-9));
+      // ...and the destination is no nearer than it was at the halfway mark.
+      expect(progressOf(controller), closeTo(0.503, 0.01));
+    });
+
+    test('E · clamps to 0% past the distance the journey started at',
+        () async {
+      final controller = walk([
+        [0, 600],
+        [2000, 900],
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      // Never negative, however far the wrong way they went.
+      expect(progressOf(controller), 0.0);
+    });
+
+    test('F · clamps to 100% at (or past) the destination', () async {
+      final controller = walk([
+        [0, 600],
+        [700, 0],
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(progressOf(controller), 1.0);
+    });
+
+    test('reads empty, not partly filled, before the first fix', () {
+      final controller = walk(const []);
+
+      expect(progressOf(controller), 0.0);
+    });
+
+    test('a journey that starts on the destination cannot divide by zero',
+        () async {
+      final controller = walk([
+        [0, 0],
+        [50, 40],
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(progressOf(controller).isNaN, isFalse);
+      expect(progressOf(controller), 0.0);
+    });
+
+    test('G · leaves distance, carbon, calories and verification untouched',
+        () async {
+      final controller = JourneyCompletionController(
+        routeSummary: _summaryFor(TransportMode.walking, distanceKm: 2.0),
+        userId: 'tourist_001',
+        rewardService: _StubRewardService(),
+        checkInRepository: _RecordingCheckInRepository(),
+        arrivalVerificationService:
+            _ScriptedArrivalService(const ArrivalCheckReading.success(42)),
+        journeyProgressService: _ScriptedProgressService(
+          Stream<JourneyProgressUpdate>.fromIterable(const [
+            JourneyProgressUpdate(metresWalked: 0, metresToDestination: 600),
+            JourneyProgressUpdate(metresWalked: 800, metresToDestination: 150),
+          ]),
+        ),
+        carbonSavedKg: 0.42,
+        caloriesBurned: 117.0,
+      );
+      addTearDown(controller.dispose);
+      await Future<void>.delayed(Duration.zero);
+
+      // KM COVERED is still cumulative movement, not the closed distance.
+      expect(controller.kmCovered, closeTo(0.8, 1e-9));
+      expect(controller.activeWalkingUiData.kmCovered, closeTo(0.8, 1e-9));
+      // Pre-walk promises, unchanged by anything the progress bar does.
+      expect(controller.activeWalkingUiData.carbonSavedKg, 0.42);
+      expect(controller.activeWalkingUiData.caloriesBurned, 117.0);
+      // MIN REMAINING still runs off the planned pace, as before.
+      expect(controller.minutesRemaining, 20);
+      // And arrival is still decided by its own one-shot fix, not the bar.
+      expect(progressOf(controller), closeTo(0.75, 1e-9));
+      await controller.beginVerification();
+      expect(
+        controller.verifyLocationUiData.phase,
+        VerifyLocationPhase.verified,
       );
     });
   });

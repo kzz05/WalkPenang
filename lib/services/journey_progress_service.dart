@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import '../constants/map_constants.dart';
 import '../models/gps_location.dart';
 import 'location_service.dart';
@@ -16,11 +18,38 @@ import 'location_service.dart';
 /// REMAINING tiles had no source, so they rendered their "not available"
 /// state for the whole journey.
 abstract class JourneyProgressService {
-  /// Cumulative metres walked since the stream was subscribed to.
+  /// Emits one [JourneyProgressUpdate] per accepted position fix, so a
+  /// listener can render both distance covered and progress towards the
+  /// destination without accumulating or measuring anything itself.
   ///
-  /// Emits on each accepted position fix, so a listener can render distance
-  /// covered without accumulating anything itself.
-  Stream<double> metresWalked();
+  /// The destination is a parameter rather than a constructor field so the
+  /// two figures come off a single position stream. Measuring how far the
+  /// tourist still has to go from a second subscription would double the
+  /// GPS cost and let the two readings disagree about where the tourist is.
+  Stream<JourneyProgressUpdate> track({
+    required double destinationLatitude,
+    required double destinationLongitude,
+  });
+}
+
+/// One position fix, expressed as the two figures the Active Walking screen
+/// needs — deliberately kept apart, because they answer different questions
+/// and move independently.
+@immutable
+class JourneyProgressUpdate {
+  /// Cumulative metres physically walked since the stream was subscribed to.
+  /// Only ever grows, including when the tourist walks the wrong way.
+  final double metresWalked;
+
+  /// Straight-line metres from this fix to the destination. Falls as the
+  /// tourist closes in, rises again if they walk away, and barely moves
+  /// while they wander in circles.
+  final double metresToDestination;
+
+  const JourneyProgressUpdate({
+    required this.metresWalked,
+    required this.metresToDestination,
+  });
 }
 
 /// Emits nothing, so KM COVERED and MIN REMAINING stay unavailable.
@@ -43,11 +72,17 @@ class NoJourneyProgressService implements JourneyProgressService {
   const NoJourneyProgressService();
 
   @override
-  Stream<double> metresWalked() => const Stream<double>.empty();
+  Stream<JourneyProgressUpdate> track({
+    required double destinationLatitude,
+    required double destinationLongitude,
+  }) =>
+      const Stream<JourneyProgressUpdate>.empty();
 }
 
-/// The production implementation, summing the distance between consecutive
-/// GPS fixes from [LocationService].
+/// The production implementation: sums the distance between consecutive GPS
+/// fixes from [LocationService] for [JourneyProgressUpdate.metresWalked], and
+/// measures each fix against the destination for
+/// [JourneyProgressUpdate.metresToDestination]. One subscription feeds both.
 class LocationJourneyProgressService implements JourneyProgressService {
   LocationJourneyProgressService({LocationService? locationService})
       : _locationService = locationService ?? LocationService();
@@ -61,33 +96,56 @@ class LocationJourneyProgressService implements JourneyProgressService {
   static const double _implausibleJumpMeters = 200;
 
   @override
-  Stream<double> metresWalked() {
+  Stream<JourneyProgressUpdate> track({
+    required double destinationLatitude,
+    required double destinationLongitude,
+  }) {
     GpsLocation? previous;
-    var total = 0.0;
+    var metresWalked = 0.0;
+    double? metresToDestination;
 
     return _locationService.startLocationUpdates().map((fix) {
       final last = previous;
       previous = fix;
-      if (last == null) return total;
 
-      final step = _locationService.distanceMeters(
-        startLatitude: last.latitude,
-        startLongitude: last.longitude,
-        endLatitude: fix.latitude,
-        endLongitude: fix.longitude,
-      );
+      final step = last == null
+          ? null
+          : _locationService.distanceMeters(
+              startLatitude: last.latitude,
+              startLongitude: last.longitude,
+              endLatitude: fix.latitude,
+              endLongitude: fix.longitude,
+            );
+
+      final isGlitch = step != null && step > _implausibleJumpMeters;
 
       // The position stream already applies a distance filter, so anything
       // below it is jitter around a stationary tourist rather than movement.
       // Counting it would have someone standing still slowly "walking" a
       // route they never left the spot for.
-      if (step < MapConstants.locationUpdateDistanceFilterMeters ||
-          step > _implausibleJumpMeters) {
-        return total;
+      if (step != null &&
+          !isGlitch &&
+          step >= MapConstants.locationUpdateDistanceFilterMeters) {
+        metresWalked += step;
       }
 
-      total += step;
-      return total;
+      // A teleported fix is rejected for both figures, not just the walked
+      // total — otherwise one bad reading would swing the progress bar to a
+      // position the tourist was never at. The first fix has nothing to be a
+      // jump from, and always sets the starting distance.
+      if (!isGlitch || metresToDestination == null) {
+        metresToDestination = _locationService.distanceMeters(
+          startLatitude: fix.latitude,
+          startLongitude: fix.longitude,
+          endLatitude: destinationLatitude,
+          endLongitude: destinationLongitude,
+        );
+      }
+
+      return JourneyProgressUpdate(
+        metresWalked: metresWalked,
+        metresToDestination: metresToDestination!,
+      );
     });
   }
 }

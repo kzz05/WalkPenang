@@ -107,12 +107,17 @@ class WpMonoLabel extends StatelessWidget {
   final Color color;
   final TextAlign align;
 
+  /// Null (the default) keeps the label wrapping freely, as every existing
+  /// caller expects. Set it where an unbounded wrap would stretch a card.
+  final int? maxLines;
+
   const WpMonoLabel(
     this.text, {
     super.key,
     this.size = 10,
     this.color = AppColors.muted,
     this.align = TextAlign.left,
+    this.maxLines,
   });
 
   @override
@@ -120,6 +125,8 @@ class WpMonoLabel extends StatelessWidget {
     return Text(
       text.toUpperCase(),
       textAlign: align,
+      maxLines: maxLines,
+      overflow: maxLines == null ? null : TextOverflow.ellipsis,
       style: AppType.mono.copyWith(fontSize: size, color: color),
     );
   }
