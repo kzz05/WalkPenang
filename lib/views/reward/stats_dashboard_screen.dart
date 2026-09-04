@@ -395,8 +395,21 @@ class _DisableableOutlineButton extends StatelessWidget {
   }
 }
 
-/// The three badges laid out across the dashboard.
+/// Every badge in the catalogue, laid out as a horizontally scrolling strip.
+///
+/// The cards are a fixed width rather than Expanded slots. The catalogue grew
+/// from three badges to ten, and dividing one row between ten Expanded cards
+/// left about 1dp for a 72dp emblem — a width SizedBox silently enforces
+/// instead of overflowing, so the artwork was crushed with nothing in the
+/// console to say why. A fixed width keeps every emblem at its intended size
+/// however many badges the catalogue holds; the rest scroll into view, and
+/// "view all badges" still opens the full grid.
 class _BadgeStrip extends StatelessWidget {
+  /// The 72dp emblem plus BadgeCard's 24dp of padding, with the remainder
+  /// left for the name — close to the gallery tile's content width, so a
+  /// caption ellipsises in the same place on both screens.
+  static const double _cardWidth = 132;
+
   final RewardController controller;
   final ValueChanged<BadgeModel> onTapBadge;
 
@@ -409,24 +422,33 @@ class _BadgeStrip extends StatelessWidget {
       return const WpMonoLabel('no badges defined yet');
     }
 
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var i = 0; i < definitions.length; i++) ...[
-            if (i > 0) const SizedBox(width: 10),
-            Expanded(
-              child: BadgeCard(
-                badge: definitions[i],
-                unlocked: controller.hasEarned(definitions[i].id),
-                dateEarned: controller.earnedBadge(definitions[i].id)?.dateEarned,
-                progress: controller.progressTowards(definitions[i]),
-                remainingLabel: controller.remainingLabel(definitions[i]),
-                onTap: () => onTapBadge(definitions[i]),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      // IntrinsicHeight sits inside the scroll view so an unlocked card (date
+      // pill) and a locked one (progress bar plus caption) still share a
+      // height. The children are a fixed width, which keeps the intrinsic
+      // pass well defined.
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < definitions.length; i++) ...[
+              if (i > 0) const SizedBox(width: 10),
+              SizedBox(
+                width: _cardWidth,
+                child: BadgeCard(
+                  badge: definitions[i],
+                  unlocked: controller.hasEarned(definitions[i].id),
+                  dateEarned:
+                      controller.earnedBadge(definitions[i].id)?.dateEarned,
+                  progress: controller.progressTowards(definitions[i]),
+                  remainingLabel: controller.remainingLabel(definitions[i]),
+                  onTap: () => onTapBadge(definitions[i]),
+                ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
