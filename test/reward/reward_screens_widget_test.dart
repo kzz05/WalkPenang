@@ -72,7 +72,15 @@ Future<void> pump(
 /// tapped. Every test that drives one has to scroll to it first.
 Future<Finder> revealControl(WidgetTester tester, String label) async {
   final finder = find.text(label);
-  await tester.scrollUntilVisible(finder, 200);
+  await tester.scrollUntilVisible(
+    finder,
+    200,
+    // The dashboard has two scrollables — this vertical list, and the badge
+    // strip scrolling horizontally inside it — so the default finder matches
+    // both and throws. The list is built first, so it is the one to drive;
+    // scrolling the badge strip would never reach a button below the fold.
+    scrollable: find.byType(Scrollable).first,
+  );
   await tester.pumpAndSettle();
   return finder;
 }
