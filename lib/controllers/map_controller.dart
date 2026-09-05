@@ -53,7 +53,7 @@ class MapController extends ChangeNotifier {
         _placesService = placesService ?? PlacesService(MapService()),
         _compassService = compassService ?? CompassService(),
         _routedPlacesStore =
-            routedPlacesStore ?? const SharedPrefsRoutedPlacesStore();
+            routedPlacesStore ?? FirestoreRoutedPlacesStore();
 
   final LocationService _locationService;
   final BoundaryValidatorService _boundaryValidatorService;

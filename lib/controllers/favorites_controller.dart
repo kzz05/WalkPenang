@@ -20,7 +20,7 @@ import 'package:walkpenang/services/favorites_store.dart';
 /// is already correct and the next toggle rewrites the whole list.
 class FavoritesController extends ChangeNotifier {
   FavoritesController({FavoritesStore? store})
-      : _store = store ?? const SharedPrefsFavoritesStore();
+      : _store = store ?? FirestoreFavoritesStore();
 
   final FavoritesStore _store;
 
