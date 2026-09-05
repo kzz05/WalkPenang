@@ -93,6 +93,37 @@ class FavoritePlace {
     );
   }
 
+  /// A map pin for this favourite, so it can be shown wherever it is rather
+  /// than only when a nearby search happens to return it.
+  ///
+  /// Null when the favourite has no coordinates — a place saved from the
+  /// Discovery grid, whose [Place] carries none. Those stay list-only until
+  /// the grid learns to save them, which is the same Tier 2 gap [latitude]
+  /// already describes. The caller drops the nulls rather than guessing a
+  /// position, because a pin in the wrong place is worse than no pin.
+  PlaceModel? toPlaceModel() {
+    final lat = latitude;
+    final lng = longitude;
+    if (lat == null || lng == null) return null;
+
+    return PlaceModel(
+      placeId: id,
+      name: name,
+      // PlaceModel's own taxonomy is 'food' | 'attraction' | 'other', and
+      // pinCategoryFor already falls back to `other` for the Discovery
+      // tokens ('heritage', 'nature', ...) that do not appear in it.
+      category: category,
+      latitude: lat,
+      longitude: lng,
+      rating: rating,
+      address: address,
+      photoUrl: photoUrl,
+      // Not stored with a favourite, and a stale "open now" would be a lie —
+      // the card reads it as closed/unknown rather than claiming otherwise.
+      isOpenNow: false,
+    );
+  }
+
   /// A minimal [Place] for opening the detail screen when the full object
   /// isn't in memory (e.g. a favourite tapped straight after a restart). The
   /// detail screen re-fetches reviews and rating live and guards every

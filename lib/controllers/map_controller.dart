@@ -66,6 +66,48 @@ class MapController extends ChangeNotifier {
 
   GpsLocation? currentLocation;
   List<PlaceModel> nearbyPlaces = [];
+
+  /// Saved places pinned regardless of the current search, set by the map
+  /// screen from the app-wide favourites (see [setFavouritePlaces]).
+  List<PlaceModel> favouritePlaces = const [];
+
+  /// Everything the map draws a place pin for, and everything the results
+  /// strip can scroll to: the current search, plus any favourite that search
+  /// did not already return.
+  ///
+  /// Favourites come last rather than being merged by distance. The strip is
+  /// ordered nearest-first as an answer to "where could I walk right now",
+  /// and a saved place three kilometres away is not competing for that slot —
+  /// it is there so the tourist can reach it at all without hunting for it
+  /// with the radius chips.
+  List<PlaceModel> get visiblePlaces {
+    if (favouritePlaces.isEmpty) return nearbyPlaces;
+
+    final nearbyIds = nearbyPlaces.map((place) => place.placeId).toSet();
+    return [
+      ...nearbyPlaces,
+      // The nearby copy wins on a tie: it came from a live search, so its
+      // rating and opening hours are current, while a favourite's are a
+      // snapshot from whenever it was saved.
+      ...favouritePlaces.where((place) => !nearbyIds.contains(place.placeId)),
+    ];
+  }
+
+  /// Replaces the always-on favourite pins.
+  ///
+  /// Takes plain [PlaceModel]s rather than the Discovery module's
+  /// FavoritePlace, so this module keeps knowing nothing about how favourites
+  /// are stored or which screens can save one.
+  void setFavouritePlaces(List<PlaceModel> places) {
+    final unchanged = places.length == favouritePlaces.length &&
+        List.generate(places.length, (i) => i).every(
+          (i) => places[i].placeId == favouritePlaces[i].placeId,
+        );
+    if (unchanged) return;
+
+    favouritePlaces = List.unmodifiable(places);
+    notifyListeners();
+  }
   bool isLoading = false;
   double searchRadiusKm = MapConstants.defaultSearchRadiusKm;
   bool isWithinPenang = true;
