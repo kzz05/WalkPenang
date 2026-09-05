@@ -89,8 +89,16 @@ class ProfileStore {
     await prefs.setString(_key, jsonEncode(profile.toMap()));
   }
 
+  /// Drops the cached profile on logout.
+  ///
+  /// Removes this store's own key and nothing else. It used to call
+  /// prefs.clear(), which empties the whole preference store — so logging out
+  /// also deleted the tourist's favourites
+  /// (walkpenang.favorites.v2) and the "already routed" places behind the grey
+  /// map pins (walkpenang.map.routed_place_ids.v1). Both came back empty on the
+  /// next login, which reads as the app having forgotten a year of walking.
   Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    await prefs.remove(_key);
   }
 }
