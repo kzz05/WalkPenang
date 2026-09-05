@@ -8,6 +8,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:walkpenang/controllers/map_controller.dart';
 import 'package:walkpenang/models/favorite_place.dart';
+import 'package:walkpenang/models/place.dart';
 import 'package:walkpenang/models/place_model.dart';
 import 'package:walkpenang/services/routed_places_store.dart';
 
@@ -123,16 +124,42 @@ void main() {
     });
 
     test('is null for a favourite saved without coordinates', () {
-      // What the Discovery grid produces today — Place carries no position,
-      // so there is nowhere to put a pin and guessing one is worse than none.
-      final fromGrid = FavoritePlace(
-        id: 'from-the-grid',
+      // A listing that arrived with no location, or one saved before
+      // favourites recorded where they are. Guessing a position would put a
+      // pin somewhere the place is not.
+      final noPosition = FavoritePlace(
+        id: 'no-position',
         name: 'Somewhere',
         category: 'heritage',
         savedAt: DateTime(2026, 9, 5),
       );
 
-      expect(fromGrid.toPlaceModel(), isNull);
+      expect(noPosition.toPlaceModel(), isNull);
+    });
+
+    test('a place favourited from the Discovery grid can be pinned', () {
+      // Place used to derive distanceKm from its coordinates and then drop
+      // them, so anything saved from the grid was unpinnable and the tourist
+      // saw no marker for a place they had explicitly saved.
+      const fromGrid = Place(
+        id: 'kek-lok-si',
+        name: 'Kek Lok Si Temple',
+        category: PlaceCategory.heritage,
+        priceLevel: PriceLevel.moderate,
+        distanceKm: 6.4,
+        rating: 4.6,
+        reviewCount: 120,
+        address: 'Air Itam',
+        latitude: 5.3993,
+        longitude: 100.2735,
+      );
+
+      final place = FavoritePlace.fromPlace(fromGrid).toPlaceModel();
+
+      expect(place, isNotNull);
+      expect(place!.latitude, 5.3993);
+      expect(place.longitude, 100.2735);
+      expect(place.name, 'Kek Lok Si Temple');
     });
   });
 }
