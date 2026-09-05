@@ -36,7 +36,7 @@ JourneyCompletionController _journey() => JourneyCompletionController(
       userId: 'tourist_001',
       rewardService: FakeRewardService(),
       checkInRepository: NoopCheckInRepository(),
-      arrivalVerificationService: FakeArrivalVerificationService(),
+      arrivalVerificationService: const FakeArrivalVerificationService(),
     );
 
 /// The app exactly as main.dart assembles it: the bar above the navigator.

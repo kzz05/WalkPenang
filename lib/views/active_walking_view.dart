@@ -74,7 +74,11 @@ class _Header extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         WpBackButton(onBack: onBack),
-        Container(
+        // The pill takes what is left between the two 40dp controls rather
+        // than its natural width: "JOURNEY ACTIVE" at a large system font is
+        // wider than a 320dp screen has to spare.
+        Flexible(
+          child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: const BoxDecoration(
             color: AppColors.successTint,
@@ -92,16 +96,21 @@ class _Header extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                'JOURNEY ACTIVE',
-                style: AppType.mono.copyWith(
-                  fontSize: 11,
-                  letterSpacing: 1,
-                  color: AppColors.success,
-                  fontWeight: FontWeight.w600,
+              Flexible(
+                child: Text(
+                  'JOURNEY ACTIVE',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppType.mono.copyWith(
+                    fontSize: 11,
+                    letterSpacing: 1,
+                    color: AppColors.success,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
+          ),
           ),
         ),
         // Balances the back button when there is nowhere to minimise to, so
@@ -210,8 +219,16 @@ class _ElapsedTimeCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              WpMonoLabel(data.destinationName,
-                  size: 10, color: AppColors.muted),
+              Flexible(
+                child: WpMonoLabel(
+                  data.destinationName,
+                  size: 10,
+                  color: AppColors.muted,
+                  // "Cheong Fatt Tze - The Blue Mansion" is 135dp wider than a
+                  // 360dp screen leaves here.
+                  maxLines: 1,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 6),

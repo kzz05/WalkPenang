@@ -203,13 +203,23 @@ class _RadiusZoneCard extends StatelessWidget {
         color: AppColors.backgroundDeep,
         borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _DashedRadiusRing(color: ringColor, size: 92),
-          const SizedBox(height: 10),
-          _RadiusZoneChip(radiusMeters: data.radiusMeters),
-        ],
+      // The card's height is fixed so the cards below it keep their room on
+      // screen, but the chip inside is text and grows with the system font:
+      // at 1.6x the ring and the chip together are taller than the box. Scaled
+      // down as one drawing rather than clipped, so the illustration stays
+      // proportional — a shrunken radius ring still reads as a radius ring, a
+      // half-cut one reads as a bug.
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _DashedRadiusRing(color: ringColor, size: 92),
+            const SizedBox(height: 10),
+            _RadiusZoneChip(radiusMeters: data.radiusMeters),
+          ],
+        ),
       ),
     );
   }

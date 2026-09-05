@@ -37,19 +37,36 @@ class JourneyCompletedView extends StatelessWidget {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _Header(data: data, onBack: onBack),
-              const SizedBox(height: 24),
-              Expanded(
-                child: SingleChildScrollView(
-                  child: _Content(data: data, onRetryReward: onRetryReward),
+          // Scrolls only when it has to. Everything used to be pinned except
+          // the middle, which meant that once the header and the two footer
+          // buttons were taller than the screen — a large system font on a
+          // short phone — there was nothing left for Expanded to give and the
+          // column overflowed. Now the whole screen scrolls when it does not
+          // fit, and keeps its pinned-footer look when it does.
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _Header(data: data, onBack: onBack),
+                      const SizedBox(height: 24),
+                      _Content(data: data, onRetryReward: onRetryReward),
+                      // Holds the footer at the bottom while there is room to
+                      // spare, and collapses to nothing once there is not.
+                      const Spacer(),
+                      const SizedBox(height: 24),
+                      _Footer(
+                        onReturnHome: onReturnHome,
+                        onViewRewards: onViewRewards,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 24),
-              _Footer(onReturnHome: onReturnHome, onViewRewards: onViewRewards),
-            ],
+            ),
           ),
         ),
       ),
@@ -83,7 +100,10 @@ class _Header extends StatelessWidget {
           children: [
             WpBackButton(onBack: onBack),
             const SizedBox(width: 12),
-            Container(
+            // Flexible for the same reason as Active Walking's pill: at a
+            // large system font the label is wider than the row has left.
+            Flexible(
+              child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: const BoxDecoration(
                   color: AppColors.primary, borderRadius: AppRadius.mdAll),
@@ -94,15 +114,20 @@ class _Header extends StatelessWidget {
                       style:
                           TextStyle(fontSize: 12, color: AppColors.onPrimary)),
                   const SizedBox(width: 6),
-                  Text(
-                    'JOURNEY COMPLETE',
-                    style: AppType.mono.copyWith(
-                        fontSize: 10,
-                        letterSpacing: 0.8,
-                        color: AppColors.onPrimary),
+                  Flexible(
+                    child: Text(
+                      'JOURNEY COMPLETE',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.mono.copyWith(
+                          fontSize: 10,
+                          letterSpacing: 0.8,
+                          color: AppColors.onPrimary),
+                    ),
                   ),
                 ],
               ),
+            ),
             ),
           ],
         ),

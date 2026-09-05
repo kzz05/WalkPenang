@@ -71,10 +71,11 @@ class _NavigationViewState extends State<NavigationView>
   // from where it was last drawn to the newest fix, so the marker and the
   // camera move continuously the way a dedicated navigation app does.
 
-  late final AnimationController _glide = AnimationController(
-    vsync: this,
-    duration: MapConstants.maxNavigationInterpolation,
-  )..addListener(_onGlideTick);
+  /// Built in initState, not as a lazy field initialiser. As a `late final`
+  /// it was created on first *use*, and the first use on a navigation screen
+  /// closed before its first GPS fix is dispose() — which builds a Ticker
+  /// against a State that is no longer active, and that throws.
+  late final AnimationController _glide;
 
   /// Where the puck is drawn right now — an interpolated frame, not a fix.
   late LatLng _renderedPosition = widget.origin;
@@ -129,6 +130,10 @@ class _NavigationViewState extends State<NavigationView>
   @override
   void initState() {
     super.initState();
+    _glide = AnimationController(
+      vsync: this,
+      duration: MapConstants.maxNavigationInterpolation,
+    )..addListener(_onGlideTick);
     _followZoom = _navigationZoom;
     _renderedHeading = _controller.currentHeading;
     _glideHeadingFrom = _renderedHeading;
@@ -490,16 +495,38 @@ class _NavigationViewState extends State<NavigationView>
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Column(
+                // The banner sits at the top and the bar at the bottom, with
+                // the map visible between them. spaceBetween rather than a
+                // Spacer: the banner is a flex child now, and two flex children
+                // split the free space between them — the banner is loose, so
+                // its half went unspent and collected *under* the bar, leaving
+                // the bar stranded in the middle of the screen.
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _InstructionBanner(
-                    controller: _controller,
-                    onExit: _confirmExit,
+                  // The banner yields before the bar below it does. On a small
+                  // screen at an accessibility font size the instruction, its
+                  // GPS warning and the remaining-distance bar together are
+                  // taller than the screen; of the two, a turn instruction the
+                  // tourist can scroll beats an ETA bar pushed off the bottom
+                  // where it cannot be reached at all.
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          _InstructionBanner(
+                            controller: _controller,
+                            onExit: _confirmExit,
+                          ),
+                          if (_controller.errorMessage != null) ...[
+                            const SizedBox(height: 8),
+                            _GpsWarningBanner(
+                              message: _controller.errorMessage!,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ),
-                  if (_controller.errorMessage != null) ...[
-                    const SizedBox(height: 8),
-                    _GpsWarningBanner(message: _controller.errorMessage!),
-                  ],
-                  const Spacer(),
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 260),
                     child: _controller.hasArrived
@@ -800,6 +827,14 @@ class _TransitStepText extends StatelessWidget {
       children: [
         Text(
           'Board ${transit.lineName}',
+          // Capped for the same reason the stops line below it is: a real
+          // Rapid Penang line name carries its destinations ("502 — Weld Quay
+          // to Balik Pulau"), and at 22px on a narrow screen that wraps far
+          // enough to push the remaining-distance bar off the bottom of the
+          // screen. The line number, which is what the tourist is looking for,
+          // is at the front.
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
           style: AppType.stat.copyWith(color: Colors.white, fontSize: 22),
         ),
         const SizedBox(height: 2),

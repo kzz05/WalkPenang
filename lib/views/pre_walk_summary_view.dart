@@ -283,7 +283,9 @@ class _DestinationHero extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 6),
-                const WpMonoLabel('WALKING ROUTE', size: 9),
+                const Flexible(
+                  child: WpMonoLabel('WALKING ROUTE', size: 9, maxLines: 1),
+                ),
               ],
             ),
           ),

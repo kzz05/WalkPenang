@@ -35,7 +35,7 @@ JourneyCompletionController _controller() => JourneyCompletionController(
       userId: 'tourist_001',
       rewardService: FakeRewardService(),
       checkInRepository: NoopCheckInRepository(),
-      arrivalVerificationService: FakeArrivalVerificationService(),
+      arrivalVerificationService: const FakeArrivalVerificationService(),
     );
 
 void main() {
