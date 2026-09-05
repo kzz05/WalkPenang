@@ -27,7 +27,7 @@ Future<void> _settle(WidgetTester tester) async {
 void main() {
   testWidgets('the home map offers no back button', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(home: Scaffold(body: MapPanel())),
+      const MaterialApp(home: Scaffold(body: MapPanel())),
     );
     await _settle(tester);
 
@@ -39,7 +39,7 @@ void main() {
     final navigator = GlobalKey<NavigatorState>();
     MaterialApp app() => MaterialApp(
           navigatorKey: navigator,
-          home: Scaffold(body: MapPanel()),
+          home: const Scaffold(body: MapPanel()),
         );
 
     await tester.pumpWidget(app());
@@ -81,7 +81,9 @@ void main() {
     );
 
     navigator.currentState!.push(
-      MaterialPageRoute<void>(builder: (_) => Scaffold(body: MapPanel())),
+      MaterialPageRoute<void>(
+        builder: (_) => const Scaffold(body: MapPanel()),
+      ),
     );
     await _settle(tester);
 
