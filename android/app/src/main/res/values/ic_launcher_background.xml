@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The cream the logo lockup itself sits on, sampled from
+     assets/images/walkpenanglogowithbg.PNG rather than retyped, so the icon
+     and the splash cannot drift apart. -->
+<resources>
+    <color name="ic_launcher_background">#FFF1D5</color>
+</resources>
