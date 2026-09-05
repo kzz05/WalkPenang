@@ -41,8 +41,23 @@ class JourneyOverlayHost extends StatelessWidget {
 }
 
 /// "Walking to Chew Jetty · 12:04 · 0.8 km", tap to go back to it.
+///
+/// Everything here is drawn *above* the app's Navigator, which means this
+/// widget's own context has neither a Navigator nor an Overlay above it.
+/// Anything needing either — a Tooltip, showDialog, a SnackBar — has to reach
+/// down into the navigator instead of using this context, or it throws "No
+/// Overlay widget found" and takes the whole app down with it. That is what
+/// [_navigatorContext] is for, and why the end button carries no tooltip.
 class JourneyMiniBar extends StatelessWidget {
   const JourneyMiniBar({super.key});
+
+  /// A context inside the app's Navigator, for the things that need one.
+  ///
+  /// The Overlay's context rather than the Navigator's own: Navigator.of walks
+  /// *ancestors*, so handing it the navigator's context would look straight
+  /// past the navigator it is standing on.
+  static BuildContext? get _navigatorContext =>
+      JourneySession.navigatorKey.currentState?.overlay?.context;
 
   static String _elapsed(Duration d) {
     String two(int n) => n.toString().padLeft(2, '0');
@@ -55,7 +70,10 @@ class JourneyMiniBar extends StatelessWidget {
   /// The same confirmation the Active Walking back arrow shows. Ending from
   /// out here abandons a journey the tourist may have half-forgotten, so it
   /// asks at least as loudly as ending from inside it does.
-  Future<void> _confirmEnd(BuildContext context) async {
+  Future<void> _confirmEnd() async {
+    final context = _navigatorContext;
+    if (context == null) return;
+
     final shouldEnd = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -148,8 +166,11 @@ class JourneyMiniBar extends StatelessWidget {
                       ),
                     ),
                     IconButton(
-                      onPressed: () => _confirmEnd(context),
-                      tooltip: 'End journey',
+                      onPressed: _confirmEnd,
+                      // No tooltip: a Tooltip needs an Overlay, and there is
+                      // none above the navigator. The icon is the standard
+                      // dismiss affordance and the dialog names the action
+                      // before anything happens.
                       icon: const Icon(Icons.close, size: 20),
                       color: AppColors.onSurface,
                     ),
