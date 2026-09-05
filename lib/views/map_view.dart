@@ -123,16 +123,43 @@ class _MapPanelState extends State<MapPanel> {
     // Independent of loadMap: the grey "already routed" pins do not need a
     // location permission, so they must not be gated behind one.
     _controller.restoreRoutedPlaces();
+    widget.favorites?.addListener(_syncFavouritePins);
+    _syncFavouritePins();
     _loadMarkerIcons();
   }
 
   @override
   void dispose() {
+    widget.favorites?.removeListener(_syncFavouritePins);
     _controller.removeListener(_onControllerChanged);
     _controller.dispose();
     _resultsPageController.dispose();
     _mapController?.dispose();
     super.dispose();
+  }
+
+  /// Keeps the map's always-on pins in step with the tourist's favourites.
+  ///
+  /// A favourite is somewhere they have already decided they want to go, so it
+  /// stays on the map wherever it is — pins used to come only from the nearby
+  /// search, which meant a saved place outside the current radius simply was
+  /// not there, and reaching it meant widening the radius or panning until a
+  /// search happened to catch it.
+  ///
+  /// Favourites saved from the Discovery grid carry no coordinates and are
+  /// dropped here (see [FavoritePlace.toPlaceModel]); they remain reachable
+  /// from the Favorites list as before.
+  ///
+  /// Wired as a listener rather than read during build, because it writes to
+  /// the map controller and notifying listeners mid-build is not allowed.
+  void _syncFavouritePins() {
+    final favorites = widget.favorites;
+    if (favorites == null) return;
+
+    _controller.setFavouritePlaces([
+      for (final favorite in favorites.favorites)
+        if (favorite.toPlaceModel() case final place?) place,
+    ]);
   }
 
   Future<void> _loadMarkerIcons() async {
@@ -236,7 +263,7 @@ class _MapPanelState extends State<MapPanel> {
     _controller.selectPlace(place);
 
     if (scrollStrip && _resultsPageController.hasClients) {
-      final index = _controller.nearbyPlaces.indexWhere(
+      final index = _controller.visiblePlaces.indexWhere(
         (candidate) => candidate.placeId == place.placeId,
       );
       if (index >= 0) {
@@ -307,7 +334,7 @@ class _MapPanelState extends State<MapPanel> {
       body: AnimatedBuilder(
         animation: Listenable.merge(<Listenable?>[_controller, widget.favorites]),
         builder: (context, _) {
-          final hasResults = _controller.nearbyPlaces.isNotEmpty;
+          final hasResults = _controller.visiblePlaces.isNotEmpty;
 
           return Stack(
             children: [
@@ -370,7 +397,7 @@ class _MapPanelState extends State<MapPanel> {
                   child: _ResultsStrip(
                     height: _resultsStripHeight,
                     controller: _resultsPageController,
-                    places: _controller.nearbyPlaces,
+                    places: _controller.visiblePlaces,
                     selectedPlaceId: _controller.selectedPlaceId,
                     distanceOf: _controller.distanceToPlaceMeters,
                     isRoutedOf: (place) =>
@@ -490,7 +517,9 @@ class _MapPanelState extends State<MapPanel> {
   }
 
   Set<Marker> _buildMarkers() {
-    final markers = _controller.nearbyPlaces.map((place) {
+    // visiblePlaces, not nearbyPlaces: favourites are pinned wherever they
+    // are, whether or not the current search reached them.
+    final markers = _controller.visiblePlaces.map((place) {
       final isSelected = place.placeId == _controller.selectedPlaceId;
       final isFavorite =
           widget.favorites?.isFavorite(place.placeId) ?? false;
