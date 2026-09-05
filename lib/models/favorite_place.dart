@@ -73,6 +73,10 @@ class FavoritePlace {
       name: place.name,
       category: place.category.name,
       savedAt: savedAt ?? DateTime.now(),
+      // Carried so a place saved from the Discovery grid is pinned on the map
+      // too, not only one saved from the map's own carousel.
+      latitude: place.latitude,
+      longitude: place.longitude,
       photoUrl: place.photoUrls.isEmpty ? null : place.photoUrls.first,
       rating: place.rating,
       address: place.address,
@@ -96,11 +100,11 @@ class FavoritePlace {
   /// A map pin for this favourite, so it can be shown wherever it is rather
   /// than only when a nearby search happens to return it.
   ///
-  /// Null when the favourite has no coordinates — a place saved from the
-  /// Discovery grid, whose [Place] carries none. Those stay list-only until
-  /// the grid learns to save them, which is the same Tier 2 gap [latitude]
-  /// already describes. The caller drops the nulls rather than guessing a
-  /// position, because a pin in the wrong place is worse than no pin.
+  /// Null when the favourite has no coordinates: a listing that arrived
+  /// without a location, or one saved before favourites started recording
+  /// where they are — those backfill by being re-toggled. The caller drops the
+  /// nulls rather than guessing a position, because a pin in the wrong place
+  /// is worse than no pin.
   PlaceModel? toPlaceModel() {
     final lat = latitude;
     final lng = longitude;
@@ -133,6 +137,8 @@ class FavoritePlace {
       id: id,
       name: name,
       category: _categoryEnum(category),
+      latitude: latitude,
+      longitude: longitude,
       priceLevel: PriceLevel.moderate,
       distanceKm: 0,
       rating: rating ?? 0,

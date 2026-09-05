@@ -137,6 +137,8 @@ class Place {
     this.priceRange,
     this.dietaryTags = const <DietaryPreference>{},
     this.description = '',
+    this.latitude,
+    this.longitude,
   });
 
   final String id;
@@ -152,6 +154,17 @@ class Place {
   final double rating;
   final int reviewCount;
   final String address;
+
+  /// Where this place is. Null only when a listing arrived without a location
+  /// — every Places API result carries one, so in practice this is null only
+  /// for the hand-built [Place]s in tests and for a favourite reconstructed
+  /// from a pre-coordinate save.
+  ///
+  /// [distanceKm] was derived from these and then they were dropped, which is
+  /// why a place favourited from the Discovery grid could not be pinned on the
+  /// map: the position was known at parse time and thrown away.
+  final double? latitude;
+  final double? longitude;
 
   /// Null when the listing has no published hours (T-FD03.3).
   final OpeningHours? hours;
@@ -300,8 +313,12 @@ class Place {
   }) {
     final Map<String, dynamic>? location =
         json['location'] as Map<String, dynamic>?;
-    final double lat = (location?['latitude'] as num?)?.toDouble() ?? originLat;
-    final double lng = (location?['longitude'] as num?)?.toDouble() ?? originLng;
+    final double? placeLat = (location?['latitude'] as num?)?.toDouble();
+    final double? placeLng = (location?['longitude'] as num?)?.toDouble();
+    // Distance still falls back to the origin, so a listing with no location
+    // reads as 0 km away rather than as an error.
+    final double lat = placeLat ?? originLat;
+    final double lng = placeLng ?? originLng;
 
     final List<String> types = (json['types'] as List<dynamic>?)
             ?.map((dynamic e) => e as String)
@@ -323,6 +340,11 @@ class Place {
           .toList(),
       priceLevel: _priceLevelFromGoogle(json['priceLevel'] as String?),
       distanceKm: _haversineKm(originLat, originLng, lat, lng),
+      // The parsed position, not the origin-fallback the distance uses: a
+      // listing with no location of its own must stay unpinned rather than be
+      // drawn on top of the tourist.
+      latitude: placeLat,
+      longitude: placeLng,
       rating: (json['rating'] as num?)?.toDouble() ?? 0.0,
       reviewCount: (json['userRatingCount'] as num?)?.toInt() ?? 0,
       address: json['formattedAddress'] as String? ?? '',
