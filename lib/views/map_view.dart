@@ -425,10 +425,21 @@ class _MapPanelState extends State<MapPanel> {
           children: [
             Row(
               children: [
-                // The map doubles as the home screen, where there is no parent
-                // to go back to — offer the control only where it leads
-                // somewhere.
-                if (Navigator.of(context).canPop()) ...[
+                // The map doubles as the home screen, where there is no
+                // parent to go back to — offer the control only where it
+                // leads somewhere.
+                //
+                // ModalRoute.canPop, not Navigator.canPop: the navigator's
+                // answer is about the whole stack, so it flipped to true the
+                // moment Settings or Edit Profile was pushed *over* the home
+                // map. The map rebuilds roughly once a second (every GPS fix),
+                // so the button duly appeared, and since nothing rebuilt it
+                // again after the pop it could stay — pressing it then popped
+                // HomeView itself, the first route, and left the tourist on a
+                // black screen. This route's own answer is what was meant:
+                // false for as long as the map is the first route, whatever
+                // is stacked above it.
+                if (ModalRoute.of(context)?.canPop ?? false) ...[
                   _CircleBackButton(
                     onPressed: () => Navigator.of(context).pop(),
                   ),
