@@ -12,6 +12,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:walkpenang/controllers/journal_controller.dart';
@@ -20,6 +21,7 @@ import 'package:walkpenang/dao/journal_dao.dart';
 import 'package:walkpenang/models/journal_entry_model.dart';
 import 'package:walkpenang/models/transport_mode.dart';
 import 'package:walkpenang/utils/reward_constants.dart';
+import 'package:walkpenang/views/reward/walking_journal_screen.dart';
 
 /// Always fails, for the error-state test.
 class _FailingJournalDao implements JournalDao {
@@ -226,6 +228,222 @@ void main() {
       await addCheckIn('a', 'someone_else', DateTime(2026, 8, 21));
 
       expect(await dao.fetchEntries('me'), isEmpty);
+    });
+  });
+
+  group('JournalController filter (UC520)', () {
+    // Pinned, so the day boundary is a fact of the test rather than of the
+    // moment it happens to run.
+    final now = DateTime(2026, 9, 6, 14, 30);
+
+    JournalEntryModel at(String name, DateTime when) => JournalEntryModel(
+          checkInId: 'id-${when.microsecondsSinceEpoch}',
+          destinationName: name,
+          destinationId: 'place-$name',
+          checkInTime: when,
+          distanceKm: 1.2,
+          pointsAwarded: 22,
+          carbonSavedKg: 0.252,
+          caloriesBurned: 72,
+        );
+
+    JournalController controllerFor(List<JournalEntryModel> entries) {
+      final controller = JournalController(
+        userId: 'tourist_001',
+        journalDao: InMemoryJournalDao(entries: entries),
+        now: () => now,
+      );
+      addTearDown(controller.dispose);
+      return controller;
+    }
+
+    test('defaults to All', () async {
+      final controller = controllerFor([at('Chew Jetty', now)]);
+      await controller.load();
+
+      expect(controller.filter, JournalFilter.all);
+    });
+
+    test('All shows every loaded journey', () async {
+      final controller = JournalController(
+        userId: DemoRewardData.userId,
+        journalDao: DemoRewardData.journalDao(),
+        now: () => now,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.load();
+
+      expect(controller.visibleEntries, hasLength(7));
+      expect(controller.visibleEntries, controller.entries);
+    });
+
+    test('Today shows only journeys from the current local day', () async {
+      final controller = controllerFor([
+        at('Chew Jetty', DateTime(2026, 9, 6, 9, 15)),
+        at('Penang Hill', DateTime(2026, 9, 5, 9, 15)),
+        at('Fort Cornwallis', DateTime(2026, 8, 28, 9, 15)),
+      ]);
+      await controller.load();
+
+      controller.setFilter(JournalFilter.today);
+
+      expect(
+        controller.visibleEntries.map((e) => e.destinationName),
+        ['Chew Jetty'],
+      );
+      // The full journal is untouched — the filter is a view over it, not a
+      // reload of it.
+      expect(controller.entries, hasLength(3));
+    });
+
+    test('reads by calendar day, not by the last 24 hours', () async {
+      final controller = controllerFor([
+        at('Just after midnight', DateTime(2026, 9, 6, 0, 5)),
+        at('Late last night', DateTime(2026, 9, 5, 23, 50)),
+      ]);
+      await controller.load();
+
+      controller.setFilter(JournalFilter.today);
+
+      // 23:50 last night is under 15 hours old and still excluded, while
+      // 00:05 this morning is included. A rolling 24-hour window would get
+      // both of these the wrong way round.
+      expect(
+        controller.visibleEntries.map((e) => e.destinationName),
+        ['Just after midnight'],
+      );
+    });
+
+    test('filtering keeps the newest-first order', () async {
+      final controller = controllerFor([
+        at('Morning walk', DateTime(2026, 9, 6, 8, 00)),
+        at('Yesterday', DateTime(2026, 9, 5, 12, 00)),
+        at('Evening walk', DateTime(2026, 9, 6, 19, 00)),
+        at('Midday walk', DateTime(2026, 9, 6, 12, 00)),
+      ]);
+      await controller.load();
+
+      controller.setFilter(JournalFilter.today);
+
+      expect(
+        controller.visibleEntries.map((e) => e.destinationName),
+        ['Evening walk', 'Midday walk', 'Morning walk'],
+      );
+    });
+
+    test('setFilter notifies, and only on a real change', () async {
+      final controller = controllerFor([at('Chew Jetty', now)]);
+      await controller.load();
+
+      var notifications = 0;
+      controller.addListener(() => notifications++);
+
+      controller.setFilter(JournalFilter.today);
+      expect(notifications, 1);
+
+      // Tapping the pill that is already selected rebuilds nothing.
+      controller.setFilter(JournalFilter.today);
+      expect(notifications, 1);
+
+      controller.setFilter(JournalFilter.all);
+      expect(notifications, 2);
+    });
+
+    test('nothing today does not make the journal empty', () async {
+      final controller = controllerFor([
+        at('Penang Hill', DateTime(2026, 9, 5, 9, 15)),
+      ]);
+      await controller.load();
+
+      controller.setFilter(JournalFilter.today);
+
+      expect(controller.visibleEntries, isEmpty);
+      // isEmpty describes the journal, not the slice. Conflating them would
+      // tell a tourist with a week of walking that they have walked nothing.
+      expect(controller.isEmpty, isFalse);
+      expect(controller.entries, hasLength(1));
+    });
+  });
+
+  group('WalkingJournalScreen filter pills', () {
+    // The real clock here, so the screen's controller and the tiles' own
+    // relativeDate agree on which day it is. The exact day boundary is pinned
+    // by the controller tests above.
+    final today = DateTime.now();
+    final older = today.subtract(const Duration(days: 4));
+
+    JournalEntryModel at(String name, DateTime when) => JournalEntryModel(
+          checkInId: 'id-$name',
+          destinationName: name,
+          destinationId: 'place-$name',
+          checkInTime: when,
+          distanceKm: 1.2,
+          pointsAwarded: 22,
+          carbonSavedKg: 0.252,
+          caloriesBurned: 72,
+        );
+
+    Future<void> pumpJournal(
+      WidgetTester tester,
+      List<JournalEntryModel> entries,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: WalkingJournalScreen(
+            controller: JournalController(
+              userId: 'tourist_001',
+              journalDao: InMemoryJournalDao(entries: entries),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('tapping Today narrows the list to today', (tester) async {
+      await pumpJournal(tester, [
+        at('Chew Jetty', today),
+        at('Fort Cornwallis', older),
+      ]);
+
+      expect(find.text('Chew Jetty'), findsOneWidget);
+      expect(find.text('Fort Cornwallis'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('journalFilter_today')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Chew Jetty'), findsOneWidget);
+      expect(find.text('Fort Cornwallis'), findsNothing);
+    });
+
+    testWidgets('a day with no journeys says so, and offers the way back',
+        (tester) async {
+      await pumpJournal(tester, [at('Fort Cornwallis', older)]);
+
+      await tester.tap(find.byKey(const Key('journalFilter_today')));
+      await tester.pumpAndSettle();
+
+      // Not "No journeys yet" — this tourist does have a journal.
+      expect(find.text('No journeys today'), findsOneWidget);
+      expect(find.text('No journeys yet'), findsNothing);
+      expect(find.text('Fort Cornwallis'), findsNothing);
+
+      // WpPrimaryButton uppercases its label, the same way the retry action
+      // on the error state renders as "RETRY".
+      await tester.tap(find.text('SHOW ALL JOURNEYS'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No journeys today'), findsNothing);
+      expect(find.text('Fort Cornwallis'), findsOneWidget);
+    });
+
+    testWidgets('a tourist with nothing at all gets no filter to press',
+        (tester) async {
+      await pumpJournal(tester, const <JournalEntryModel>[]);
+
+      expect(find.text('No journeys yet'), findsOneWidget);
+      expect(find.byKey(const Key('journalFilter_today')), findsNothing);
     });
   });
 

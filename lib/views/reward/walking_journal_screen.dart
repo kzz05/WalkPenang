@@ -81,6 +81,10 @@ class _WalkingJournalScreenState extends State<WalkingJournalScreen> {
                     ),
                   ],
                 ),
+                if (_showsFilter) ...[
+                  const SizedBox(height: 16),
+                  _JournalFilterPills(controller: _controller),
+                ],
                 const SizedBox(height: 20),
                 Expanded(child: _buildBody()),
               ],
@@ -90,6 +94,14 @@ class _WalkingJournalScreenState extends State<WalkingJournalScreen> {
       ),
     );
   }
+
+  /// Only shown over an actual list. Offering "Today" above a failed read, a
+  /// signed-out tourist, or a journal with nothing in it would be a control
+  /// with nothing to control.
+  bool get _showsFilter =>
+      _controller.error == null &&
+      _controller.userId.isNotEmpty &&
+      _controller.entries.isNotEmpty;
 
   Widget _buildBody() {
     if (_controller.isLoading && _controller.entries.isEmpty) {
@@ -129,6 +141,20 @@ class _WalkingJournalScreenState extends State<WalkingJournalScreen> {
       );
     }
 
+    // Distinct from "No journeys yet" above: this tourist has a journal, it
+    // just has nothing in it from today. Saying "no journeys yet" here would
+    // read as their history having been lost.
+    final visible = _controller.visibleEntries;
+    if (visible.isEmpty) {
+      return RewardMessageState(
+        title: 'No journeys today',
+        body: 'Pick a place on the map and walk there — '
+            "today's journeys show up here.",
+        actionLabel: 'Show all journeys',
+        onAction: () => _controller.setFilter(JournalFilter.all),
+      );
+    }
+
     final now = DateTime.now();
 
     return RefreshIndicator(
@@ -139,16 +165,81 @@ class _WalkingJournalScreenState extends State<WalkingJournalScreen> {
         // short to overflow.
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.only(bottom: 24),
-        itemCount: _controller.entries.length,
+        itemCount: visible.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
-          final entry = _controller.entries[index];
+          final entry = visible[index];
           return JournalEntryTile(
             entry: entry,
             now: now,
             onTap: () => _openEntry(entry),
           );
         },
+      ),
+    );
+  }
+}
+
+/// The journal's one control: All / Today.
+///
+/// Drawn from the app's own tokens rather than a stock [ChoiceChip] or a
+/// [TabBar], matching the map's radius chips and the route summary's mode tabs
+/// — those are the two pill controls this app already has, and a third
+/// variant would be the odd one out.
+class _JournalFilterPills extends StatelessWidget {
+  final JournalController controller;
+
+  const _JournalFilterPills({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    // Wrap rather than Row, for the same reason the radius chips use one: at a
+    // large system font size the pills would overflow a Row's right edge.
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final filter in JournalFilter.values)
+          _FilterPill(
+            key: Key('journalFilter_${filter.name}'),
+            label: filter == JournalFilter.all ? 'All' : 'Today',
+            isSelected: controller.filter == filter,
+            onTap: () => controller.setFilter(filter),
+          ),
+      ],
+    );
+  }
+}
+
+class _FilterPill extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _FilterPill({
+    super.key,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: isSelected ? AppColors.primary : AppColors.card,
+      borderRadius: AppRadius.mdAll,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+          child: Text(
+            label,
+            style: AppType.monoValue.copyWith(
+              color: isSelected ? AppColors.onPrimary : AppColors.muted,
+            ),
+          ),
+        ),
       ),
     );
   }
