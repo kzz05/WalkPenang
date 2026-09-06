@@ -108,6 +108,36 @@ class MapService {
     });
   }
 
+  /// UC-M05, public transport only: the Google Maps *app* deep link for
+  /// transit directions to [destination].
+  ///
+  /// WalkPenang does not navigate a bus journey itself — its in-app
+  /// turn-by-turn view follows a walked or driven polyline, and a transit trip
+  /// is really "walk, wait, board, ride, alight, walk", which needs live
+  /// timetable data the app does not hold. The tourist is handed to Google
+  /// Maps, which does.
+  ///
+  /// No `origin`: leaving it out is what makes Google Maps start from the
+  /// device's own current location, which is fresher than the origin this
+  /// route was calculated from. `dir_action=navigate` asks Maps to start
+  /// guidance rather than only show the route.
+  ///
+  /// The destination is sent as coordinates rather than as
+  /// `destination_place_id`, deliberately: a [PlaceModel] reaching the route
+  /// summary from a saved favourite can carry a Discovery/Firestore document
+  /// id rather than a Google Place ID, and an id Google cannot resolve would
+  /// drop the tourist on an empty search. Coordinates are always right.
+  ///
+  /// Carries no API key — this is a public URL scheme, not an API call.
+  Uri buildTransitDirectionsAppUrl(LatLng destination) {
+    return Uri.https('www.google.com', '/maps/dir/', {
+      'api': '1',
+      'destination': '${destination.latitude},${destination.longitude}',
+      'travelmode': 'transit',
+      'dir_action': 'navigate',
+    });
+  }
+
   Uri buildPlacesNearbyRequest() =>
       Uri.https('places.googleapis.com', '/v1/places:searchNearby');
 
