@@ -20,6 +20,7 @@ class JournalEntryModel {
     required this.destinationId,
     required this.checkInTime,
     required this.distanceKm,
+    this.walkedDistanceKm,
     required this.pointsAwarded,
     required this.carbonSavedKg,
     required this.caloriesBurned,
@@ -34,7 +35,29 @@ class JournalEntryModel {
 
   final String destinationId;
   final DateTime checkInTime;
+
+  /// The journey's planned route distance — the figure its points were
+  /// awarded on. Kept because it is what the reward and badge totals were
+  /// scored against, but [displayDistanceKm] is what the journal shows.
   final double distanceKm;
+
+  /// How far the tourist actually walked, from the live GPS stream.
+  ///
+  /// Null for a journey that recorded no tracked distance, including every
+  /// check-in written before the field existed — see [displayDistanceKm].
+  final double? walkedDistanceKm;
+
+  /// The distance to put in front of the tourist.
+  ///
+  /// Their own walking, whenever it was tracked: a history that answers "how
+  /// far did I walk?" with the route's prediction is answering a different
+  /// question, and it would contradict [caloriesBurned], which is already
+  /// calculated from the distance actually covered.
+  ///
+  /// Falls back to the planned [distanceKm] for a journey with nothing
+  /// tracked. That journey was really walked, and the planned distance is the
+  /// best figure on record for it — better than a dash.
+  double get displayDistanceKm => walkedDistanceKm ?? distanceKm;
 
   /// Points this journey earned. 0 for a journey that earned none — a drive or
   /// a bus ride (FR-W01) — and also 0 for one recorded before the award was
@@ -68,6 +91,10 @@ class JournalEntryModel {
       destinationId: map['destinationId'] as String? ?? '',
       checkInTime: map['checkInTime'] as DateTime? ?? DateTime.now(),
       distanceKm: (map['distanceKm'] as num?)?.toDouble() ?? 0.0,
+      // Null rather than 0.0 when absent: the record does not claim the
+      // tourist walked nothing, it carries no tracked distance at all, and
+      // [displayDistanceKm] falls back to the planned figure for it.
+      walkedDistanceKm: (map['walkedDistanceKm'] as num?)?.toDouble(),
       pointsAwarded: (map['pointsAwarded'] as num?)?.toInt() ?? 0,
       carbonSavedKg: (map['carbonSavedKg'] as num?)?.toDouble() ?? 0.0,
       caloriesBurned: (map['caloriesBurned'] as num?)?.toDouble() ?? 0.0,

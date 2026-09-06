@@ -190,6 +190,148 @@ void main() {
     });
   });
 
+  group('planned distance rewards, walked distance is recorded', () {
+    // The detour case. A tourist takes a wrong turn on a 1.2 km route and
+    // covers 1.9 km getting there. Their history should say 1.9 km, because
+    // that is what they walked — and their award should stay the 1.2 km
+    // award, because points follow the route and not the wandering.
+    //
+    // Both halves are asserted together on purpose: they are one rule, and
+    // the tempting "fix" for either half on its own breaks the other.
+    const plannedKm = 1.2;
+    const walkedMetres = 1900.0;
+
+    Future<CheckInResult> completeDetour({
+      TransportMode mode = TransportMode.walking,
+      Stream<JourneyProgressUpdate>? progress,
+    }) async {
+      final repository = _RecordingCheckInRepository();
+      final controller = JourneyCompletionController(
+        routeSummary: _summaryFor(mode, distanceKm: plannedKm),
+        userId: 'tourist_001',
+        rewardService: _StubRewardService(),
+        checkInRepository: repository,
+        arrivalVerificationService:
+            _ScriptedArrivalService(const ArrivalCheckReading.success(42)),
+        journeyProgressService: _ScriptedProgressService(
+          progress ??
+              Stream<JourneyProgressUpdate>.fromIterable(const [
+                JourneyProgressUpdate(
+                    metresWalked: walkedMetres, metresToDestination: 40),
+              ]),
+        ),
+        bodyWeightKg: 65,
+      );
+      addTearDown(controller.dispose);
+
+      // Lets the scripted progress stream deliver before the journey is
+      // completed — completeJourney() cancels the subscription.
+      await Future<void>.delayed(Duration.zero);
+      await controller.beginVerification();
+      await controller.completeJourney();
+
+      return repository.saved.single;
+    }
+
+    test('the saved record carries both distances, each from its own source',
+        () async {
+      final result = await completeDetour();
+
+      expect(result.distanceKm, closeTo(plannedKm, 1e-9));
+      expect(result.walkedDistanceKm, closeTo(1.9, 1e-9));
+    });
+
+    test('a 1.9 km detour still earns the 1.2 km award', () async {
+      final result = await completeDetour();
+
+      // distanceMetres is the only distance the reward path reads, and it
+      // must still be the planned 1200 — not the 1900 actually walked.
+      expect(result.distanceMetres, 1200);
+      expect(
+        RewardPoints.forCheckIn(
+          distanceMetres: result.distanceMetres,
+          transportMode: result.transportMode,
+        ),
+        22,
+      );
+      // Stated as an inequality too, so this fails for the right reason if
+      // the formula's constants are ever retuned.
+      expect(
+        RewardPoints.forCheckIn(
+          distanceMetres: result.distanceMetres,
+          transportMode: result.transportMode,
+        ),
+        lessThan(
+          RewardPoints.forCheckIn(
+            distanceMetres: RewardConstants.metresFromKm(1.9),
+            transportMode: result.transportMode,
+          ),
+        ),
+      );
+    });
+
+    test('carbon still follows the route, not the detour', () async {
+      // WalkingController computes this from the planned distance and the
+      // controller snapshots it; a detour must not manufacture CO2 savings.
+      final controller = WalkingController()
+        ..selectMode(TransportMode.walking)
+        ..setRouteSummary(
+            _summaryFor(TransportMode.walking, distanceKm: plannedKm));
+      addTearDown(controller.dispose);
+
+      expect(
+        controller.carbonSavedKg,
+        closeTo(WalkingBenefits.calculateCarbonSavingsKg(plannedKm), 1e-9),
+      );
+    });
+
+    test('the journey the tourist opens shows what they walked', () async {
+      final repository = _RecordingCheckInRepository();
+      final controller = JourneyCompletionController(
+        routeSummary:
+            _summaryFor(TransportMode.walking, distanceKm: plannedKm),
+        userId: 'tourist_001',
+        rewardService: _StubRewardService(),
+        checkInRepository: repository,
+        arrivalVerificationService:
+            _ScriptedArrivalService(const ArrivalCheckReading.success(42)),
+        journeyProgressService: _ScriptedProgressService(
+          Stream<JourneyProgressUpdate>.fromIterable(const [
+            JourneyProgressUpdate(
+                metresWalked: walkedMetres, metresToDestination: 40),
+          ]),
+        ),
+        bodyWeightKg: 65,
+      );
+      addTearDown(controller.dispose);
+      await Future<void>.delayed(Duration.zero);
+
+      await controller.verifyAndComplete();
+
+      final completed = controller.journeyCompletedUiData;
+      final entry = controller.completedJournalEntry!;
+
+      // The bug this closes: Journey Completed said 1.9 and the journey the
+      // tourist opened from it said 1.2.
+      expect(completed.completedDistanceKm, closeTo(1.9, 1e-9));
+      expect(entry.displayDistanceKm, closeTo(1.9, 1e-9));
+      expect(entry.displayDistanceKm, completed.completedDistanceKm);
+      // The planned figure is still on the entry — it is what the points
+      // were scored on, it is just not what is shown.
+      expect(entry.distanceKm, closeTo(plannedKm, 1e-9));
+    });
+
+    test('a journey that tracked nothing falls back to the planned distance',
+        () async {
+      final result = await completeDetour(
+        progress: const Stream<JourneyProgressUpdate>.empty(),
+      );
+
+      expect(result.walkedDistanceKm, isNull);
+      expect(result.distanceKm, closeTo(plannedKm, 1e-9));
+    });
+  });
+
   group('live journey progress', () {
     // KM COVERED and MIN REMAINING had no source at all until
     // JourneyProgressService existed — JourneyCompletionController never

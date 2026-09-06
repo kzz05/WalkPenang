@@ -271,10 +271,15 @@ class JourneyCompletionController extends ChangeNotifier {
   /// [CheckInResult] built in [_awardReward] plus the points from [_reward] —
   /// so opening the just-completed journey costs no Firestore read and cannot
   /// disagree with the record that was actually written. It is deliberately
-  /// *not* built from [journeyCompletedUiData]: that screen shows the
-  /// GPS-tracked [kmCovered], while the persisted check-in carries the route's
-  /// planned distance, and the detail screen has to match what the journal
-  /// will show for this same journey later.
+  /// *not* built from [journeyCompletedUiData] but from the [CheckInResult]
+  /// itself, because the detail screen has to match what the journal will
+  /// show for this same journey later — and the journal reads the saved
+  /// record.
+  ///
+  /// That record now carries both distances, so the detail screen shows the
+  /// GPS-tracked one ([JournalEntryModel.displayDistanceKm]) and agrees with
+  /// the KM WALKED tile the tourist just came from, while the planned
+  /// distance stays on the entry as the figure the points were scored on.
   ///
   /// Null until a check-in record exists — before completion, and for an
   /// unauthenticated tourist, who never gets one. Journey Completed renders
@@ -292,6 +297,7 @@ class JourneyCompletionController extends ChangeNotifier {
       destinationId: result.destinationId,
       checkInTime: result.checkInTime,
       distanceKm: result.distanceKm,
+      walkedDistanceKm: result.walkedDistanceKm,
       // Null while the award is still in flight, or if it failed — the detail
       // screen already reads 0 as "not recorded" for a walk, which is the
       // honest answer here and the same thing the journal shows for a
@@ -520,7 +526,16 @@ class JourneyCompletionController extends ChangeNotifier {
       // Stored alongside the id so the walking journal can name the
       // place without a Places lookup per row (FR-R03).
       destinationName: routeSummary.destinationName,
+      // The planned route distance, and deliberately still the planned one:
+      // this is what the points formula and the distance badges are scored
+      // on, so a tourist who wanders 1.9 km along a 1.2 km route earns the
+      // 1.2 km award. How far they really walked goes in the field below.
       distanceKm: routeSummary.distanceKm,
+      // What the GPS actually measured. Display only — the walking journal
+      // and the journey detail screen show this, nothing in the reward path
+      // reads it. Null when the position stream produced no fix at all, which
+      // leaves those screens falling back to the planned distance.
+      walkedDistanceKm: kmCovered,
       carbonSavedKg: carbonSavedKg,
       // CheckInResult.caloriesBurned is non-nullable; a missing body weight
       // (US-W04) reports 0.0 to Module 5 rather than blocking completion.

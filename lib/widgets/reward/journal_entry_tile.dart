@@ -66,8 +66,11 @@ class JournalEntryTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
+                      // The distance walked, not the route's prediction —
+                      // falls back to the planned figure for a journey that
+                      // tracked none. See displayDistanceKm.
                       '${entry.relativeDate(today)} · '
-                      '${entry.distanceKm.toStringAsFixed(1)} km',
+                      '${entry.displayDistanceKm.toStringAsFixed(1)} km',
                       style: AppType.mono.copyWith(fontSize: 11, color: AppColors.muted),
                     ),
                     // Only ever shown for a journey that was not walked, so a
