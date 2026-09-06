@@ -57,7 +57,11 @@ class JournalDetailScreen extends StatelessWidget {
         const SizedBox(height: 24),
         WpDetailRow(
           label: 'distance',
-          value: '${entry.distanceKm.toStringAsFixed(2)} km',
+          // What the tourist walked, so this agrees with the KM WALKED tile
+          // on Journey Completed and with the calories below it, which were
+          // always calculated from the distance actually covered. A journey
+          // that tracked nothing shows its planned distance instead.
+          value: '${entry.displayDistanceKm.toStringAsFixed(2)} km',
         ),
         WpDetailRow(label: 'travelled by', value: entry.transportMode.label),
         WpDetailRow(
@@ -65,8 +69,13 @@ class JournalDetailScreen extends StatelessWidget {
           // A walk that earned nothing is a pre-existing record; a drive
           // earned nothing by rule (FR-W01). Different reasons, so they read
           // differently rather than both showing a bare 0.
+          //
+          // A positive award is signed and carries its unit, matching the
+          // "+22 pts" on the journal tile this screen was opened from — a
+          // bare "22" beside "0.25 kg" and "146 kcal" is the one figure on
+          // the screen whose unit the tourist has to infer.
           value: entry.pointsAwarded > 0
-              ? '${entry.pointsAwarded}'
+              ? '+${entry.pointsAwarded} pts'
               : walked
                   ? 'not recorded'
                   : 'none — walking only',

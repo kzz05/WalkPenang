@@ -42,10 +42,36 @@ class CheckInResult {
   /// renders those as an unknown place rather than a blank row.
   final String destinationName;
 
-  /// Distance walked for this check-in, as calculated by Module 4.
+  /// The journey's **planned route** distance, as calculated by Module 4.
+  ///
+  /// This is the rewardable figure and nothing else may be substituted for
+  /// it: [distanceMetres] derives from it, and that is what the points
+  /// formula and the cumulative distance behind the distance badges are both
+  /// scored on. Keeping it pinned to the route is what stops a tourist
+  /// earning more by walking a longer way round than the route asked for.
+  ///
+  /// How far they *actually* walked is [walkedDistanceKm], which is recorded
+  /// beside this one rather than in place of it.
   final double distanceKm;
 
+  /// Metres actually walked, as accumulated from the live GPS stream, in km.
+  ///
+  /// Display only — the walking journal and the journey detail screen show
+  /// this so a tourist's history answers "how far did I walk?" with the
+  /// distance they covered rather than the one the route predicted. Nothing
+  /// in the reward path reads it, deliberately: a detour lengthens this
+  /// figure and must not lengthen the award.
+  ///
+  /// Null when the journey produced no tracked distance to record — no
+  /// position fix landed, or the check-in predates this field. Consumers
+  /// fall back to [distanceKm] rather than showing a gap; see
+  /// [JournalEntryModel.displayDistanceKm].
+  final double? walkedDistanceKm;
+
   /// Carbon saved versus driving the same distance, as calculated by Module 4.
+  ///
+  /// Route-based, like [distanceKm]: it is the counterfactual "what driving
+  /// this route would have emitted", so a detour does not earn extra credit.
   final double carbonSavedKg;
 
   /// Calories burned, as calculated by Module 4.
@@ -73,6 +99,7 @@ class CheckInResult {
     required this.destinationId,
     this.destinationName = '',
     required this.distanceKm,
+    this.walkedDistanceKm,
     required this.carbonSavedKg,
     required this.caloriesBurned,
     required this.checkInTime,
@@ -82,10 +109,13 @@ class CheckInResult {
   /// Whether this journey qualifies for points (FR-W01).
   bool get earnsPoints => transportMode.earnsPoints;
 
-  /// Distance in whole metres.
+  /// The **planned** distance in whole metres — the reward input.
   ///
   /// The points formula and the badge thresholds both work in integer metres
   /// so that binary floating point cannot shift a result across a boundary.
+  ///
+  /// Reads [distanceKm], never [walkedDistanceKm]. That is the whole reason
+  /// the two are separate fields.
   int get distanceMetres => RewardConstants.metresFromKm(distanceKm);
 
   factory CheckInResult.fromMap(Map<String, dynamic> map) {
@@ -95,6 +125,10 @@ class CheckInResult {
       destinationId: map['destinationId'] as String? ?? '',
       destinationName: map['destinationName'] as String? ?? '',
       distanceKm: (map['distanceKm'] as num?)?.toDouble() ?? 0.0,
+      // Stays null when absent rather than falling back to 0.0: a check-in
+      // written before this field existed did not walk zero kilometres, it
+      // simply never recorded how far it walked, and only null can say that.
+      walkedDistanceKm: (map['walkedDistanceKm'] as num?)?.toDouble(),
       carbonSavedKg: (map['carbonSavedKg'] as num?)?.toDouble() ?? 0.0,
       caloriesBurned: (map['caloriesBurned'] as num?)?.toDouble() ?? 0.0,
       checkInTime: map['checkInTime'] as DateTime,
@@ -109,6 +143,12 @@ class CheckInResult {
       'destinationId': destinationId,
       'destinationName': destinationName,
       'distanceKm': distanceKm,
+      // Omitted rather than written as an explicit null. The check-in is
+      // saved with SetOptions(merge: true) and re-saved on a reward retry, so
+      // a null in the map would clear a distance an earlier save had already
+      // recorded. Absent is also exactly what a legacy record looks like, so
+      // both read back the same way.
+      if (walkedDistanceKm != null) 'walkedDistanceKm': walkedDistanceKm,
       'carbonSavedKg': carbonSavedKg,
       'caloriesBurned': caloriesBurned,
       'checkInTime': checkInTime,

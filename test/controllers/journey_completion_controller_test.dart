@@ -519,9 +519,17 @@ void main() {
 
       expect(entry.destinationName, _summary.destinationName);
       expect(entry.destinationId, _summary.destinationId);
-      // The persisted distance, not the screen's GPS-tracked kmCovered — the
-      // detail screen has to agree with what the journal will show later.
+      // Built from the persisted record rather than from the completed
+      // screen's own state, so the detail screen agrees with what the journal
+      // will show for this journey later. Both distances come across: the
+      // planned one the award was scored on, and the walked one the journal
+      // displays — null here, since this controller tracks no progress.
       expect(entry.distanceKm, saved.distanceKm);
+      expect(entry.walkedDistanceKm, saved.walkedDistanceKm);
+      expect(entry.walkedDistanceKm, isNull);
+      // With nothing tracked, the journal falls back to the planned figure
+      // rather than showing a gap.
+      expect(entry.displayDistanceKm, saved.distanceKm);
       expect(entry.carbonSavedKg, saved.carbonSavedKg);
       expect(entry.caloriesBurned, saved.caloriesBurned);
       expect(entry.transportMode, saved.transportMode);
