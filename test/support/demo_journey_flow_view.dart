@@ -21,14 +21,21 @@
 import 'package:flutter/material.dart';
 
 import 'package:walkpenang/controllers/journey_completion_controller.dart';
+import 'package:walkpenang/models/journal_entry_model.dart';
 import 'package:walkpenang/views/active_walking_view.dart';
 import 'package:walkpenang/views/journey_completed_view.dart';
+import 'package:walkpenang/views/reward/journal_detail_screen.dart';
 import 'package:walkpenang/views/verify_location_view.dart';
 import 'fake_journey_dependencies.dart';
 import 'walking_fixtures.dart';
 
 class DemoJourneyFlowView extends StatefulWidget {
-  const DemoJourneyFlowView({super.key});
+  const DemoJourneyFlowView({super.key, this.userId = 'demo_tourist'});
+
+  /// Whose journey this is. Overridden to the empty string by the test that
+  /// drives the signed-out case, where no check-in record is ever created and
+  /// "View Journey" therefore has nothing to open.
+  final String userId;
 
   @override
   State<DemoJourneyFlowView> createState() => _DemoJourneyFlowViewState();
@@ -44,7 +51,7 @@ class _DemoJourneyFlowViewState extends State<DemoJourneyFlowView> {
       routeSummary: demoRouteSummary,
       // Matches Module 5's own DemoRewardData.userId convention
       // (dao/in_memory_reward_data.dart) — clearly not a real tourist ID.
-      userId: 'demo_tourist',
+      userId: widget.userId,
       // The carbon WalkingBenefits would compute for the demo route (see
       // test/controllers/walking_controller_test.dart) — a realistic, not
       // fabricated-looking, demo number.
@@ -72,6 +79,15 @@ class _DemoJourneyFlowViewState extends State<DemoJourneyFlowView> {
 
   void _exitDemo() => Navigator.of(context).pop();
 
+  /// Mirrors JourneyFlowView._openJourneyDetail — the same push of the same
+  /// production screen, so what this harness exercises is the real
+  /// navigation, not a test-only imitation of it.
+  void _openJourneyDetail(JournalEntryModel entry) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => JournalDetailScreen(entry: entry)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Banner(
@@ -97,10 +113,14 @@ class _DemoJourneyFlowViewState extends State<DemoJourneyFlowView> {
                 onContinueWalking: _controller.continueWalking,
               );
             case JourneyStep.completed:
+              final completedEntry = _controller.completedJournalEntry;
               return JourneyCompletedView(
                 data: _controller.journeyCompletedUiData,
                 onBack: _exitDemo,
                 onReturnHome: _exitDemo,
+                onViewJourney: completedEntry == null
+                    ? null
+                    : () => _openJourneyDetail(completedEntry),
                 onRetryReward: _controller.retryReward,
               );
           }

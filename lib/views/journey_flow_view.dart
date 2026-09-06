@@ -14,10 +14,11 @@ import 'package:flutter/material.dart';
 
 import '../controllers/journey_completion_controller.dart';
 import '../controllers/journey_session.dart';
+import '../models/journal_entry_model.dart';
 import '../theme/app_theme.dart';
 import 'active_walking_view.dart';
 import 'journey_completed_view.dart';
-import 'reward/stats_dashboard_screen.dart';
+import 'reward/journal_detail_screen.dart';
 import 'verify_location_view.dart';
 
 class JourneyFlowView extends StatefulWidget {
@@ -60,9 +61,20 @@ class _JourneyFlowViewState extends State<JourneyFlowView> {
         .popUntil((route) => route.isFirst);
   }
 
-  void _openRewards() {
+  /// "View Journey" — opens the detail page for the journey that has just
+  /// been completed, which is the same screen the walking journal opens for a
+  /// historical entry (FR-R03). It used to open the statistics dashboard,
+  /// which answered a question the button does not ask.
+  ///
+  /// The entry is handed over directly rather than re-read: the controller
+  /// already holds the check-in record it wrote, so this costs no Firestore
+  /// query, cannot race the reward transaction that stamps `pointsAwarded`,
+  /// and shows the same figures the journal will show for this journey later.
+  /// [JournalDetailScreen] is stateless, so opening it saves nothing and
+  /// awards nothing.
+  void _openJourneyDetail(JournalEntryModel entry) {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const StatsDashboardScreen()),
+      MaterialPageRoute(builder: (_) => JournalDetailScreen(entry: entry)),
     );
   }
 
@@ -171,11 +183,18 @@ class _JourneyFlowViewState extends State<JourneyFlowView> {
                 onContinueWalking: _controller.continueWalking,
               );
             case JourneyStep.completed:
+              // Null while the journey has no record to open — an
+              // unauthenticated tourist, or the moment before the check-in is
+              // built. The footer renders the action disabled rather than
+              // falling back to a screen that is not this journey.
+              final completedEntry = _controller.completedJournalEntry;
               return JourneyCompletedView(
                 data: _controller.journeyCompletedUiData,
                 onBack: _returnHome,
                 onReturnHome: _returnHome,
-                onViewRewards: _openRewards,
+                onViewJourney: completedEntry == null
+                    ? null
+                    : () => _openJourneyDetail(completedEntry),
                 onRetryReward: _controller.retryReward,
               );
           }

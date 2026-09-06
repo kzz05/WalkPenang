@@ -468,4 +468,152 @@ void main() {
       expect(rewardService.callCount, 0);
     });
   });
+
+  group('completedJournalEntry (View Journey)', () {
+    test('is null before the journey completes', () async {
+      final controller = _buildController(
+        arrival: _ScriptedArrivalService(const ArrivalCheckReading.success(42)),
+        reward: _CountingRewardService(),
+      );
+      addTearDown(controller.dispose);
+
+      expect(controller.completedJournalEntry, isNull);
+
+      await controller.beginVerification();
+
+      // Verified, but not completed — there is no journey record yet, so
+      // there is nothing for View Journey to open.
+      expect(controller.completedJournalEntry, isNull);
+    });
+
+    test('carries the same checkInId as the record that was saved', () async {
+      final repository = _RecordingCheckInRepository();
+      final controller = _buildController(
+        arrival: _ScriptedArrivalService(const ArrivalCheckReading.success(42)),
+        reward: _CountingRewardService(),
+        checkInRepository: repository,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.verifyAndComplete();
+
+      expect(repository.saved, hasLength(1));
+      final entry = controller.completedJournalEntry;
+      expect(entry, isNotNull);
+      expect(entry!.checkInId, repository.saved.single.checkInId);
+    });
+
+    test('reports this journey, from the record rather than the screen',
+        () async {
+      final repository = _RecordingCheckInRepository();
+      final controller = _buildController(
+        arrival: _ScriptedArrivalService(const ArrivalCheckReading.success(42)),
+        reward: _CountingRewardService(),
+        checkInRepository: repository,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.verifyAndComplete();
+      final entry = controller.completedJournalEntry!;
+      final saved = repository.saved.single;
+
+      expect(entry.destinationName, _summary.destinationName);
+      expect(entry.destinationId, _summary.destinationId);
+      // The persisted distance, not the screen's GPS-tracked kmCovered — the
+      // detail screen has to agree with what the journal will show later.
+      expect(entry.distanceKm, saved.distanceKm);
+      expect(entry.carbonSavedKg, saved.carbonSavedKg);
+      expect(entry.caloriesBurned, saved.caloriesBurned);
+      expect(entry.transportMode, saved.transportMode);
+      expect(entry.checkInTime, saved.checkInTime);
+      expect(entry.pointsAwarded, 15);
+    });
+
+    test('reading it never saves a second check-in or awards again', () async {
+      final repository = _RecordingCheckInRepository();
+      final rewardService = _CountingRewardService();
+      final controller = _buildController(
+        arrival: _ScriptedArrivalService(const ArrivalCheckReading.success(42)),
+        reward: rewardService,
+        checkInRepository: repository,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.verifyAndComplete();
+      expect(repository.saved, hasLength(1));
+      expect(rewardService.callCount, 1);
+
+      final first = controller.completedJournalEntry!;
+      final second = controller.completedJournalEntry!;
+      final third = controller.completedJournalEntry!;
+
+      // Opening View Journey is a read of state already held. Nothing is
+      // written, nothing is awarded, and the journey keeps its one identity.
+      expect(repository.saved, hasLength(1));
+      expect(rewardService.callCount, 1);
+      expect(first.checkInId, second.checkInId);
+      expect(second.checkInId, third.checkInId);
+    });
+
+    test('a failed award still opens the journey, with no points recorded',
+        () async {
+      final repository = _RecordingCheckInRepository();
+      final controller = _buildController(
+        arrival: _ScriptedArrivalService(const ArrivalCheckReading.success(42)),
+        reward: _ThrowingRewardService(),
+        checkInRepository: repository,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.verifyAndComplete();
+
+      final entry = controller.completedJournalEntry;
+      expect(entry, isNotNull);
+      expect(entry!.checkInId, repository.saved.single.checkInId);
+      // 0 rather than a fabricated figure — the detail screen renders that as
+      // "not recorded" for a walk.
+      expect(entry.pointsAwarded, 0);
+    });
+
+    test('an unauthenticated tourist still gets no check-in record', () async {
+      final repository = _RecordingCheckInRepository();
+      final rewardService = _CountingRewardService();
+      final controller = _buildController(
+        arrival: _ScriptedArrivalService(const ArrivalCheckReading.success(42)),
+        reward: rewardService,
+        checkInRepository: repository,
+        userId: '',
+      );
+      addTearDown(controller.dispose);
+
+      await controller.verifyAndComplete();
+
+      // Unchanged by this feature: no record is created merely so that View
+      // Journey has something to open. The button is disabled instead.
+      expect(repository.saved, isEmpty);
+      expect(rewardService.callCount, 0);
+      expect(controller.completedJournalEntry, isNull);
+      expect(controller.journeyCompletedUiData.reward.status,
+          JourneyRewardUiStatus.error);
+    });
+
+    test('a retried reward keeps the same journey record', () async {
+      final repository = _RecordingCheckInRepository();
+      final rewardService = _CountingRewardService();
+      final controller = _buildController(
+        arrival: _ScriptedArrivalService(const ArrivalCheckReading.success(42)),
+        reward: rewardService,
+        checkInRepository: repository,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.verifyAndComplete();
+      final before = controller.completedJournalEntry!.checkInId;
+
+      await controller.retryReward();
+
+      expect(controller.completedJournalEntry!.checkInId, before);
+      expect(repository.saved.map((r) => r.checkInId).toSet(), {before});
+    });
+  });
 }

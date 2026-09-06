@@ -222,4 +222,78 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+
+  group('footer actions', () {
+    testWidgets('View Journey invokes onViewJourney, not the rewards action',
+        (tester) async {
+      var viewJourneyTaps = 0;
+
+      await _pump(
+        tester,
+        JourneyCompletedView(
+          data: const JourneyCompletedUiData(
+            destinationName: _destination,
+            destinationAreaLabel: _area,
+            reward: JourneyRewardUiState.success(pointsAwarded: 15),
+          ),
+          onViewJourney: () => viewJourneyTaps++,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('View Journey'));
+      await tester.pumpAndSettle();
+
+      expect(viewJourneyTaps, 1);
+    });
+
+    testWidgets('View Journey is disabled when there is no journey to open',
+        (tester) async {
+      await _pump(
+        tester,
+        const JourneyCompletedView(
+          data: JourneyCompletedUiData(
+            destinationName: _destination,
+            destinationAreaLabel: _area,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // The button still reads "View Journey" — it is simply inert, rather
+      // than falling back to a screen that is not this journey.
+      expect(find.text('View Journey'), findsOneWidget);
+      final inkWell = tester.widget<InkWell>(
+        find.ancestor(
+          of: find.text('View Journey'),
+          matching: find.byType(InkWell),
+        ),
+      );
+      expect(inkWell.onTap, isNull);
+    });
+
+    testWidgets('Back to Explore still invokes onReturnHome', (tester) async {
+      var returnHomeTaps = 0;
+      var viewJourneyTaps = 0;
+
+      await _pump(
+        tester,
+        JourneyCompletedView(
+          data: const JourneyCompletedUiData(
+            destinationName: _destination,
+            destinationAreaLabel: _area,
+          ),
+          onReturnHome: () => returnHomeTaps++,
+          onViewJourney: () => viewJourneyTaps++,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Back to Explore'));
+      await tester.pumpAndSettle();
+
+      expect(returnHomeTaps, 1);
+      expect(viewJourneyTaps, 0);
+    });
+  });
 }

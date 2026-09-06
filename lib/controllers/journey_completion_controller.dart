@@ -23,6 +23,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../models/active_walking_ui_data.dart';
 import '../models/badge_model.dart';
 import '../models/check_in_result.dart';
+import '../models/journal_entry_model.dart';
 import '../models/journey_completed_ui_data.dart';
 import '../models/journey_reward_ui_state.dart';
 import '../models/verify_location_ui_data.dart';
@@ -263,6 +264,45 @@ class JourneyCompletionController extends ChangeNotifier {
         reward: _reward,
       );
 
+  /// The journey that has just been completed, in the read model the walking
+  /// journal's detail screen already renders (FR-R03).
+  ///
+  /// A projection over state this controller already holds — the
+  /// [CheckInResult] built in [_awardReward] plus the points from [_reward] —
+  /// so opening the just-completed journey costs no Firestore read and cannot
+  /// disagree with the record that was actually written. It is deliberately
+  /// *not* built from [journeyCompletedUiData]: that screen shows the
+  /// GPS-tracked [kmCovered], while the persisted check-in carries the route's
+  /// planned distance, and the detail screen has to match what the journal
+  /// will show for this same journey later.
+  ///
+  /// Null until a check-in record exists — before completion, and for an
+  /// unauthenticated tourist, who never gets one. Journey Completed renders
+  /// its "View Journey" action disabled in that case rather than opening
+  /// something that is not this journey.
+  ///
+  /// Reading this awards nothing and writes nothing.
+  JournalEntryModel? get completedJournalEntry {
+    final result = _checkInResult;
+    if (result == null) return null;
+
+    return JournalEntryModel(
+      checkInId: result.checkInId,
+      destinationName: result.destinationName,
+      destinationId: result.destinationId,
+      checkInTime: result.checkInTime,
+      distanceKm: result.distanceKm,
+      // Null while the award is still in flight, or if it failed — the detail
+      // screen already reads 0 as "not recorded" for a walk, which is the
+      // honest answer here and the same thing the journal shows for a
+      // check-in whose reward never got stamped.
+      pointsAwarded: _reward.pointsAwarded ?? 0,
+      carbonSavedKg: result.carbonSavedKg,
+      caloriesBurned: result.caloriesBurned,
+      transportMode: result.transportMode,
+    );
+  }
+
   // --- Active Walking (UC-W05) ----------------------------------------------
 
   /// Best-effort "Open Navigation" — a convenience, not part of the
@@ -468,9 +508,11 @@ class JourneyCompletionController extends ChangeNotifier {
       return;
     }
 
-    _reward = const JourneyRewardUiState.pending();
-    notifyListeners();
-
+    // Built before the pending notification rather than after it, so the
+    // Journey Completed screen's "View Journey" action has a record to open
+    // from the moment that screen first renders. Still inside this method and
+    // still behind the same [userId] guard above: an unauthenticated tourist
+    // gets no check-in record here, exactly as before.
     _checkInResult ??= CheckInResult(
       checkInId: _checkInRepository.newCheckInId(),
       userId: userId,
@@ -491,6 +533,9 @@ class JourneyCompletionController extends ChangeNotifier {
       checkInTime: DateTime.now(),
     );
     final result = _checkInResult!;
+
+    _reward = const JourneyRewardUiState.pending();
+    notifyListeners();
 
     try {
       // Best-effort: Module 5's DAO only ever merges its own
