@@ -121,8 +121,7 @@ class _JourneyFlowViewState extends State<JourneyFlowView> {
     if (!await _confirmEndJourney()) return;
     if (!mounted) return;
 
-    _controller.cancelJourney();
-    _session.end();
+    _session.abandon();
     Navigator.of(context).pop();
   }
 

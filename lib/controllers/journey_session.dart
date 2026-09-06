@@ -80,7 +80,7 @@ class JourneySession extends ChangeNotifier {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final firestore = FirebaseFirestore.instance;
 
-    _controller?.dispose();
+    _releaseActiveController();
     _controller = JourneyCompletionController(
       routeSummary: summary,
       userId: uid,
@@ -109,11 +109,35 @@ class JourneySession extends ChangeNotifier {
   /// Adopts an already-built controller. Only the debug/test flow uses this;
   /// the app always goes through [start].
   @visibleForTesting
-  void adopt(JourneyCompletionController controller) {
-    _controller?.dispose();
+  void adopt(
+    JourneyCompletionController controller, {
+    void Function(BuildContext)? openNavigation,
+    VoidCallback? onJourneyCompleted,
+  }) {
+    _releaseActiveController();
     _controller = controller;
+    _openNavigation = openNavigation;
+    _onJourneyCompleted = onJourneyCompleted;
     _isMinimized = false;
     notifyListeners();
+  }
+
+  /// Clears whatever journey is still holding the session's one slot, before
+  /// a new controller takes it.
+  ///
+  /// A safety net, not the guard: the tourist is asked before a live journey
+  /// is replaced (see `confirmRouteOverActiveJourney`). But if anything ever
+  /// reaches [start] with a journey still running, dropping it would leave a
+  /// controller whose cancel latch was never set — disposed, yet still able
+  /// to be verified, completed and rewarded by a callback already in flight.
+  /// So it is cancelled first, exactly as [abandon] would have done, and only
+  /// then released.
+  void _releaseActiveController() {
+    final previous = _controller;
+    if (previous == null) return;
+    previous.cancelJourney();
+    previous.dispose();
+    _controller = null;
   }
 
   /// The journey keeps running; its screens come off the stack.
@@ -164,9 +188,30 @@ class JourneySession extends ChangeNotifier {
     await journey?.verifyAndComplete();
   }
 
+  /// Gives up an unfinished journey and releases the session.
+  ///
+  /// The single correct way to terminate a journey that was never walked to
+  /// its end — from the Active Walking back arrow, from the mini bar's end
+  /// button, or when the tourist chooses a route to somewhere else. [end]
+  /// alone is not enough: it only disposes the controller, leaving the cancel
+  /// latch unset, so a callback already in flight could still verify,
+  /// complete and reward a journey the tourist has walked away from.
+  ///
+  /// Deliberately not a completion: no check-in is written, no reward is
+  /// requested, no badge progresses, and [onJourneyCompleted] never fires —
+  /// so the Map module's pin stays un-greyed for a destination never reached.
+  void abandon() {
+    if (!isActive) return;
+    _controller?.cancelJourney();
+    end();
+  }
+
   /// Ends the session — whether the journey completed or was given up. The
   /// controller's own latches (cancelJourney / completed) decide what was
   /// recorded; this only releases it.
+  ///
+  /// For a journey that did *not* complete, call [abandon] instead: it sets
+  /// that latch before releasing.
   void end() {
     if (!isActive) return;
     _controller?.dispose();

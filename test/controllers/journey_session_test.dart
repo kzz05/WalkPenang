@@ -105,6 +105,66 @@ void main() {
     expect(() => first.addListener(() {}), throwsFlutterError);
   });
 
+  group('abandon — giving a journey up', () {
+    test('cancels the controller before releasing it, so the latch is set',
+        () {
+      final controller = _controller();
+      session.adopt(controller);
+
+      session.abandon();
+
+      expect(session.isActive, isFalse);
+      expect(session.controller, isNull);
+      // The whole point of abandon() over end(): end() alone disposes the
+      // controller and leaves _cancelled false, so a callback already in
+      // flight could still verify, complete and reward the journey.
+      expect(controller.isCancelled, isTrue);
+      expect(controller.isCompleted, isFalse);
+      expect(() => controller.addListener(() {}), throwsFlutterError);
+    });
+
+    test('never fires onJourneyCompleted — the pin must stay un-greyed', () {
+      var completedFired = 0;
+      session.adopt(_controller(), onJourneyCompleted: () => completedFired++);
+
+      session.abandon();
+
+      expect(completedFired, 0);
+    });
+
+    test('on an empty session does nothing', () {
+      expect(session.abandon, returnsNormally);
+      expect(session.isActive, isFalse);
+    });
+  });
+
+  group('the session never silently overwrites a live journey', () {
+    test('adopting a second journey cancels the first, not just disposes it',
+        () {
+      final first = _controller();
+      session.adopt(first);
+
+      session.adopt(_controller());
+
+      expect(first.isCancelled, isTrue,
+          reason: 'a dropped controller with an unset latch could still '
+              'complete and reward itself');
+      expect(first.isCompleted, isFalse);
+    });
+
+    test('end() still leaves the latch alone — the completion path is '
+        'unchanged', () {
+      // Only abandon() cancels. end() stays exactly what it was, so a journey
+      // that finished normally is never retro-marked as given up.
+      final completedNormally = _controller();
+      session.adopt(completedNormally);
+
+      session.end();
+
+      expect(completedNormally.isCancelled, isFalse);
+    });
+  });
+
   test('minimize on an empty session does nothing', () {
     session.minimize();
 

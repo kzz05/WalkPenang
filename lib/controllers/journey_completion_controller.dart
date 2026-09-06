@@ -222,6 +222,12 @@ class JourneyCompletionController extends ChangeNotifier {
   /// idempotency (points ledger + rewardProcessed flag).
   bool get isCompleted => _completed;
 
+  /// True once the journey was given up rather than walked to its end (see
+  /// [cancelJourney]). Readable after [dispose], which is the point: it is
+  /// how a caller replacing a journey can tell the controller was properly
+  /// abandoned and not merely dropped.
+  bool get isCancelled => _cancelled;
+
   JourneyRewardUiState _reward = const JourneyRewardUiState.unavailable();
   CheckInResult? _checkInResult;
 
