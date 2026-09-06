@@ -313,7 +313,10 @@ class _LiveStatsGrid extends StatelessWidget {
                 child: _StatTile(
                   dotColor: AppColors.carbon,
                   value: data.carbonSavedKg?.toStringAsFixed(2),
-                  label: 'KG CO₂ SAVED',
+                  // Estimate, not an accrual: the figure is the planned
+                  // route's saving, snapshotted at journey start, so the
+                  // label must not read as an amount already achieved.
+                  label: 'EST. KG CO₂ SAVED',
                   background: AppColors.successTint,
                 ),
               ),
