@@ -150,23 +150,46 @@ class JourneyCompletionController extends ChangeNotifier {
     return WalkingBenefits.calculateCaloriesBurned(covered, weightKg);
   }
 
-  /// Minutes still to go, from the distance left at the route's own planned
-  /// pace.
+  /// Minutes still to go, from the distance *left to the destination* at the
+  /// route's own planned pace.
   ///
-  /// Planned pace rather than the tourist's observed pace on purpose: over a
-  /// short walk the observed figure swings wildly between fixes, and a
-  /// countdown that jumps from 4 minutes to 20 and back reads as broken. Null
-  /// whenever there is nothing sound to divide — no progress yet, or a route
-  /// with no distance or duration to take a pace from.
+  /// Deliberately not the planned distance minus [kmCovered], which is what
+  /// this used to be. Cumulative movement only ever grows, so the estimate
+  /// fell for every step taken regardless of direction: a tourist on a detour
+  /// read 12 minutes at 0.4 km covered and 10 at 0.6 km while standing no
+  /// closer to the destination than when they started. That is the same
+  /// mistake [ActiveWalkingUiData.progressFraction] was already fixed for —
+  /// "how far have I walked?" answering a question that asked "how much is
+  /// left?".
+  ///
+  /// So it scales the planned duration by how much of the starting distance
+  /// is still outstanding. Closing in lowers it; walking away raises it
+  /// again, which is the honest answer and the reason it is not clamped to
+  /// the planned duration — a tourist further out than they began genuinely
+  /// has more walking ahead than the route promised, and capping it would
+  /// report a detour as free.
+  ///
+  /// The route's planned pace rather than the tourist's observed pace, on
+  /// purpose: over a short walk the observed figure swings wildly between
+  /// fixes, and a countdown that jumps from 4 minutes to 20 and back reads as
+  /// broken.
+  ///
+  /// Null whenever there is nothing sound to scale — no fix yet, a route with
+  /// no planned duration, or a journey that began on top of its own
+  /// destination, which leaves no starting distance to take a baseline from.
   int? get minutesRemaining {
-    final covered = kmCovered;
-    final plannedKm = routeSummary.distanceKm;
+    final start = _initialMetresToDestination;
+    final current = _metresToDestination;
     final plannedMinutes = routeSummary.estimatedDuration.inMinutes;
-    if (covered == null || plannedKm <= 0 || plannedMinutes <= 0) return null;
+    if (start == null || current == null || plannedMinutes <= 0) return null;
 
-    final remainingKm = plannedKm - covered;
-    if (remainingKm <= 0) return 0;
-    return (remainingKm / (plannedKm / plannedMinutes)).round();
+    // Arrived (or measured past the destination): nothing left to walk.
+    if (current <= 0) return 0;
+    // Started on the destination and has since moved off it — there is no
+    // starting distance to have closed, so no ratio to scale by.
+    if (start <= 0) return null;
+
+    return (plannedMinutes * (current / start)).round();
   }
 
   JourneyStep _step = JourneyStep.active;

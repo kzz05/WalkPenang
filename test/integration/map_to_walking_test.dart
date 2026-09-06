@@ -251,20 +251,115 @@ void main() {
       expect(controller.activeWalkingUiData.kmCovered, closeTo(0.6, 1e-9));
     });
 
-    test('counts down the minutes remaining at the route pace', () async {
-      // 2.0 km planned over 33 minutes. After 1.0 km there is half the route
-      // left, so roughly half the planned time.
-      final controller = controllerWith(Stream<double>.fromIterable([1000]));
+    /// Scripts a walk as (cumulative metres walked, metres still to go), for
+    /// the tests that are about MIN REMAINING rather than KM COVERED.
+    JourneyCompletionController remainingWalk(List<List<double>> fixes) {
+      return controllerFrom(
+        Stream<JourneyProgressUpdate>.fromIterable(
+          fixes.map((f) => JourneyProgressUpdate(
+                metresWalked: f[0],
+                metresToDestination: f[1],
+              )),
+        ),
+      );
+    }
+
+    test('scales the planned time by the distance still to go', () async {
+      // 33 planned minutes, and 400 m of the starting 1000 m still ahead —
+      // 40% of the walk left, so ~40% of the time.
+      final controller = remainingWalk([
+        [0, 1000],
+        [700, 400],
+      ]);
       await Future<void>.delayed(Duration.zero);
 
-      expect(controller.minutesRemaining, 17);
+      expect(controller.minutesRemaining, 13);
+      expect(controller.activeWalkingUiData.minutesRemaining, 13);
     });
 
-    test('never reports negative time once the route is overshot', () async {
-      final controller = controllerWith(Stream<double>.fromIterable([9000]));
+    test('walking towards the destination lowers it', () async {
+      final controller = remainingWalk([
+        [0, 1000],
+        [300, 750],
+      ]);
+      await Future<void>.delayed(Duration.zero);
+      final atThreeQuarters = controller.minutesRemaining!;
+
+      // Same controller cannot be re-scripted, so compare two walks off the
+      // same 1000 m start.
+      final closer = remainingWalk([
+        [0, 1000],
+        [600, 400],
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(closer.minutesRemaining, lessThan(atThreeQuarters));
+    });
+
+    test('a detour that closes no distance does not lower it', () async {
+      // The reported bug: MIN REMAINING used to be plannedKm - kmCovered, so
+      // 400 m of wandering knocked minutes off an estimate that had not
+      // changed — 12 minutes at 0.4 km covered, 10 at 0.6 km, with the
+      // destination no nearer.
+      final controller = remainingWalk([
+        [0, 600],
+        [400, 600],
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      // KM COVERED still counts every one of those metres.
+      expect(controller.kmCovered, closeTo(0.4, 1e-9));
+      // The estimate does not move, because the walk ahead did not.
+      expect(controller.minutesRemaining, 33);
+    });
+
+    test('walking away from the destination raises it', () async {
+      // Half again as far out as the journey started: more walking left than
+      // the route ever planned, and deliberately not clamped back down to it.
+      final controller = remainingWalk([
+        [0, 600],
+        [500, 900],
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.minutesRemaining, 50);
+      expect(controller.minutesRemaining!, greaterThan(33));
+    });
+
+    test('reads zero once the destination is reached', () async {
+      final controller = remainingWalk([
+        [0, 600],
+        [640, 0],
+      ]);
       await Future<void>.delayed(Duration.zero);
 
       expect(controller.minutesRemaining, 0);
+    });
+
+    test('overshooting the planned distance does not zero it', () async {
+      // 9 km walked against a 2 km plan, still 300 m out. The old formula
+      // reported "0 minutes" to a tourist who was nowhere near.
+      final controller = remainingWalk([
+        [0, 600],
+        [9000, 300],
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.kmCovered, closeTo(9.0, 1e-9));
+      expect(controller.minutesRemaining, 17);
+    });
+
+    test('stays unavailable for a journey that began on its destination',
+        () async {
+      // No starting distance to scale against; nothing sound to divide by.
+      final controller = remainingWalk([
+        [0, 0],
+        [50, 40],
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.minutesRemaining, isNull);
+      expect(controller.activeWalkingUiData.minutesRemaining, isNull);
     });
 
     test('a failing position stream does not break the journey', () async {
@@ -592,8 +687,10 @@ void main() {
         controller.activeWalkingUiData.caloriesBurned,
         closeTo(46.8, 1e-9),
       );
-      // MIN REMAINING still runs off the planned pace, as before.
-      expect(controller.minutesRemaining, 20);
+      // MIN REMAINING runs off the same closed-distance reading the bar
+      // does, at the route's planned pace: 150 m of the starting 600 m left,
+      // so a quarter of 33 minutes.
+      expect(controller.minutesRemaining, 8);
       // And arrival is still decided by its own one-shot fix, not the bar.
       expect(progressOf(controller), closeTo(0.75, 1e-9));
       await controller.beginVerification();
