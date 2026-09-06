@@ -18,7 +18,13 @@ class JourneyCompletedView extends StatelessWidget {
   final JourneyCompletedUiData data;
   final VoidCallback? onBack;
   final VoidCallback? onReturnHome;
-  final VoidCallback? onViewRewards;
+
+  /// Opens the detail page for *this* completed journey. Null when the
+  /// journey has no record to open — the footer then renders the action
+  /// disabled rather than sending the tourist somewhere that is not their
+  /// journey.
+  final VoidCallback? onViewJourney;
+
   final VoidCallback? onRetryReward;
 
   const JourneyCompletedView({
@@ -26,7 +32,7 @@ class JourneyCompletedView extends StatelessWidget {
     required this.data,
     this.onBack,
     this.onReturnHome,
-    this.onViewRewards,
+    this.onViewJourney,
     this.onRetryReward,
   });
 
@@ -60,7 +66,7 @@ class JourneyCompletedView extends StatelessWidget {
                       const SizedBox(height: 24),
                       _Footer(
                         onReturnHome: onReturnHome,
-                        onViewRewards: onViewRewards,
+                        onViewJourney: onViewJourney,
                       ),
                     ],
                   ),
@@ -541,9 +547,9 @@ class _CarbonContextCard extends StatelessWidget {
 
 class _Footer extends StatelessWidget {
   final VoidCallback? onReturnHome;
-  final VoidCallback? onViewRewards;
+  final VoidCallback? onViewJourney;
 
-  const _Footer({required this.onReturnHome, required this.onViewRewards});
+  const _Footer({required this.onReturnHome, required this.onViewJourney});
 
   @override
   Widget build(BuildContext context) {
@@ -558,7 +564,7 @@ class _Footer extends StatelessWidget {
         _PillButton(
             label: 'View Journey',
             background: AppColors.backgroundDeep,
-            onPressed: onViewRewards),
+            onPressed: onViewJourney),
       ],
     );
   }
