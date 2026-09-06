@@ -53,19 +53,35 @@ class WalkingController extends ChangeNotifier {
   /// negative/non-finite. Callers must treat null as "show the missing/
   /// invalid weight state", never as a zero calorie estimate.
   double? get caloriesBurned {
-    if (_selectedMode != TransportMode.walking) return null;
-
     final distanceKm = _routeSummary?.distanceKm;
     if (distanceKm == null || !distanceKm.isFinite || distanceKm <= 0) {
       return null;
     }
 
+    final bodyWeightKg = calorieBodyWeightKg;
+    if (bodyWeightKg == null) return null;
+
+    return WalkingBenefits.calculateCaloriesBurned(distanceKm, bodyWeightKg);
+  }
+
+  /// The body weight US-W04's formula may be applied with, or null whenever
+  /// calories are not attributable at all: Walking isn't the selected mode,
+  /// or the profile carries no usable weight (missing, zero, negative,
+  /// non-finite) — the same conditions [caloriesBurned] already refuses to
+  /// produce an estimate under, so no new fallback weight is invented here.
+  ///
+  /// Handed to [JourneyCompletionController] at journey start in place of
+  /// the pre-walk estimate, so an active journey can recompute calories from
+  /// the distance actually covered. Callers must treat null as "show the
+  /// missing/invalid weight state", never as a zero weight.
+  double? get calorieBodyWeightKg {
+    if (_selectedMode != TransportMode.walking) return null;
+
     final bodyWeightKg = _userProfile?.weightKg;
     if (bodyWeightKg == null || !bodyWeightKg.isFinite || bodyWeightKg <= 0) {
       return null;
     }
-
-    return WalkingBenefits.calculateCaloriesBurned(distanceKm, bodyWeightKg);
+    return bodyWeightKg;
   }
 
   void selectMode(TransportMode mode) {
