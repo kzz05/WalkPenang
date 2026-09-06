@@ -98,7 +98,7 @@ JourneyCompletionController _buildController({
     checkInRepository: checkInRepository ?? _RecordingCheckInRepository(),
     arrivalVerificationService: arrival,
     carbonSavedKg: 0.504,
-    caloriesBurned: 140.4,
+    bodyWeightKg: 65,
   );
 }
 

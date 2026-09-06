@@ -45,11 +45,14 @@ class _DemoJourneyFlowViewState extends State<DemoJourneyFlowView> {
       // Matches Module 5's own DemoRewardData.userId convention
       // (dao/in_memory_reward_data.dart) — clearly not a real tourist ID.
       userId: 'demo_tourist',
-      // Same figures WalkingBenefits would compute for the demo route at a
-      // 65kg reference weight (see test/controllers/walking_controller_test
-      // .dart) — a realistic, not fabricated-looking, demo number.
+      // The carbon WalkingBenefits would compute for the demo route (see
+      // test/controllers/walking_controller_test.dart) — a realistic, not
+      // fabricated-looking, demo number.
       carbonSavedKg: 0.504,
-      caloriesBurned: 140.4,
+      // A 65 kg reference walker, so the demo's KCAL BURNED counts up with
+      // the scripted FakeJourneyProgressService walk exactly as it does on a
+      // real journey, rather than sitting on one pre-walk figure.
+      bodyWeightKg: 65,
       rewardService: FakeRewardService(),
       checkInRepository: NoopCheckInRepository(),
       arrivalVerificationService: const FakeArrivalVerificationService(),

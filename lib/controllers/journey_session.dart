@@ -85,7 +85,9 @@ class JourneySession extends ChangeNotifier {
       routeSummary: summary,
       userId: uid,
       carbonSavedKg: walking.carbonSavedKg,
-      caloriesBurned: walking.caloriesBurned,
+      // The weight, not the pre-walk estimate: the journey recomputes
+      // calories from the distance actually covered (US-W04).
+      bodyWeightKg: walking.calorieBodyWeightKg,
       rewardService: RewardController(
         userId: uid,
         rewardDao: FirestoreRewardDao(firestore: firestore),

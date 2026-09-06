@@ -47,7 +47,7 @@ class JourneyCompletionController extends ChangeNotifier {
     NavigationLauncherService? navigationLauncherService,
     JourneyProgressService? journeyProgressService,
     this.carbonSavedKg = 0.0,
-    this.caloriesBurned,
+    this.bodyWeightKg,
   })  : _rewardService = rewardService,
         _checkInRepository = checkInRepository,
         _arrivalVerificationService =
@@ -85,18 +85,26 @@ class JourneyCompletionController extends ChangeNotifier {
   final WalkingRouteSummary routeSummary;
   final String userId;
 
-  /// Snapshotted once at construction from WalkingController: these stay the
-  /// planned-route figures for the whole journey, exactly as Pre-Walk Summary
-  /// already showed them.
-  ///
-  /// Distance covered *is* now tracked live (see [kmCovered]), but carbon and
-  /// calories are deliberately not recomputed from it. They were promised to
-  /// the tourist before departure, and a figure that ticks downward when GPS
-  /// under-reports would make the promise look broken. Recomputing them from
-  /// [kmCovered] on completion is a reasonable future change; it just is not
-  /// this one.
+  /// Snapshotted once at construction from WalkingController: this stays the
+  /// planned-route figure for the whole journey, exactly as Pre-Walk Summary
+  /// already showed it.
   final double carbonSavedKg;
-  final double? caloriesBurned;
+
+  /// The walker's body weight — deliberately not their calorie estimate.
+  ///
+  /// Calories used to be snapshotted here beside [carbonSavedKg], which
+  /// pinned KCAL BURNED to the planned route for the whole journey: half way
+  /// through a 1.2 km walk the tile still read the full route's ~60 kcal, and
+  /// a detour that pushed KM COVERED up moved it not at all. US-W04's formula
+  /// is distance x weight x 0.9, and on a journey being walked the distance
+  /// in it has to be the distance actually covered — so the weight is what
+  /// gets carried, and [caloriesBurned] does the arithmetic per fix.
+  ///
+  /// Null whenever calories are not attributable: a non-walking journey, or a
+  /// profile with no usable body weight. [WalkingController.calorieBodyWeightKg]
+  /// is the only thing that fills this in production, and nothing here
+  /// substitutes a default weight when it comes back null.
+  final double? bodyWeightKg;
 
   final RewardService _rewardService;
   final CheckInRepository _checkInRepository;
@@ -125,6 +133,22 @@ class JourneyCompletionController extends ChangeNotifier {
   /// Distance genuinely covered, never the route's planned distance.
   double? get kmCovered =>
       _metresWalked == null ? null : _metresWalked! / 1000;
+
+  /// Calories burned so far (US-W04), from [kmCovered] — never the planned
+  /// route's distance. Recomputed on every position fix, so KCAL BURNED
+  /// climbs with KM COVERED, detours included.
+  ///
+  /// Null on either of the two "cannot know" grounds, which the tiles render
+  /// as unavailable rather than as a fabricated number: no usable body weight
+  /// ([bodyWeightKg]), or no position fix yet ([kmCovered]). 0.0 once
+  /// tracking has started and the tourist has not yet moved — honestly zero,
+  /// which is a different statement from unavailable.
+  double? get caloriesBurned {
+    final covered = kmCovered;
+    final weightKg = bodyWeightKg;
+    if (covered == null || weightKg == null) return null;
+    return WalkingBenefits.calculateCaloriesBurned(covered, weightKg);
+  }
 
   /// Minutes still to go, from the distance left at the route's own planned
   /// pace.

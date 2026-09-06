@@ -199,6 +199,7 @@ void main() {
     JourneyCompletionController controllerFrom(
       Stream<JourneyProgressUpdate> updates, {
       TransportMode mode = TransportMode.walking,
+      double? bodyWeightKg,
     }) {
       final controller = JourneyCompletionController(
         routeSummary: _summaryFor(mode, distanceKm: 2.0),
@@ -208,6 +209,7 @@ void main() {
         arrivalVerificationService:
             _ScriptedArrivalService(const ArrivalCheckReading.success(42)),
         journeyProgressService: _ScriptedProgressService(updates),
+        bodyWeightKg: bodyWeightKg,
       );
       addTearDown(controller.dispose);
       return controller;
@@ -218,6 +220,7 @@ void main() {
     JourneyCompletionController controllerWith(
       Stream<double> metres, {
       TransportMode mode = TransportMode.walking,
+      double? bodyWeightKg,
     }) {
       return controllerFrom(
         metres.map((m) => JourneyProgressUpdate(
@@ -225,6 +228,7 @@ void main() {
               metresToDestination: 500,
             )),
         mode: mode,
+        bodyWeightKg: bodyWeightKg,
       );
     }
 
@@ -296,6 +300,135 @@ void main() {
         controller.journeyCompletedUiData.completedDistanceKm,
         isNot(closeTo(2.0, 1e-9)),
       );
+    });
+
+    // KCAL BURNED used to be snapshotted from the pre-walk estimate at
+    // journey start, so it read the whole planned route's calories for the
+    // entire walk: 0.6 km into a 1.2 km route it still showed ~60 kcal, and a
+    // detour that pushed KM COVERED up moved it not at all. US-W04's formula
+    // is distance x weight x 0.9, and the distance in it must be the one
+    // actually covered.
+    //
+    // 55 kg is the walker throughout, so the arithmetic is readable:
+    // 0.6 km x 55 kg x 0.9 = 29.7 kcal.
+
+    test('KCAL BURNED comes from distance covered, not the planned route',
+        () async {
+      final controller = controllerWith(
+        Stream<double>.fromIterable([250, 600]),
+        bodyWeightKg: 55,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.kmCovered, closeTo(0.6, 1e-9));
+      expect(controller.caloriesBurned, closeTo(29.7, 1e-9));
+      expect(
+        controller.activeWalkingUiData.caloriesBurned,
+        closeTo(29.7, 1e-9),
+      );
+      // The planned 2.0 km would have read 99 kcal — the old, pinned figure.
+      expect(controller.caloriesBurned, isNot(closeTo(99.0, 1e-9)));
+    });
+
+    test('a detour raises calories even though it closes no distance',
+        () async {
+      /// (cumulative metres walked, straight-line metres still to go).
+      JourneyCompletionController walk(List<List<double>> fixes) =>
+          controllerFrom(
+            Stream<JourneyProgressUpdate>.fromIterable(
+              fixes.map((f) => JourneyProgressUpdate(
+                    metresWalked: f[0],
+                    metresToDestination: f[1],
+                  )),
+            ),
+            bodyWeightKg: 55,
+          );
+
+      final atHalfway = walk([
+        [0, 600],
+        [400, 300],
+      ]);
+      final afterDetour = walk([
+        [0, 600],
+        [400, 300],
+        [900, 305],
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      // 0.4 km -> 19.8 kcal, 0.9 km -> 44.55 kcal.
+      expect(atHalfway.caloriesBurned, closeTo(19.8, 1e-9));
+      expect(afterDetour.caloriesBurned, closeTo(44.55, 1e-9));
+      expect(
+        afterDetour.caloriesBurned!,
+        greaterThan(atHalfway.caloriesBurned!),
+      );
+      // ...while the destination is no nearer than it was at the halfway
+      // mark. Calories follow distance covered; the bar follows distance
+      // closed. The two must not be wired to each other.
+      expect(
+        afterDetour.activeWalkingUiData.progressFraction,
+        lessThanOrEqualTo(atHalfway.activeWalkingUiData.progressFraction),
+      );
+    });
+
+    test('tracked but not yet moved is 0 kcal, untracked is unavailable',
+        () async {
+      final movedNothing = controllerWith(
+        Stream<double>.fromIterable([0]),
+        bodyWeightKg: 55,
+      );
+      final noFixYet = controllerWith(
+        const Stream<double>.empty(),
+        bodyWeightKg: 55,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(movedNothing.caloriesBurned, 0.0);
+      expect(noFixYet.caloriesBurned, isNull);
+    });
+
+    test('no body weight keeps calories unavailable, never a fabricated 0',
+        () async {
+      // US-W04's missing-weight behaviour, unchanged: the tile prompts for a
+      // weight rather than claiming the walk burned nothing.
+      final controller = controllerWith(Stream<double>.fromIterable([600]));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.kmCovered, closeTo(0.6, 1e-9));
+      expect(controller.caloriesBurned, isNull);
+      expect(controller.activeWalkingUiData.caloriesBurned, isNull);
+    });
+
+    test('the completed journey records the calories actually walked',
+        () async {
+      final repository = _RecordingCheckInRepository();
+      final controller = JourneyCompletionController(
+        routeSummary: _summaryFor(TransportMode.walking, distanceKm: 2.0),
+        userId: 'tourist_001',
+        rewardService: _StubRewardService(),
+        checkInRepository: repository,
+        arrivalVerificationService:
+            _ScriptedArrivalService(const ArrivalCheckReading.success(42)),
+        journeyProgressService: _ScriptedProgressService(
+          Stream<JourneyProgressUpdate>.fromIterable(const [
+            JourneyProgressUpdate(metresWalked: 0, metresToDestination: 600),
+            JourneyProgressUpdate(metresWalked: 600, metresToDestination: 40),
+          ]),
+        ),
+        bodyWeightKg: 55,
+      );
+      addTearDown(controller.dispose);
+      await Future<void>.delayed(Duration.zero);
+
+      await controller.beginVerification();
+      await controller.completeJourney();
+
+      expect(
+        controller.journeyCompletedUiData.caloriesBurned,
+        closeTo(29.7, 1e-9),
+      );
+      // And the figure Module 5 banks matches the walk, not the plan.
+      expect(repository.saved.single.caloriesBurned, closeTo(29.7, 1e-9));
     });
   });
 
@@ -428,8 +561,7 @@ void main() {
       expect(progressOf(controller), 0.0);
     });
 
-    test('G · leaves distance, carbon, calories and verification untouched',
-        () async {
+    test('G · leaves distance, carbon and verification untouched', () async {
       final controller = JourneyCompletionController(
         routeSummary: _summaryFor(TransportMode.walking, distanceKm: 2.0),
         userId: 'tourist_001',
@@ -444,7 +576,7 @@ void main() {
           ]),
         ),
         carbonSavedKg: 0.42,
-        caloriesBurned: 117.0,
+        bodyWeightKg: 65,
       );
       addTearDown(controller.dispose);
       await Future<void>.delayed(Duration.zero);
@@ -452,9 +584,14 @@ void main() {
       // KM COVERED is still cumulative movement, not the closed distance.
       expect(controller.kmCovered, closeTo(0.8, 1e-9));
       expect(controller.activeWalkingUiData.kmCovered, closeTo(0.8, 1e-9));
-      // Pre-walk promises, unchanged by anything the progress bar does.
+      // The pre-walk carbon promise, unchanged by anything the progress bar
+      // does.
       expect(controller.activeWalkingUiData.carbonSavedKg, 0.42);
-      expect(controller.activeWalkingUiData.caloriesBurned, 117.0);
+      // Calories follow KM COVERED, not the bar: 0.8 km x 65 kg x 0.9.
+      expect(
+        controller.activeWalkingUiData.caloriesBurned,
+        closeTo(46.8, 1e-9),
+      );
       // MIN REMAINING still runs off the planned pace, as before.
       expect(controller.minutesRemaining, 20);
       // And arrival is still decided by its own one-shot fix, not the bar.
