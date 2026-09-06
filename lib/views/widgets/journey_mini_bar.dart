@@ -100,8 +100,7 @@ class JourneyMiniBar extends StatelessWidget {
       ),
     );
     if (shouldEnd ?? false) {
-      JourneySession.instance.controller?.cancelJourney();
-      JourneySession.instance.end();
+      JourneySession.instance.abandon();
     }
   }
 

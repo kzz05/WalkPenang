@@ -14,6 +14,7 @@ import '../widgets/map/map_action_button.dart';
 import '../widgets/map/place_result_card.dart';
 import '../widgets/map/zoom_controls.dart';
 import 'route_summary_view.dart';
+import 'widgets/journey_replacement_dialog.dart';
 
 /// Screen for UC-007 (nearby pins), UC-008 (live location), and UC-009
 /// (Penang boundary). Tapping a pin hands off to [RouteSummaryView] for
@@ -307,13 +308,28 @@ class _MapPanelState extends State<MapPanel> {
 
   /// UC-009 steps 4-6 / A2 -> UC-M04 step 1: validates the chosen pin, then
   /// hands off to the route summary screen.
-  void _openRouteSummary(PlaceModel place) {
+  ///
+  /// The one place a route to somewhere new can be opened, and therefore the
+  /// one place that has to protect a journey already running — see
+  /// [confirmRouteOverActiveJourney], which asks before replacing it and
+  /// re-opens it untouched when the tourist taps Route on the place they are
+  /// already walking to.
+  Future<void> _openRouteSummary(PlaceModel place) async {
     if (!_controller.validateDestination(place)) return;
 
     final origin = _controller.currentLocation;
     if (origin == null) return;
 
-    Navigator.of(context).push(
+    // Captured before the gate can await a dialog, so the push below never
+    // reads a context that has since been unmounted.
+    final navigator = Navigator.of(context);
+    final mayRoute = await confirmRouteOverActiveJourney(
+      context,
+      destinationId: place.placeId,
+    );
+    if (!mayRoute || !mounted) return;
+
+    navigator.push(
       MaterialPageRoute(
         builder: (_) => RouteSummaryView(
           destination: place,
