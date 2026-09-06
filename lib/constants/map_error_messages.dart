@@ -32,4 +32,10 @@ class MapErrorMessages {
       'No route found for this travel mode. Try a different mode or destination.';
   static const networkLostDuringRoute =
       'Unable to calculate route. Please check your internet connection.';
+
+  // UC-M05
+  /// Shown when the public-transport hand-off to the Google Maps app (or the
+  /// browser, if it isn't installed) could not be opened at all. The tourist
+  /// stays on the route summary; nothing else about the journey changes.
+  static const externalMapsLaunchFailed = 'Unable to open Google Maps.';
 }

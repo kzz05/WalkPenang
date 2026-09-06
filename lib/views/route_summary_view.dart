@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../constants/map_error_messages.dart';
 import '../constants/map_style.dart';
 import '../models/transport_mode.dart';
 import '../controllers/journey_session.dart';
@@ -10,6 +12,7 @@ import '../models/route_result.dart';
 import '../models/route_step.dart';
 import '../models/walking_route_summary.dart';
 import '../controllers/walking_controller.dart';
+import '../services/map_service.dart';
 import '../services/profile_store.dart';
 import '../services/route_service.dart';
 import '../theme/app_theme.dart';
@@ -41,12 +44,19 @@ class RouteSummaryView extends StatefulWidget {
   /// callers leave it null and [RouteSummaryController] builds the real one.
   final RouteService? routeService;
 
+  /// Opens an external URL, returning whether the launch fired. Injected only
+  /// by tests — a widget test has no Google Maps app to hand off to, and
+  /// url_launcher's platform channel is not available under the test binding.
+  /// Production callers leave it null and get [launchUrl].
+  final Future<bool> Function(Uri url)? launchExternalMap;
+
   const RouteSummaryView({
     super.key,
     required this.destination,
     required this.origin,
     this.onJourneyCompleted,
     this.routeService,
+    this.launchExternalMap,
   });
 
   @override
@@ -263,6 +273,15 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
   }
 
   Future<void> _startNavigation(BuildContext context) async {
+    // UC-M05, public transport: WalkPenang has no bus routing of its own, so
+    // Navigate hands the tourist to Google Maps for transit directions
+    // instead of opening the in-app turn-by-turn view. This screen stays on
+    // the stack underneath, so Android Back brings them straight back to it.
+    if (_controller.selectedMode == TransportMode.publicTransport) {
+      await _openTransitDirectionsInGoogleMaps(context);
+      return;
+    }
+
     final navigator = Navigator.of(context);
     await navigator.push(
       MaterialPageRoute(
@@ -281,6 +300,48 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
     // the push site, instead.
     if (mounted) navigator.pop();
   }
+
+  /// UC-M05, public transport only: opens Google Maps on transit directions
+  /// to this screen's destination, starting from wherever the tourist is now.
+  ///
+  /// Deliberately nothing else happens: no [JourneySession], no walking
+  /// tracking, no check-in, no points — riding a bus earns none of those
+  /// (FR-W01), and this is external navigation, not a recorded journey.
+  Future<void> _openTransitDirectionsInGoogleMaps(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final url = MapService().buildTransitDirectionsAppUrl(
+      LatLng(widget.destination.latitude, widget.destination.longitude),
+    );
+    final launch = widget.launchExternalMap ?? _launchExternalMap;
+
+    // UC-M05 A3: a device with no app for the URL at all — or a platform
+    // channel that throws — leaves the tourist here with a message, never a
+    // raw exception and never a half-started journey.
+    var launched = false;
+    try {
+      launched = await launch(url);
+    } catch (_) {
+      launched = false;
+    }
+    if (launched || !mounted) return;
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          MapErrorMessages.externalMapsLaunchFailed,
+          style: AppType.body.copyWith(color: Colors.white),
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  /// Google Maps handles this URL natively where it is installed; elsewhere
+  /// Android falls back to the browser, which shows the same transit
+  /// directions. Either way it opens outside WalkPenang, leaving this screen
+  /// intact behind it.
+  static Future<bool> _launchExternalMap(Uri url) =>
+      launchUrl(url, mode: LaunchMode.externalApplication);
 
   /// UC-M05's full instruction list, available before setting off rather than
   /// only one turn at a time once navigation has started.
@@ -435,7 +496,16 @@ class _RouteSummaryViewState extends State<RouteSummaryView> {
       expanded: _cardExpanded,
       onToggle: _toggleCard,
       onCancel: () => Navigator.of(context).pop(),
-      onNavigate: route.routeFound ? () => _startNavigation(context) : null,
+      // UC-M05: walking and driving navigate on the route WalkPenang itself
+      // fetched, so no route means there is nothing to navigate. Public
+      // transport hands off to Google Maps, which does its own transit
+      // routing — our Directions request coming back empty (a Penang bus line
+      // missing from Google's transit feed, say) is no reason to stop the
+      // tourist asking Maps, which may well find one.
+      onNavigate: route.routeFound ||
+              _controller.selectedMode == TransportMode.publicTransport
+          ? () => _startNavigation(context)
+          : null,
       // UC-W01: walking only. Driving and public transport earn no points and
       // save no carbon (FR-W01), so there is no journey to record and those
       // modes keep Navigate alone.
@@ -880,7 +950,8 @@ class _SummaryCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               // UC-M05 step 1: hands the fetched route off to in-app
-              // turn-by-turn navigation instead of an external app. Filled,
+              // turn-by-turn navigation — except on public transport, which
+              // has no in-app bus routing and opens Google Maps. Filled,
               // but in the pale ground tone rather than the deep sand, so it
               // sits clearly below Start Journey and clearly above Cancel.
               Expanded(
