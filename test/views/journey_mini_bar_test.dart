@@ -16,6 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:walkpenang/controllers/journey_completion_controller.dart';
 import 'package:walkpenang/controllers/journey_session.dart';
 import 'package:walkpenang/models/walking_route_summary.dart';
+import 'package:walkpenang/views/journey_flow_view.dart';
 import 'package:walkpenang/views/widgets/journey_mini_bar.dart';
 import '../support/fake_journey_dependencies.dart';
 
@@ -83,6 +84,41 @@ void main() {
     await tester.pump();
 
     expect(find.textContaining('Chew Jetty'), findsNothing);
+
+    await release(tester);
+  });
+
+  testWidgets('tapping the bar re-opens the journey and takes the bar with it',
+      (tester) async {
+    await tester.pumpWidget(_app());
+    session.adopt(_journey());
+    session.minimize();
+    await tester.pump();
+
+    expect(find.byType(JourneyMiniBar), findsOneWidget,
+        reason: 'the journey is minimised, so its bar is on screen');
+
+    await tester.tap(find.textContaining('Walking to Chew Jetty'));
+    await tester.pumpAndSettle();
+
+    // The bar's notification used to be raised from JourneyFlowView.initState,
+    // i.e. from inside a build, at a listener mounted *above* the navigator —
+    // which Flutter refuses ("markNeedsBuild called during build"). The flag
+    // flipped, the exception was swallowed, and the bar stayed on screen.
+    expect(tester.takeException(), isNull);
+    expect(session.isMinimized, isFalse);
+    expect(find.byType(JourneyFlowView), findsOneWidget);
+    expect(find.byType(JourneyMiniBar), findsNothing,
+        reason: 'the journey owns the screen now, so the bar must be gone');
+
+    // And back out again: minimising a second time has to bring it back.
+    session.minimize();
+    await tester.pumpAndSettle();
+
+    expect(session.isMinimized, isTrue);
+    expect(find.byType(JourneyFlowView), findsNothing);
+    expect(find.byType(JourneyMiniBar), findsOneWidget);
+    expect(find.text('Home'), findsOneWidget);
 
     await release(tester);
   });
