@@ -137,10 +137,21 @@ class JourneySession extends ChangeNotifier {
 
   /// Called by [JourneyFlowView] as it mounts — the journey's screen is on
   /// top, so the bar must not also be showing.
+  ///
+  /// The flag moves now; the notification waits for the end of the frame.
+  /// This is the one place a listener is woken from *inside* a build: the
+  /// caller is a route being mounted below the app's Navigator, while
+  /// [JourneyOverlayHost] listens from `MaterialApp.builder` — above it, and
+  /// already built earlier in the same frame. Notifying synchronously asks an
+  /// ancestor to rebuild mid-build, which Flutter refuses ("setState() or
+  /// markNeedsBuild() called during build"), so the flag would flip and the
+  /// bar would stay on screen anyway until some unrelated rebuild happened to
+  /// come along. Deferring costs one frame, spent underneath the incoming
+  /// route's own transition.
   void markExpanded() {
     if (!_isMinimized) return;
     _isMinimized = false;
-    notifyListeners();
+    WidgetsBinding.instance.addPostFrameCallback((_) => notifyListeners());
   }
 
   /// UC-M05 arrival, in one tap: closes the navigation screen and runs the
