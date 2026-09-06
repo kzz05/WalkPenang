@@ -656,7 +656,21 @@ class WpDetailRow extends StatelessWidget {
   final String label;
   final String value;
 
-  const WpDetailRow({super.key, required this.label, required this.value});
+  /// Null (the default) keeps the row label-first, as every existing caller
+  /// expects. Set it to give the row a small leading glyph, sized and
+  /// coloured like the stat cards on the reward dashboard.
+  ///
+  /// The icon is decorative — it restates the label beside it — so it is left
+  /// without a `semanticLabel`, which keeps [Icon] from emitting a semantics
+  /// node and a screen reader from announcing the row twice.
+  final IconData? icon;
+
+  const WpDetailRow({
+    super.key,
+    required this.label,
+    required this.value,
+    this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -668,7 +682,25 @@ class WpDetailRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          WpMonoLabel(label),
+          // Grouped rather than laid out as siblings: `spaceBetween` divides
+          // the free space between every child, so a loose icon would drift
+          // away from the label it belongs to as the value shortens.
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                // A fixed box rather than the bare glyph: Material icons do
+                // not all draw to the same width, and a column of labels
+                // that shifts by a pixel or two per row reads as sloppy.
+                SizedBox(
+                  width: 18,
+                  child: Icon(icon, size: 18, color: AppColors.muted),
+                ),
+                const SizedBox(width: 10),
+              ],
+              WpMonoLabel(label),
+            ],
+          ),
           Flexible(
             child: Text(value, textAlign: TextAlign.right, style: AppType.body),
           ),

@@ -57,15 +57,23 @@ class JournalDetailScreen extends StatelessWidget {
         const SizedBox(height: 24),
         WpDetailRow(
           label: 'distance',
+          icon: Icons.directions_walk,
           // What the tourist walked, so this agrees with the KM WALKED tile
           // on Journey Completed and with the calories below it, which were
           // always calculated from the distance actually covered. A journey
           // that tracked nothing shows its planned distance instead.
           value: '${entry.displayDistanceKm.toStringAsFixed(2)} km',
         ),
-        WpDetailRow(label: 'travelled by', value: entry.transportMode.label),
+        WpDetailRow(
+          // Deliberately not the walking glyph used above: this row's value is
+          // whichever mode the journey used, driving and transit included.
+          icon: Icons.commute_outlined,
+          label: 'travelled by',
+          value: entry.transportMode.label,
+        ),
         WpDetailRow(
           label: 'points earned',
+          icon: Icons.stars_rounded,
           // A walk that earned nothing is a pre-existing record; a drive
           // earned nothing by rule (FR-W01). Different reasons, so they read
           // differently rather than both showing a bare 0.
@@ -82,14 +90,17 @@ class JournalDetailScreen extends StatelessWidget {
         ),
         WpDetailRow(
           label: 'carbon saved',
+          icon: Icons.eco_outlined,
           value: '${entry.carbonSavedKg.toStringAsFixed(2)} kg',
         ),
         WpDetailRow(
           label: 'calories burned',
+          icon: Icons.local_fire_department_outlined,
           value: '${entry.caloriesBurned.round()} kcal',
         ),
         WpDetailRow(
           label: 'completed',
+          icon: Icons.event_available_outlined,
           value: '${entry.checkInTime.day}/${entry.checkInTime.month}/'
               '${entry.checkInTime.year} at '
               '${entry.checkInTime.hour.toString().padLeft(2, '0')}:'
