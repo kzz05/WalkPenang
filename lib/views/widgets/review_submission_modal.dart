@@ -16,12 +16,10 @@ class ReviewSubmissionModal extends StatefulWidget {
     super.key,
     required this.place,
     required this.repository,
-    this.authorName = 'You',
   });
 
   final Place place;
   final PlaceRepository repository;
-  final String authorName;
 
   /// Minimum characters before a review counts as written (T-FD05.3).
   static const int minBodyLength = 10;
@@ -55,7 +53,6 @@ class ReviewSubmissionModal extends StatefulWidget {
       BuildContext context, {
         required Place place,
         required PlaceRepository repository,
-        String authorName = 'You',
       }) {
     return showModalBottomSheet<Review>(
       context: context,
@@ -69,7 +66,6 @@ class ReviewSubmissionModal extends StatefulWidget {
         child: ReviewSubmissionModal(
           place: place,
           repository: repository,
-          authorName: authorName,
         ),
       ),
     );
@@ -127,7 +123,6 @@ class _ReviewSubmissionModalState extends State<ReviewSubmissionModal> {
         placeId: widget.place.id,
         rating: _rating,
         body: _bodyController.text.trim(),
-        authorName: widget.authorName,
       );
 
       if (!mounted) return;

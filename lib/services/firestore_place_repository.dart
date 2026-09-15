@@ -8,6 +8,7 @@ import 'package:walkpenang/models/review.dart';
 import 'package:walkpenang/models/search_filters.dart';
 import 'package:walkpenang/services/place_filter.dart';
 import 'package:walkpenang/services/place_repository.dart';
+import 'package:walkpenang/services/review_author.dart';
 
 /// Real backend for the Discovery module: places and their photos live in
 /// the 'places' Firestore collection (seeded by tool/seed_places.dart),
@@ -18,15 +19,32 @@ import 'package:walkpenang/services/place_repository.dart';
 /// buys nothing but index-management pain. This mirrors MockPlaceRepository
 /// on purpose, so DiscoveryController didn't need to change.
 class FirestorePlaceRepository implements PlaceRepository {
-  FirestorePlaceRepository({FirebaseFirestore? firestore})
-      : _db = firestore ?? FirebaseFirestore.instance;
+  FirestorePlaceRepository({
+    FirebaseFirestore? firestore,
+    ReviewAuthorResolver? authorResolver,
+  })  : _db = firestore ?? FirebaseFirestore.instance,
+        _authorResolver = authorResolver ?? ReviewAuthorResolver();
 
   final FirebaseFirestore _db;
+  final ReviewAuthorResolver _authorResolver;
 
   /// Reviews submitted this session, newest first, keyed by place — folded
   /// into the rating shown in the UI without waiting on a Firestore round
   /// trip (T-FD05.2, same behavior as MockPlaceRepository).
   final Map<String, List<Review>> _submitted = <String, List<Review>>{};
+
+  /// Whose reviews are in [_submitted]. This repository outlives a sign-out:
+  /// it belongs to _DiscoveryModuleViewState, so switching accounts without
+  /// popping the Discovery screen used to leave the previous tourist's
+  /// just-written review pinned to the top of the list for the new one.
+  String _cachedFor = '';
+
+  /// Drops the session cache when the signed-in tourist changes.
+  void _syncCacheOwner(String uid) {
+    if (_cachedFor == uid) return;
+    _submitted.clear();
+    _cachedFor = uid;
+  }
 
   Future<List<Place>>? _allPlacesFuture;
 
@@ -51,6 +69,11 @@ class FirestorePlaceRepository implements PlaceRepository {
 
   @override
   RatingSummary ratingFor(Place place) {
+    // Runs before fetchReviews on a freshly opened place (it seeds the
+    // detail screen's initial average), so it has to notice an account
+    // switch too — otherwise the previous tourist's rating is folded in.
+    _syncCacheOwner(_authorResolver.currentUid);
+
     final RatingSummary seeded = RatingSummary(
       average: place.rating,
       count: place.reviewCount,
@@ -89,6 +112,8 @@ class FirestorePlaceRepository implements PlaceRepository {
 
   @override
   Future<List<Review>> fetchReviews(String placeId, {int limit = 3}) async {
+    _syncCacheOwner(_authorResolver.currentUid);
+
     final List<Review> mine = _submitted[placeId] ?? const <Review>[];
     final int remaining = limit - mine.length;
     if (remaining <= 0) return mine.take(limit).toList();
@@ -97,7 +122,7 @@ class FirestorePlaceRepository implements PlaceRepository {
         .collection('reviews')
         .where('placeId', isEqualTo: placeId)
         .orderBy('createdAt', descending: true)
-        .limit(remaining)
+        .limit(limit)
         .get()
         .timeout(
       kRequestTimeout,
@@ -109,25 +134,43 @@ class FirestorePlaceRepository implements PlaceRepository {
         Review.fromMap(doc.id, doc.data()))
         .toList();
 
-    return <Review>[...mine, ...seeded];
+    // A review submitted this session is in both lists — it is in _submitted
+    // and it is now a document the query returns. Reviews compare by id, so
+    // keep the session copy and drop the echo.
+    final Set<String> seen = mine.map((Review r) => r.id).toSet();
+    return <Review>[
+      ...mine,
+      ...seeded.where((Review r) => seen.add(r.id)),
+    ].take(limit).toList();
   }
+
+  @override
+  Future<ReviewAuthor> currentAuthor() => _authorResolver.resolve();
 
   @override
   Future<Review> submitReview({
     required String placeId,
     required int rating,
     required String body,
-    required String authorName,
     int photoCount = 0,
   }) async {
+    final ReviewAuthor author = await _authorResolver.resolve();
+    if (!author.isSignedIn) {
+      // The rule rejects an unowned review anyway; failing here turns a raw
+      // permission-denied into the message the modal already knows how to show.
+      throw const ApiFailureException('Sign in to write a review.');
+    }
+    _syncCacheOwner(author.uid);
+
     final Review draft = Review(
       id: '',
       placeId: placeId,
-      authorName: authorName,
+      authorName: author.displayName,
       rating: rating,
       body: body,
       createdAt: DateTime.now(),
       photoCount: photoCount,
+      userId: author.uid,
     );
 
     final DocumentReference<Map<String, dynamic>> ref = await _db
@@ -141,11 +184,12 @@ class FirestorePlaceRepository implements PlaceRepository {
     final Review saved = Review(
       id: ref.id,
       placeId: placeId,
-      authorName: authorName,
+      authorName: author.displayName,
       rating: rating,
       body: body,
       createdAt: draft.createdAt,
       photoCount: photoCount,
+      userId: author.uid,
     );
 
     _submitted.putIfAbsent(placeId, () => <Review>[]).insert(0, saved);

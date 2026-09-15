@@ -15,12 +15,10 @@ class WriteReviewView extends StatefulWidget {
     super.key,
     required this.place,
     required this.repository,
-    this.authorName = 'You',
   });
 
   final Place place;
   final PlaceRepository repository;
-  final String authorName;
 
   @override
   State<WriteReviewView> createState() => _WriteReviewScreenState();
@@ -74,7 +72,6 @@ class _WriteReviewScreenState extends State<WriteReviewView> {
         placeId: widget.place.id,
         rating: _rating,
         body: _bodyController.text.trim(),
-        authorName: widget.authorName,
         photoCount: _photoCount,
       );
 

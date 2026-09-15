@@ -8,6 +8,7 @@ import 'package:walkpenang/models/place.dart';
 import 'package:walkpenang/models/rating_summary.dart';
 import 'package:walkpenang/models/review.dart';
 import 'package:walkpenang/services/place_repository.dart';
+import 'package:walkpenang/services/review_author.dart';
 import 'package:walkpenang/theme/app_theme.dart';
 import 'package:walkpenang/views/widgets/review_submission_modal.dart';
 import 'package:walkpenang/views/widgets/star_rating.dart';
@@ -42,6 +43,11 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
   String? _reviewError;
   int _photoIndex = 0;
 
+  /// Reviews are public, so this list is mostly other tourists' writing. This
+  /// is who *this* reader is, used only to badge their own review — '' until
+  /// the repository answers, and for a signed-out reader, which badges nothing.
+  String _myUserId = '';
+
   /// Shows the green banner from screen 04, but only right after saving.
   bool _showSavedBanner = false;
 
@@ -70,9 +76,13 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
     try {
       final List<Review> reviews =
       await widget.repository.fetchReviews(widget.place.id);
+      // Resolved alongside the list, not in initState: signing in or out
+      // while this screen is open must change which review is badged "You".
+      final ReviewAuthor me = await widget.repository.currentAuthor();
       if (!mounted) return;
       setState(() {
         _reviews = reviews;
+        _myUserId = me.uid;
         _loadingReviews = false;
       });
     } on ApiTimeoutException catch (error) {
@@ -494,7 +504,7 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
         ),
         const SizedBox(height: 12),
         ..._reviews.map((Review review) =>
-            _ReviewTile(review: review, now: now)),
+            _ReviewTile(review: review, now: now, myUserId: _myUserId)),
       ],
     );
   }
@@ -554,10 +564,17 @@ class _ContactRow extends StatelessWidget {
 }
 
 class _ReviewTile extends StatelessWidget {
-  const _ReviewTile({required this.review, required this.now});
+  const _ReviewTile({
+    required this.review,
+    required this.now,
+    required this.myUserId,
+  });
 
   final Review review;
   final DateTime now;
+
+  /// The reader's uid, so this tile can tell whether the review is theirs.
+  final String myUserId;
 
   @override
   Widget build(BuildContext context) {
@@ -587,11 +604,18 @@ class _ReviewTile extends StatelessWidget {
               children: <Widget>[
                 Row(
                   children: <Widget>[
-                    Text(
-                      review.authorName,
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(fontWeight: FontWeight.w600),
+                    Flexible(
+                      child: Text(
+                        review.authorName,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
                     ),
+                    if (review.isMine(myUserId)) ...<Widget>[
+                      const SizedBox(width: 6),
+                      const _YouBadge(),
+                    ],
                     const SizedBox(width: 8),
                     Text(
                       review.relativeTime(now),
@@ -693,6 +717,35 @@ class _CircleButton extends StatelessWidget {
           icon: Icon(icon, size: 20),
           color: color,
           visualDensity: VisualDensity.compact,
+        ),
+      ),
+    );
+  }
+}
+
+/// The small "You" pill next to your own review's author name.
+///
+/// Reviews are public and every one shows its writer's real name, so this is
+/// the only thing marking which of them is yours. It replaces the old
+/// behaviour, where every review was simply *called* "You" — including other
+/// tourists' — which is what made reviews look like they followed the device.
+class _YouBadge extends StatelessWidget {
+  const _YouBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.primary,
+        borderRadius: BorderRadius.circular(50),
+      ),
+      child: const Text(
+        'You',
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: AppColors.onPrimary,
         ),
       ),
     );

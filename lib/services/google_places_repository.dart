@@ -8,6 +8,7 @@ import 'package:walkpenang/services/firestore_place_repository.dart';
 import 'package:walkpenang/services/google_places_service.dart';
 import 'package:walkpenang/services/place_filter.dart';
 import 'package:walkpenang/services/place_repository.dart';
+import 'package:walkpenang/services/review_author.dart';
 
 /// Must be valid Places API (New) "Table A" included types — Table B types
 /// like `place_of_worship`/`natural_feature` are response-only and get
@@ -28,9 +29,12 @@ const Map<PlaceCategory, List<String>> _kIncludedTypesByCategory = {
 /// the app write custom reviews back — so those calls delegate to an inner
 /// [FirestorePlaceRepository], keyed by Google's place id.
 class GooglePlacesRepository implements PlaceRepository {
-  GooglePlacesRepository({GooglePlacesService? service})
-      : _service = service ?? GooglePlacesService(),
-        _firestore = FirestorePlaceRepository();
+  GooglePlacesRepository({
+    GooglePlacesService? service,
+    ReviewAuthorResolver? authorResolver,
+  })  : _service = service ?? GooglePlacesService(),
+        _firestore =
+            FirestorePlaceRepository(authorResolver: authorResolver);
 
   final GooglePlacesService _service;
   final FirestorePlaceRepository _firestore;
@@ -43,9 +47,13 @@ class GooglePlacesRepository implements PlaceRepository {
   @override
   RatingSummary ratingFor(Place place) => _firestore.ratingFor(place);
 
-  /// App-submitted reviews (Firestore) come first — they're what the
-  /// current user just wrote — topped up with Google's own reviews for the
+  /// App-submitted reviews (Firestore) come first — what WalkPenang tourists
+  /// wrote, whoever they are — topped up with Google's own reviews for the
   /// place so the list isn't empty before anyone's reviewed it in-app.
+  ///
+  /// These are not "what the current user just wrote", which is what this
+  /// comment used to claim: the collection is public and the query filters on
+  /// placeId only. Review.isMine is what separates yours from everyone else's.
   @override
   Future<List<Review>> fetchReviews(String placeId, {int limit = 3}) async {
     final List<Review> appReviews =
@@ -69,18 +77,19 @@ class GooglePlacesRepository implements PlaceRepository {
   }
 
   @override
+  Future<ReviewAuthor> currentAuthor() => _firestore.currentAuthor();
+
+  @override
   Future<Review> submitReview({
     required String placeId,
     required int rating,
     required String body,
-    required String authorName,
     int photoCount = 0,
   }) =>
       _firestore.submitReview(
         placeId: placeId,
         rating: rating,
         body: body,
-        authorName: authorName,
         photoCount: photoCount,
       );
 

@@ -6,6 +6,7 @@ import 'package:walkpenang/models/rating_summary.dart';
 import 'package:walkpenang/models/review.dart';
 import 'package:walkpenang/models/search_filters.dart';
 import 'package:walkpenang/services/place_filter.dart';
+import 'package:walkpenang/services/review_author.dart';
 
 const Duration kRequestTimeout = Duration(seconds: 10);
 
@@ -56,11 +57,20 @@ abstract class PlaceRepository {
 
   Future<List<Review>> fetchReviews(String placeId, {int limit});
 
+  /// Reviews are public, so the list a tourist sees is full of other people's
+  /// writing. The view needs to know who *they* are to badge their own — it
+  /// asks the repository rather than FirebaseAuth so the Discovery module's
+  /// widgets stay free of Firebase and testable against a fake.
+  Future<ReviewAuthor> currentAuthor();
+
+  /// No authorName parameter: the implementation resolves the writer itself.
+  /// It used to be passed in from the widget layer, where it was hardcoded to
+  /// the literal 'You' — so every review in Firestore was stored under that
+  /// name and read back as "You" to whoever opened the place next.
   Future<Review> submitReview({
     required String placeId,
     required int rating,
     required String body,
-    required String authorName,
     int photoCount,
   });
 
@@ -156,12 +166,19 @@ class MockPlaceRepository implements PlaceRepository {
     );
   }
 
+  /// Stands in for the signed-in tourist. Settable so a demo or test can drive
+  /// the "You" badge without a Firebase app.
+  ReviewAuthor author =
+      const ReviewAuthor(uid: 'mock-user', displayName: 'Mock Tourist');
+
+  @override
+  Future<ReviewAuthor> currentAuthor() async => author;
+
   @override
   Future<Review> submitReview({
     required String placeId,
     required int rating,
     required String body,
-    required String authorName,
     int photoCount = 0,
   }) {
     final Future<Review> request = Future<Review>.delayed(latency, () {
@@ -172,11 +189,12 @@ class MockPlaceRepository implements PlaceRepository {
       final Review review = Review(
         id: 'r-${DateTime.now().microsecondsSinceEpoch}',
         placeId: placeId,
-        authorName: authorName,
+        authorName: author.displayName,
         rating: rating,
         body: body,
         createdAt: DateTime.now(),
         photoCount: photoCount,
+        userId: author.uid,
       );
 
       _submitted.putIfAbsent(placeId, () => <Review>[]).insert(0, review);

@@ -11,17 +11,29 @@ class Review {
     required this.body,
     required this.createdAt,
     this.photoCount = 0,
+    this.userId = '',
   });
 
   final String id;
   final String placeId;
   final String authorName;
 
+  /// Firebase uid of the tourist who wrote this, or '' when nobody in this app
+  /// owns it — a Google-sourced review, or a document written before reviews
+  /// carried an owner at all. Reviews are public, so this is not a filter: it
+  /// is what lets the UI tell *your* review apart from everyone else's.
+  final String userId;
+
   /// 1–5 whole stars, as the mockup's picker only offers whole values.
   final int rating;
   final String body;
   final DateTime createdAt;
   final int photoCount;
+
+  /// Whether [uid] wrote this review — drives the "You" badge in the reviews
+  /// list. A signed-out reader ([uid] == '') owns nothing, so an unowned
+  /// legacy review never reads as theirs.
+  bool isMine(String uid) => uid.isNotEmpty && userId == uid;
 
   /// 'MR' — the circle avatar in the reviews list.
   String get initials {
@@ -62,20 +74,35 @@ class Review {
       'body': body,
       'createdAt': createdAt.toIso8601String(),
       'photoCount': photoCount,
+      'userId': userId,
     };
   }
 
   factory Review.fromMap(String id, Map<String, dynamic> map) {
+    final String owner = map['userId'] as String? ?? '';
+    final String storedName = map['authorName'] as String? ?? 'Anonymous';
+
     return Review(
       id: id,
       placeId: map['placeId'] as String? ?? '',
-      authorName: map['authorName'] as String? ?? 'Anonymous',
+      authorName: _displayName(storedName, owner),
       rating: (map['rating'] as num?)?.toInt() ?? 5,
       body: map['body'] as String? ?? '',
       createdAt: DateTime.tryParse(map['createdAt'] as String? ?? '') ??
           DateTime.now(),
       photoCount: (map['photoCount'] as num?)?.toInt() ?? 0,
+      userId: owner,
     );
+  }
+
+  /// Every review written before reviews carried an owner was stored with the
+  /// literal author name 'You' — the submission modal hardcoded it — so those
+  /// documents read as "You" to whoever opens the place, which is the bug that
+  /// made reviews look like they followed the device. An unowned 'You' is
+  /// nobody's, so show it as Anonymous rather than backfilling every old row.
+  static String _displayName(String storedName, String owner) {
+    if (owner.isEmpty && storedName.trim() == 'You') return 'Anonymous';
+    return storedName;
   }
 
   /// Maps one of Google's own reviews (from Place Details (New)) into a

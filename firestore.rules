@@ -211,12 +211,20 @@ service cloud.firestore {
     // has already been shown to other tourists must not be silently rewritten
     // or removed from the client.
     //
-    // These documents carry no authorUid (Review.toMap records a display name
-    // only), so ownership cannot be enforced. Sign-in plus value bounds is as
-    // far as this can go without a change to the model.
+    // Reviews now carry the writer's uid, so a tourist can only publish under
+    // their own identity. Read stays open: reviews are public, and the whole
+    // point is that other tourists read them. The uid is for attribution and
+    // for the "You" badge, not for filtering the list.
+    //
+    // Documents written before 2026-09-16 have no userId and no real author
+    // name (the submission modal hardcoded 'You'). They stay readable; the
+    // client shows them as Anonymous rather than as the reader's own.
     match /reviews/{reviewId} {
       allow read: if true;
       allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.authorName is string
+                    && request.resource.data.authorName.size() <= 60
                     && request.resource.data.placeId is string
                     && request.resource.data.rating is int
                     && request.resource.data.rating >= 1

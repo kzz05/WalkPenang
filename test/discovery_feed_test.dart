@@ -9,6 +9,7 @@ import 'package:walkpenang/models/review.dart';
 import 'package:walkpenang/models/search_filters.dart';
 import 'package:walkpenang/services/favorites_store.dart';
 import 'package:walkpenang/services/place_repository.dart';
+import 'package:walkpenang/services/review_author.dart';
 import 'package:walkpenang/theme/discovery_theme.dart';
 import 'package:walkpenang/views/discovery_feed_view.dart';
 import 'package:walkpenang/views/widgets/place_grid_card.dart';
@@ -356,30 +357,56 @@ void main() {
   });
 
   group('reviews', () {
-    test('submitting returns a review attached to the place', () async {
+    test('submitting stamps the signed-in tourist, not a hardcoded name',
+        () async {
       final Review review = await repository.submitReview(
         placeId: 'p1',
         rating: 4,
         body: 'Solid spot, would come back.',
-        authorName: 'You',
       );
 
       expect(review.placeId, 'p1');
       expect(review.rating, 4);
-      expect(review.initials, 'Y');
+      // The caller no longer supplies a name at all; it comes from the
+      // signed-in account, so a review can't be published as a bare 'You'.
+      expect(review.authorName, 'Ong Song Wei');
+      expect(review.initials, 'OW');
+      expect(review.userId, 'uid-a');
+      expect(review.isMine('uid-a'), isTrue);
     });
 
     test('submitted reviews come back at the top of the list', () async {
+      repository.author =
+          const ReviewAuthor(uid: 'uid-b', displayName: 'Tang Yue Hann');
+
       await repository.submitReview(
         placeId: 'p1',
         rating: 5,
         body: 'Excellent, go at sunset.',
-        authorName: 'Ong Song Wei',
       );
 
       final List<Review> reviews = await repository.fetchReviews('p1');
-      expect(reviews.first.authorName, 'Ong Song Wei');
-      expect(reviews.first.initials, 'OW');
+      expect(reviews.first.authorName, 'Tang Yue Hann');
+      expect(reviews.first.initials, 'TH');
+    });
+
+    test("another tourist's review is not badged as yours", () async {
+      await repository.submitReview(
+        placeId: 'p1',
+        rating: 5,
+        body: 'Written by the first account on this device.',
+      );
+
+      // Same device, second account signs in.
+      repository.author =
+          const ReviewAuthor(uid: 'uid-b', displayName: 'Tang Yue Hann');
+
+      final List<Review> reviews = await repository.fetchReviews('p1');
+      final Review theirs = reviews.first;
+
+      expect(theirs.authorName, 'Ong Song Wei');
+      expect(theirs.isMine('uid-b'), isFalse);
+      expect(theirs.isMine('uid-a'), isTrue);
     });
   });
 }
@@ -394,6 +421,14 @@ class _FakeRepository implements PlaceRepository {
   SearchFilters? lastFilters;
 
   final Map<String, List<Review>> _reviews = <String, List<Review>>{};
+
+  /// Who this fake is signed in as. Tests reassign it to simulate a second
+  /// tourist on the same device.
+  ReviewAuthor author =
+      const ReviewAuthor(uid: 'uid-a', displayName: 'Ong Song Wei');
+
+  @override
+  Future<ReviewAuthor> currentAuthor() async => author;
 
   @override
   Future<PlacePage> fetchPlaces({
@@ -441,7 +476,6 @@ class _FakeRepository implements PlaceRepository {
     required String placeId,
     required int rating,
     required String body,
-    required String authorName,
     int photoCount = 0,
   }) async {
     if (error != null) throw error!;
@@ -449,11 +483,12 @@ class _FakeRepository implements PlaceRepository {
     final Review review = Review(
       id: 'r-${DateTime.now().microsecondsSinceEpoch}',
       placeId: placeId,
-      authorName: authorName,
+      authorName: author.displayName,
       rating: rating,
       body: body,
       createdAt: DateTime.now(),
       photoCount: photoCount,
+      userId: author.uid,
     );
 
     _reviews.putIfAbsent(placeId, () => <Review>[]).insert(0, review);
