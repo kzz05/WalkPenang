@@ -104,12 +104,23 @@ class ProfileStore {
     return await loadLocal();
   }
 
+  /// Persists [profile] to Firestore, then mirrors it into the local cache.
+  ///
+  /// Cloud first, deliberately. This used to write SharedPreferences before
+  /// Firestore, so a cloud write that threw — offline, a permission-denied, a
+  /// rules change — left the cache holding a profile that was never persisted
+  /// anywhere. [load] serves that cache whenever the cloud read also fails, so
+  /// the app would keep showing an edit that no longer existed on the server,
+  /// with nothing to correct it.
+  ///
+  /// Writing the authoritative copy first means the cache only ever mirrors
+  /// something that was accepted.
   Future<void> save(UserProfile profile) async {
-    await saveLocal(profile);
     final firebaseUser = _auth.currentUser;
     if (firebaseUser != null) {
       await saveToCloud(firebaseUser.uid, profile);
     }
+    await saveLocal(profile);
   }
 
   /// Writes the profile fields into users/{uid}, leaving every other field of
