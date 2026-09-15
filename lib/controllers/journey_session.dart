@@ -20,6 +20,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../dao/badge_dao.dart';
+import '../dao/leaderboard_dao.dart';
 import '../dao/reward_dao.dart';
 import '../services/check_in_repository.dart';
 import '../services/journey_progress_service.dart';
@@ -92,6 +93,13 @@ class JourneySession extends ChangeNotifier {
         userId: uid,
         rewardDao: FirestoreRewardDao(firestore: firestore),
         badgeDao: FirestoreBadgeDao(firestore: firestore),
+        // Without this the standings never update from a walk: RewardController
+        // treats the DAO as optional and _publishStanding returns immediately
+        // when it is null, so every check-in awarded points and published
+        // nothing. The only rows on the board were the ones tourists wrote for
+        // themselves by opening the Leaderboard screen — everyone who had
+        // walked but never opened it was simply missing.
+        leaderboardDao: FirestoreLeaderboardDao(firestore: firestore),
       ),
       checkInRepository: FirestoreCheckInRepository(firestore: firestore),
       // Live KM COVERED / MIN REMAINING on the Active Walking screen.

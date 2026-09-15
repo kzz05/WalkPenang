@@ -189,6 +189,18 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     }
 
     if (own == null) {
+      // Somebody with points and no row has already done the thing the other
+      // message tells them to go and do. Their row just has not been written
+      // yet — the board is a mirror, and the mirror can lag.
+      final int earned = _controller.ownTotalPoints;
+      if (earned > 0) {
+        return _banner(
+          title: 'Your standing is still syncing',
+          body: '$earned points earned. They will appear on the board '
+              'shortly.',
+        );
+      }
+
       return _banner(
         title: 'You are not on the board yet',
         body: 'Check in at a place you walked to and your first points put '

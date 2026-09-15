@@ -69,3 +69,15 @@ android/.gradle/
 # Build transcripts. Large binary-ish logs that get regenerated on every build
 # and are meaningless to anyone but the machine that produced them.
 build_log.txt
+
+# Firebase Admin SDK service-account keys. These grant full, rule-bypassing
+# read/write on walkpenang-5cefb — committing one hands the whole database to
+# anyone who can read the repo. The leaderboard backfill in
+# tool/backfill_leaderboard/ needs one; keep it outside the repo if you can,
+# and if you can't, it matches here.
+*serviceAccount*.json
+*-firebase-adminsdk-*.json
+service-account*.json
+
+# Local dependencies of the one-off backfill tool.
+tool/backfill_leaderboard/node_modules/

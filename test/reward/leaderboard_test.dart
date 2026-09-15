@@ -333,6 +333,45 @@ void main() {
       expect(controller.entries, isNotEmpty);
     });
 
+    test('a tourist who has genuinely not walked reports zero points',
+        () async {
+      final controller = controllerFor('never_walked');
+      await controller.load();
+
+      // No rewardDao, so nothing was read — and the screen falls back to
+      // "check in somewhere", which is the right advice for this tourist.
+      expect(controller.ownTotalPoints, 0);
+    });
+
+    test('a tourist with points but no row still reports their points',
+        () async {
+      // The six stranded users: points on users/{uid}, no leaderboard row.
+      // The screen used to tell them to go and earn their first points, which
+      // they had already done — ownTotalPoints is what lets it say the row is
+      // still syncing instead.
+      final controller = LeaderboardController(
+        userId: 'stranded',
+        leaderboardDao: _PublishRefusingLeaderboardDao(
+          entries: DemoRewardData.standings,
+        ),
+        rewardDao: InMemoryRewardDao(
+          initial: const RewardModel(
+            userId: 'stranded',
+            totalPoints: 66,
+            totalCheckIns: 4,
+            totalDistanceMetres: 5200,
+            totalCarbonSavedKg: 0,
+            totalCaloriesBurned: 0,
+          ),
+        ),
+      );
+
+      await controller.load();
+
+      expect(controller.currentUserEntry, isNull);
+      expect(controller.ownTotalPoints, 66);
+    });
+
     test('an empty board is empty, not an error', () async {
       final controller = controllerFor('tourist_001', board: const []);
       await controller.load();
@@ -436,4 +475,20 @@ class _FailingRewardDao implements RewardDao {
     required int points,
   }) =>
       throw UnimplementedError();
+}
+
+/// Reads like a normal board but refuses every publish, reproducing a tourist
+/// whose row cannot be written — a denied rule, or an offline device.
+class _PublishRefusingLeaderboardDao extends InMemoryLeaderboardDao {
+  _PublishRefusingLeaderboardDao({super.entries});
+
+  @override
+  Future<void> publishEntry({
+    required String userId,
+    required RewardModel stats,
+  }) async {
+    // Swallowed by LeaderboardController._publishSelf, exactly as a real
+    // permission-denied would be.
+    throw Exception('permission-denied');
+  }
 }

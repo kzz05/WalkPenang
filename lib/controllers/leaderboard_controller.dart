@@ -51,6 +51,7 @@ class LeaderboardController extends ChangeNotifier {
   List<RankedEntry> get entries => _entries;
 
   RankedEntry? _currentUserEntry;
+  int _ownTotalPoints = 0;
 
   /// The signed-in tourist's own row, whether or not it is on [entries].
   ///
@@ -58,6 +59,12 @@ class LeaderboardController extends ChangeNotifier {
   /// in. When its rank is beyond [limit] the screen pins it under the board
   /// instead of leaving the tourist unable to find themselves.
   RankedEntry? get currentUserEntry => _currentUserEntry;
+
+  /// The tourist's own points as recorded on their user document, which is the
+  /// truth the board is only a mirror of. Non-zero while [currentUserEntry] is
+  /// null means their row has not been written yet, not that they have not
+  /// walked.
+  int get ownTotalPoints => _ownTotalPoints;
 
   bool _isLoading = false;
   bool get isLoading => _isLoading;
@@ -165,6 +172,12 @@ class LeaderboardController extends ChangeNotifier {
 
     try {
       final stats = await rewardDao.fetchRewardSummary(userId);
+      // Kept even when the publish below fails. It is what lets the screen
+      // tell "you have not walked yet" apart from "you have walked, but your
+      // row has not been written" — those look identical from the board alone,
+      // and telling somebody sitting on points to go earn their first ones is
+      // the more confusing of the two to get wrong.
+      _ownTotalPoints = stats.totalPoints;
       await _leaderboardDao.publishEntry(userId: userId, stats: stats);
     } catch (error) {
       debugPrint('Leaderboard: could not publish own standing — $error');

@@ -17,7 +17,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:walkpenang/controllers/reward_controller.dart';
 import '../support/in_memory_reward_data.dart';
+import 'package:walkpenang/dao/leaderboard_dao.dart';
 import 'package:walkpenang/models/badge_model.dart';
+import 'package:walkpenang/models/leaderboard_entry_model.dart';
+import 'package:walkpenang/models/reward_model.dart';
 import 'package:walkpenang/models/check_in_result.dart';
 import 'package:walkpenang/utils/reward_constants.dart';
 
@@ -237,4 +240,97 @@ void main() {
       }
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Publishing to the leaderboard (UC540)
+  //
+  // The standings are a read model: a tourist's points are invisible to the
+  // board until something writes leaderboard/{uid}. RewardController takes the
+  // DAO as optional, and JourneySession — the one place the app builds a live
+  // journey — used to omit it, so _publishStanding returned at the null check
+  // on every real check-in and the board only ever held rows tourists had
+  // written for themselves by opening the Leaderboard screen. These lock in
+  // both halves of that contract.
+  // -------------------------------------------------------------------------
+  group('leaderboard publishing', () {
+    test('a check-in publishes the tourist onto the board', () async {
+      final leaderboardDao = InMemoryLeaderboardDao();
+      final publishing = RewardController(
+        userId: userId,
+        rewardDao: rewardDao,
+        badgeDao: badgeDao,
+        leaderboardDao: leaderboardDao,
+      );
+
+      await publishing.onCheckInVerified(checkIn());
+
+      final row = await leaderboardDao.fetchEntry(userId);
+      expect(row, isNotNull,
+          reason: 'walking should put a tourist on the board without them '
+              'having to open the leaderboard screen');
+      expect(row!.totalPoints, publishing.stats.totalPoints);
+      expect(row.totalCheckIns, publishing.stats.totalCheckIns);
+      expect(row.totalDistanceMetres, publishing.stats.totalDistanceMetres);
+    });
+
+    test('later check-ins keep the published row in step', () async {
+      final leaderboardDao = InMemoryLeaderboardDao();
+      final publishing = RewardController(
+        userId: userId,
+        rewardDao: rewardDao,
+        badgeDao: badgeDao,
+        leaderboardDao: leaderboardDao,
+      );
+
+      await publishing.onCheckInVerified(checkIn(checkInId: 'a'));
+      final afterFirst = (await leaderboardDao.fetchEntry(userId))!.totalPoints;
+      await publishing.onCheckInVerified(checkIn(checkInId: 'b'));
+      final afterSecond = (await leaderboardDao.fetchEntry(userId))!;
+
+      expect(afterSecond.totalPoints, greaterThan(afterFirst));
+      expect(afterSecond.totalPoints, publishing.stats.totalPoints);
+    });
+
+    test('without a leaderboard DAO the award still succeeds', () async {
+      // Module 4's hand-off and most tests construct the controller without
+      // one. Points must still be awarded — the standings are derived data,
+      // and failing to mirror them must never fail the award.
+      final outcome = await controller.onCheckInVerified(checkIn());
+
+      expect(outcome.pointsAwarded, greaterThan(0));
+      expect(controller.stats.totalPoints, outcome.pointsAwarded);
+    });
+
+    test('a failing publish does not fail the check-in', () async {
+      final publishing = RewardController(
+        userId: userId,
+        rewardDao: rewardDao,
+        badgeDao: badgeDao,
+        leaderboardDao: _ThrowingLeaderboardDao(),
+      );
+
+      final outcome = await publishing.onCheckInVerified(checkIn());
+
+      expect(outcome.pointsAwarded, greaterThan(0));
+      expect(publishing.stats.totalPoints, outcome.pointsAwarded);
+    });
+  });
+}
+
+/// Every publish fails. The points are committed before the mirror runs, so a
+/// denied write must cost a stale row and nothing else.
+class _ThrowingLeaderboardDao implements LeaderboardDao {
+  @override
+  Future<List<LeaderboardEntryModel>> fetchTopEntries({int limit = 50}) async =>
+      const <LeaderboardEntryModel>[];
+
+  @override
+  Future<LeaderboardEntryModel?> fetchEntry(String userId) async => null;
+
+  @override
+  Future<void> publishEntry({
+    required String userId,
+    required RewardModel stats,
+  }) async =>
+      throw Exception('permission-denied');
 }
