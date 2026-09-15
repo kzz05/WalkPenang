@@ -160,7 +160,12 @@ class OnboardingController extends ChangeNotifier {
   Future<void> pickImage() async {
     final picked = await ImagePicker().pickImage(
       source: ImageSource.gallery,
+      // The dimension caps matter as much as the quality: without them a 12MP
+      // phone photo still arrives at 2-3MB, which storage.rules would reject
+      // and Cloud Vision would be billed to read.
       imageQuality: 70,
+      maxWidth: 1024,
+      maxHeight: 1024,
     );
     if (picked == null) return;
     _selectedImage = File(picked.path);
@@ -241,11 +246,24 @@ class OnboardingController extends ChangeNotifier {
     try {
       var photoUrl = user.photoURL;
       if (_selectedImage != null) {
-        final uploaded = await _store.uploadProfileImage(
-          _selectedImage!,
-          user.uid,
-        );
-        if (uploaded != null) photoUrl = uploaded;
+        // A refused photo stops setup rather than completing it with the
+        // Google avatar silently left in place — see the same fix in
+        // EditProfileController.save().
+        try {
+          final uploaded = await _store.uploadProfileImage(
+            _selectedImage!,
+            user.uid,
+          );
+          if (uploaded == null) {
+            return const OnboardingOutcome(
+              OnboardingNext.stay,
+              error: 'Could not upload that photo. Please try again.',
+            );
+          }
+          photoUrl = uploaded;
+        } on ProfileImageRejected catch (e) {
+          return OnboardingOutcome(OnboardingNext.stay, error: e.message);
+        }
       }
 
       final profile = UserProfile(

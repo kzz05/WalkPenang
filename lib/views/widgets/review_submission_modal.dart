@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:walkpenang/models/place.dart';
 import 'package:walkpenang/models/review.dart';
 import 'package:walkpenang/services/place_repository.dart';
+import 'package:walkpenang/utils/profanity_filter.dart';
 import 'package:walkpenang/theme/app_theme.dart';
 import 'package:walkpenang/views/widgets/star_rating.dart';
 
@@ -45,6 +46,11 @@ class ReviewSubmissionModal extends StatefulWidget {
     }
     if (trimmed.length > maxBodyLength) {
       return 'Keep it under $maxBodyLength characters.';
+    }
+    // Checked last, after the fixable length rules. The message does not quote
+    // the term back — see ValidationMessages.nicknameProfane for why.
+    if (!ProfanityFilter.isClean(trimmed)) {
+      return 'Please reword your review without offensive language.';
     }
     return null;
   }

@@ -67,8 +67,13 @@ class EditProfileController extends ChangeNotifier {
   Future<void> pickImage() async {
     final picked = await ImagePicker().pickImage(
       source: ImageSource.gallery,
-      // Keep image size small for fast cloud transfers.
+      // Keep image size small for fast cloud transfers. The dimension caps
+      // matter as much as the quality: without them a 12MP phone photo still
+      // arrives at 2-3MB, which storage.rules would reject and Cloud Vision
+      // would be billed to read.
       imageQuality: 70,
+      maxWidth: 1024,
+      maxHeight: 1024,
     );
     if (picked == null) return;
     _selectedImage = File(picked.path);
@@ -86,13 +91,27 @@ class EditProfileController extends ChangeNotifier {
       var photoUrl = profile.photoUrl;
       final user = _auth.currentUser;
 
-      // 1. If a new image was chosen, upload it to Firebase Storage first.
+      // 1. If a new image was chosen, upload and moderate it first.
+      //
+      // A rejection aborts the whole save. It used to fall through the
+      // `uploaded != null` check and save the rest of the profile with the old
+      // picture still attached, which reads as a successful save — so a tourist
+      // whose photo was refused would never learn it had been.
       if (_selectedImage != null && user != null) {
-        final uploaded = await _store.uploadProfileImage(
-          _selectedImage!,
-          user.uid,
-        );
-        if (uploaded != null) photoUrl = uploaded;
+        try {
+          final uploaded = await _store.uploadProfileImage(
+            _selectedImage!,
+            user.uid,
+          );
+          if (uploaded == null) {
+            _errorMessage = 'Could not upload that photo. Please try again.';
+            return null;
+          }
+          photoUrl = uploaded;
+        } on ProfileImageRejected catch (e) {
+          _errorMessage = e.message;
+          return null;
+        }
       }
 
       // 2. Clone the profile with the modified fields.

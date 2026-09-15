@@ -245,3 +245,13 @@ exports.verifyEmailOtp = onCall(
       return {verified: true};
     },
 );
+
+// ── Content moderation ──────────────────────────────────────────────────────
+//
+// Kept in its own module so this file stays about email OTP. admin.initializeApp()
+// has already run above, which moderation.js relies on.
+const moderation = require("./moderation");
+
+exports.moderateReview = moderation.moderateReview;
+exports.moderateNickname = moderation.moderateNickname;
+exports.moderateProfileImage = moderation.moderateProfileImage;

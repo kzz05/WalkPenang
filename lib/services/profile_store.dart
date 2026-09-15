@@ -1,10 +1,24 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_profile.dart';
+
+/// A profile photo that Cloud Vision refused.
+///
+/// Carries the reason so the UI can say which kind of content tripped it,
+/// rather than a generic failure the tourist cannot act on.
+class ProfileImageRejected implements Exception {
+  const ProfileImageRejected(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
 
 class ProfileStore {
   static const _key = 'user_profile';
@@ -14,20 +28,60 @@ class ProfileStore {
   // store with an injected Firestore without a Firebase app existing.
   late final FirebaseStorage _storage = FirebaseStorage.instance;
   late final FirebaseAuth _auth = FirebaseAuth.instance;
+  late final FirebaseFunctions _functions = FirebaseFunctions.instance;
 
   /// [firestore] is injectable for tests, the same way FirestoreRewardDao
   /// takes one. Left null, it resolves to the live instance as before.
   ProfileStore({FirebaseFirestore? firestore})
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
-  // Upload Profile Avatar File to Firebase Storage
+  /// Uploads an avatar and returns its public URL once it has passed
+  /// moderation.
+  ///
+  /// Two steps, and the order is the whole point. The file goes to
+  /// `pending_profile_images/`, which storage.rules makes write-only — nobody,
+  /// not even the uploader, can read it. `moderateProfileImage` then screens it
+  /// with Cloud Vision SafeSearch and, only if it is clean, copies it to
+  /// `profile_images/` and hands back the URL.
+  ///
+  /// It cannot be done the other way round. photoUrl is mirrored into
+  /// `leaderboard/{uid}`, which every signed-in tourist can read, and
+  /// cached_network_image keys its disk cache on the URL — so a photo that went
+  /// public first and was withdrawn afterwards would keep rendering on other
+  /// people's devices. Screening before the file is reachable is the only
+  /// version of this that works.
+  ///
+  /// Throws [ProfileImageRejected] when the photo is refused, so the caller can
+  /// tell the user why instead of silently keeping the old picture.
   Future<String?> uploadProfileImage(File imageFile, String uid) async {
+    final ref =
+        _storage.ref().child('pending_profile_images').child('$uid.jpg');
+
     try {
-      final ref = _storage.ref().child('profile_images').child('$uid.jpg');
-      await ref.putFile(imageFile);
-      return await ref.getDownloadURL();
+      await ref.putFile(
+        imageFile,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
     } catch (e) {
       print("Error uploading image: $e");
+      return null;
+    }
+
+    try {
+      final result = await _functions
+          .httpsCallable('moderateProfileImage')
+          .call<Map<String, dynamic>>();
+      return result.data['photoUrl'] as String?;
+    } on FirebaseFunctionsException catch (e) {
+      // The function deletes the quarantined file on every rejection path, so
+      // there is nothing left to clean up here.
+      throw ProfileImageRejected(
+        e.message ?? 'That photo could not be used. Please choose another.',
+      );
+    } catch (_) {
+      // Network or plugin failure rather than a rejection. Null tells the
+      // caller to show its generic "could not upload" message; the function's
+      // own logger.error has the server-side detail.
       return null;
     }
   }

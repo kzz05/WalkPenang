@@ -108,6 +108,31 @@ void main() {
       expect(Validators.nickname('கண்ணன்'), isNull);
     });
 
+    test('rejects a profane name', () {
+      expect(Validators.nickname('fuck'), ValidationMessages.nicknameProfane);
+      expect(Validators.nickname('Bodoh'), ValidationMessages.nicknameProfane);
+      expect(
+        Validators.nickname('sh1t'),
+        ValidationMessages.nicknameProfane,
+        reason: 'leetspeak must not be a way around it',
+      );
+    });
+
+    test('the profanity check runs last, after the fixable rules', () {
+      // A name that is both too short AND profane should be told about the
+      // length first — that is the problem the user can act on.
+      expect(Validators.nickname('A'), ValidationMessages.nicknameTooShort);
+    });
+
+    test('does not reject legitimate names that brush the wordlist', () {
+      // Regression guard on the whole point of word-boundary matching. The
+      // full suite lives in profanity_filter_test.dart; these are here so a
+      // change to Validators cannot quietly break it.
+      expect(Validators.nickname('Assalamualaikum'), isNull);
+      expect(Validators.nickname('Cassandra'), isNull);
+      expect(Validators.nickname('Bassam'), isNull);
+    });
+
     test('rejects empty and whitespace-only input', () {
       expect(Validators.nickname(null), ValidationMessages.nicknameRequired);
       expect(Validators.nickname('   '), ValidationMessages.nicknameRequired);

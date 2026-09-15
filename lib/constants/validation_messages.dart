@@ -76,6 +76,12 @@ class ValidationMessages {
       "Name can only use letters, numbers, spaces and . ' - _";
   static const nicknameNeedsLetter = 'Name must contain at least one letter';
 
+  /// Deliberately does not repeat the term back at the user: quoting it puts
+  /// the profanity on screen, and naming exactly what was caught tells someone
+  /// probing the filter precisely which spelling to try next.
+  static const nicknameProfane =
+      'Please choose a different name — that one is not allowed';
+
   // ── Phone ─────────────────────────────────────────────────────────────────
 
   static const phoneRequired = 'Contact number cannot be empty';

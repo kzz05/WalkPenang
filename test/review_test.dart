@@ -46,6 +46,52 @@ void main() {
     });
   });
 
+  group('profanity', () {
+    test('a profane review is rejected', () {
+      expect(
+        ReviewSubmissionModal.validate(
+          rating: 4,
+          body: 'The food here is absolute shit and I hated it.',
+        ),
+        isNotNull,
+      );
+    });
+
+    test('evasions do not get through', () {
+      for (final String body in <String>[
+        'This place is f.u.c.k.i.n.g terrible honestly',
+        'Service was sh1t from start to finish here',
+        'Staff were so b0doh it ruined the whole evening',
+      ]) {
+        expect(ReviewSubmissionModal.validate(rating: 2, body: body), isNotNull,
+            reason: body);
+      }
+    });
+
+    test('the message never quotes the term back', () {
+      final String? error = ReviewSubmissionModal.validate(
+        rating: 2,
+        body: 'The food here is absolute shit and I hated it.',
+      );
+      expect(error, isNotNull);
+      expect(error!.toLowerCase(), isNot(contains('shit')),
+          reason: 'echoing it puts the profanity on screen, and naming what '
+              'was caught tells someone probing the filter what to try next');
+    });
+
+    test('a blunt but clean negative review still passes', () {
+      // Moderation must not become a politeness filter — a one-star review is
+      // legitimate content and blocking it would be censorship, not safety.
+      expect(
+        ReviewSubmissionModal.validate(
+          rating: 1,
+          body: 'Overpriced, rude staff, and the food was cold. Avoid.',
+        ),
+        isNull,
+      );
+    });
+  });
+
   group('character limits', () {
     test('below the minimum is rejected', () {
       final String? error = ReviewSubmissionModal.validate(

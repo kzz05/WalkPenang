@@ -1,4 +1,5 @@
 import '../constants/validation_messages.dart';
+import 'profanity_filter.dart';
 
 /// Every form rule for the user-authentication and edit-profile modules,
 /// in one place.
@@ -104,6 +105,11 @@ class Validators {
     // Blocks "123" and "--" while still allowing "Ali 99".
     if (!_anyLetter.hasMatch(input)) {
       return ValidationMessages.nicknameNeedsLetter;
+    }
+    // Last, so the user is told about a fixable shape problem before being
+    // told the name is disallowed outright.
+    if (!ProfanityFilter.isClean(input)) {
+      return ValidationMessages.nicknameProfane;
     }
     return null;
   }
