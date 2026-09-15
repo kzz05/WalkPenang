@@ -255,3 +255,4 @@ const moderation = require("./moderation");
 exports.moderateReview = moderation.moderateReview;
 exports.moderateNickname = moderation.moderateNickname;
 exports.moderateProfileImage = moderation.moderateProfileImage;
+exports.syncPublicProfile = moderation.syncPublicProfile;

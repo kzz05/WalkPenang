@@ -79,8 +79,8 @@ build_log.txt
 *-firebase-adminsdk-*.json
 service-account*.json
 
-# Local dependencies of the one-off backfill tool.
-tool/backfill_leaderboard/node_modules/
+# Local dependencies of the one-off backfill tools.
+tool/backfill/node_modules/
 
 # Cloud Functions dependencies. firebase.json already excludes these from the
 # deploy upload; this keeps them out of git too. They were never ignored, so

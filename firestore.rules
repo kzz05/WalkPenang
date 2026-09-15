@@ -46,6 +46,29 @@ service cloud.firestore {
       allow read, write: if isOwner(userId);
     }
 
+    // ---- Public profile projection ---------------------------------------
+    //
+    // Exactly two fields a stranger may see: displayName and photoUrl. This
+    // exists because a review must show its author's CURRENT name and picture,
+    // and users/{uid} cannot be the source — it is owner-only for good reason,
+    // holding email, phoneNumber, weightKg and heightCm.
+    //
+    // Read is open rather than isSignedIn(), matching /reviews below: a review
+    // is world-readable, so its author's name has to be too or signed-out
+    // readers get text with no attribution.
+    //
+    // Write is denied to every client. The syncPublicProfile Cloud Function
+    // mirrors it from users/{uid} with the Admin SDK, which bypasses these
+    // rules — so a display name cannot be forged by writing here directly.
+    // Same reasoning as the leaderboard block pinning totals to a get().
+    //
+    // Anything added to this document becomes world-readable. A new field here
+    // is a privacy decision, not a convenience.
+    match /public_profiles/{userId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // ---- Points ledger ---------------------------------------------------
     //
     // Top-level, keyed by check-in id — see FirestoreRewardDao._ledgerRef.

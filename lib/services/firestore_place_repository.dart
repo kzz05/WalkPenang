@@ -7,6 +7,7 @@ import 'package:walkpenang/models/rating_summary.dart';
 import 'package:walkpenang/models/review.dart';
 import 'package:walkpenang/models/search_filters.dart';
 import 'package:walkpenang/services/place_filter.dart';
+import 'package:walkpenang/models/public_profile.dart';
 import 'package:walkpenang/services/place_repository.dart';
 import 'package:walkpenang/services/review_author.dart';
 
@@ -146,6 +147,50 @@ class FirestorePlaceRepository implements PlaceRepository {
 
   @override
   Future<ReviewAuthor> currentAuthor() => _authorResolver.resolve();
+
+  /// Firestore caps a `whereIn` at 30 values. A review page is 3 by default, so
+  /// this never chunks in practice — it is here so a caller that widens the
+  /// page size later does not silently start throwing.
+  static const int _whereInLimit = 30;
+
+  @override
+  Future<Map<String, PublicProfile>> fetchAuthorProfiles(
+    Iterable<String> userIds,
+  ) async {
+    final List<String> ids =
+        userIds.where((String id) => id.isNotEmpty).toSet().toList();
+    if (ids.isEmpty) return const <String, PublicProfile>{};
+
+    final Map<String, PublicProfile> resolved = <String, PublicProfile>{};
+
+    for (int start = 0; start < ids.length; start += _whereInLimit) {
+      final List<String> chunk = ids.sublist(
+        start,
+        start + _whereInLimit < ids.length ? start + _whereInLimit : ids.length,
+      );
+
+      // Deliberately not wrapped in the ApiTimeout/ApiFailure translation the
+      // other reads use. A missing or slow profile lookup must never fail the
+      // review list — the caller falls back to the name stored on the review,
+      // which is exactly what it used to show anyway.
+      try {
+        final QuerySnapshot<Map<String, dynamic>> snapshot = await _db
+            .collection('public_profiles')
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get()
+            .timeout(kRequestTimeout);
+
+        for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+            in snapshot.docs) {
+          resolved[doc.id] = PublicProfile.fromMap(doc.id, doc.data());
+        }
+      } catch (_) {
+        // Leave this chunk unresolved; the fallback covers it.
+      }
+    }
+
+    return resolved;
+  }
 
   @override
   Future<Review> submitReview({

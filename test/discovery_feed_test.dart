@@ -9,6 +9,7 @@ import 'package:walkpenang/models/review.dart';
 import 'package:walkpenang/models/search_filters.dart';
 import 'package:walkpenang/services/favorites_store.dart';
 import 'package:walkpenang/services/place_repository.dart';
+import 'package:walkpenang/models/public_profile.dart';
 import 'package:walkpenang/services/review_author.dart';
 import 'package:walkpenang/theme/discovery_theme.dart';
 import 'package:walkpenang/views/discovery_feed_view.dart';
@@ -429,6 +430,25 @@ class _FakeRepository implements PlaceRepository {
 
   @override
   Future<ReviewAuthor> currentAuthor() async => author;
+
+  /// Live profiles keyed by uid. Tests set this to prove a review renders the
+  /// author's CURRENT name rather than the one stamped on it at write time.
+  Map<String, PublicProfile> authorProfiles = <String, PublicProfile>{};
+
+  /// Records what was asked for, so a test can assert Google reviews (which
+  /// have no uid) never reach the lookup.
+  final List<String> profileLookups = <String>[];
+
+  @override
+  Future<Map<String, PublicProfile>> fetchAuthorProfiles(
+    Iterable<String> userIds,
+  ) async {
+    profileLookups.addAll(userIds);
+    return <String, PublicProfile>{
+      for (final String id in userIds)
+        if (authorProfiles.containsKey(id)) id: authorProfiles[id]!,
+    };
+  }
 
   @override
   Future<PlacePage> fetchPlaces({

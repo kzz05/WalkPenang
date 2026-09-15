@@ -12,6 +12,7 @@ class Review {
     required this.createdAt,
     this.photoCount = 0,
     this.userId = '',
+    this.authorPhotoUrl,
   });
 
   final String id;
@@ -23,6 +24,16 @@ class Review {
   /// carried an owner at all. Reviews are public, so this is not a filter: it
   /// is what lets the UI tell *your* review apart from everyone else's.
   final String userId;
+
+  /// The author's picture, for Google-sourced reviews only.
+  ///
+  /// App reviews leave this null on purpose: their author's photo is resolved
+  /// live from `public_profiles/{uid}` so that changing your picture updates
+  /// reviews you wrote months ago. Freezing a URL here would reintroduce
+  /// exactly the staleness this collection exists to fix.
+  ///
+  /// Never written to Firestore — see [toMap].
+  final String? authorPhotoUrl;
 
   /// 1–5 whole stars, as the mockup's picker only offers whole values.
   final int rating;
@@ -120,6 +131,9 @@ class Review {
       id: json['name'] as String? ?? 'google-${json.hashCode}',
       placeId: placeId,
       authorName: author?['displayName'] as String? ?? 'Google user',
+      // Google gives us the reviewer's picture and the app used to throw it
+      // away, so Google reviews sat next to app ones showing only initials.
+      authorPhotoUrl: author?['photoUri'] as String?,
       rating: (json['rating'] as num?)?.toInt() ?? 5,
       body: text?['text'] as String? ?? originalText?['text'] as String? ?? '',
       createdAt: DateTime.tryParse(json['publishTime'] as String? ?? '') ??

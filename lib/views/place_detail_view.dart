@@ -7,10 +7,12 @@ import 'package:walkpenang/models/favorite_place.dart';
 import 'package:walkpenang/models/place.dart';
 import 'package:walkpenang/models/rating_summary.dart';
 import 'package:walkpenang/models/review.dart';
+import 'package:walkpenang/models/public_profile.dart';
 import 'package:walkpenang/services/place_repository.dart';
 import 'package:walkpenang/services/review_author.dart';
 import 'package:walkpenang/theme/app_theme.dart';
 import 'package:walkpenang/views/widgets/review_submission_modal.dart';
+import 'package:walkpenang/views/widgets/profile_avatar.dart';
 import 'package:walkpenang/views/widgets/star_rating.dart';
 
 /// Screens 03–05 — location details, reviews, favourites (T-FD03.1, T-FD03.2,
@@ -48,6 +50,15 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
   /// the repository answers, and for a signed-out reader, which badges nothing.
   String _myUserId = '';
 
+  /// Each reviewer's CURRENT name and photo, keyed by uid.
+  ///
+  /// A review stores the name its author had when they wrote it, so renaming
+  /// yourself used to leave every past review showing the old one. This is
+  /// resolved fresh on every load — deliberately uncached, because the whole
+  /// point is that a profile edit shows up on reviews written months ago.
+  /// A uid missing from here falls back to the stored name.
+  Map<String, PublicProfile> _authorProfiles = const <String, PublicProfile>{};
+
   /// Shows the green banner from screen 04, but only right after saving.
   bool _showSavedBanner = false;
 
@@ -79,10 +90,17 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
       // Resolved alongside the list, not in initState: signing in or out
       // while this screen is open must change which review is badged "You".
       final ReviewAuthor me = await widget.repository.currentAuthor();
+      // Google-sourced reviews carry no app uid and keep their own author —
+      // they are Google's users, not ours.
+      final Map<String, PublicProfile> profiles =
+          await widget.repository.fetchAuthorProfiles(
+        reviews.map((Review r) => r.userId).where((String id) => id.isNotEmpty),
+      );
       if (!mounted) return;
       setState(() {
         _reviews = reviews;
         _myUserId = me.uid;
+        _authorProfiles = profiles;
         _loadingReviews = false;
       });
     } on ApiTimeoutException catch (error) {
@@ -504,7 +522,12 @@ class _PlaceDetailViewState extends State<PlaceDetailView> {
         ),
         const SizedBox(height: 12),
         ..._reviews.map((Review review) =>
-            _ReviewTile(review: review, now: now, myUserId: _myUserId)),
+            _ReviewTile(
+              review: review,
+              now: now,
+              myUserId: _myUserId,
+              profile: _authorProfiles[review.userId],
+            )),
       ],
     );
   }
@@ -568,6 +591,7 @@ class _ReviewTile extends StatelessWidget {
     required this.review,
     required this.now,
     required this.myUserId,
+    this.profile,
   });
 
   final Review review;
@@ -575,6 +599,24 @@ class _ReviewTile extends StatelessWidget {
 
   /// The reader's uid, so this tile can tell whether the review is theirs.
   final String myUserId;
+
+  /// The author's live profile, or null for a Google review, a legacy review
+  /// with no uid, or an author whose projection has not been written yet.
+  final PublicProfile? profile;
+
+  /// Live name first, stored name as the fallback.
+  ///
+  /// The stored one is a snapshot from when the review was written, which is
+  /// why it goes second — but it is kept rather than dropped, because Google
+  /// reviews have no app profile to resolve and neither do reviews written
+  /// before the projection existed.
+  String get _displayName => profile?.displayName ?? review.authorName;
+
+  String get _initials => profile?.initials ?? review.initials;
+
+  /// Google supplies its own reviewers' pictures; app reviewers come from the
+  /// projection so a changed photo reaches old reviews.
+  String? get _photoUrl => profile?.photoUrl ?? review.authorPhotoUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -585,17 +627,10 @@ class _ReviewTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          CircleAvatar(
+          ProfileAvatar(
+            photoUrl: _photoUrl,
+            initials: _initials,
             radius: 16,
-            backgroundColor: AppColors.backgroundDeep,
-            child: Text(
-              review.initials,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: AppColors.onPrimary,
-              ),
-            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -606,7 +641,7 @@ class _ReviewTile extends StatelessWidget {
                   children: <Widget>[
                     Flexible(
                       child: Text(
-                        review.authorName,
+                        _displayName,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodyMedium
                             ?.copyWith(fontWeight: FontWeight.w600),

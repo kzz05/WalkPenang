@@ -7,6 +7,7 @@ import 'package:walkpenang/models/search_filters.dart';
 import 'package:walkpenang/services/firestore_place_repository.dart';
 import 'package:walkpenang/services/google_places_service.dart';
 import 'package:walkpenang/services/place_filter.dart';
+import 'package:walkpenang/models/public_profile.dart';
 import 'package:walkpenang/services/place_repository.dart';
 import 'package:walkpenang/services/review_author.dart';
 
@@ -78,6 +79,12 @@ class GooglePlacesRepository implements PlaceRepository {
 
   @override
   Future<ReviewAuthor> currentAuthor() => _firestore.currentAuthor();
+
+  @override
+  Future<Map<String, PublicProfile>> fetchAuthorProfiles(
+    Iterable<String> userIds,
+  ) =>
+      _firestore.fetchAuthorProfiles(userIds);
 
   @override
   Future<Review> submitReview({

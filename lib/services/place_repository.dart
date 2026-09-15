@@ -6,6 +6,7 @@ import 'package:walkpenang/models/rating_summary.dart';
 import 'package:walkpenang/models/review.dart';
 import 'package:walkpenang/models/search_filters.dart';
 import 'package:walkpenang/services/place_filter.dart';
+import 'package:walkpenang/models/public_profile.dart';
 import 'package:walkpenang/services/review_author.dart';
 
 const Duration kRequestTimeout = Duration(seconds: 10);
@@ -62,6 +63,21 @@ abstract class PlaceRepository {
   /// asks the repository rather than FirebaseAuth so the Discovery module's
   /// widgets stay free of Firebase and testable against a fake.
   Future<ReviewAuthor> currentAuthor();
+
+  /// The CURRENT display name and photo for each of [userIds].
+  ///
+  /// Reviews store the author's name as it was when they wrote it, which is why
+  /// renaming yourself used to leave every past review showing the old name.
+  /// The stored name stays as a fallback; this is what the UI prefers.
+  ///
+  /// Reads `public_profiles/{uid}`, not `users/{uid}` — the latter is owner-only
+  /// and carries email, phone and body metrics. A uid with no projection is
+  /// simply absent from the returned map, and callers fall back.
+  ///
+  /// Google-sourced reviews have an empty userId and must not be passed in.
+  Future<Map<String, PublicProfile>> fetchAuthorProfiles(
+    Iterable<String> userIds,
+  );
 
   /// No authorName parameter: the implementation resolves the writer itself.
   /// It used to be passed in from the widget layer, where it was hardcoded to
@@ -173,6 +189,20 @@ class MockPlaceRepository implements PlaceRepository {
 
   @override
   Future<ReviewAuthor> currentAuthor() async => author;
+
+  /// Scriptable stand-in: whatever a test or demo puts here is returned for
+  /// any matching uid.
+  Map<String, PublicProfile> authorProfiles = <String, PublicProfile>{};
+
+  @override
+  Future<Map<String, PublicProfile>> fetchAuthorProfiles(
+    Iterable<String> userIds,
+  ) async {
+    return <String, PublicProfile>{
+      for (final String id in userIds)
+        if (authorProfiles.containsKey(id)) id: authorProfiles[id]!,
+    };
+  }
 
   @override
   Future<Review> submitReview({

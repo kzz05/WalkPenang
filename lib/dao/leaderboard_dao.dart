@@ -94,10 +94,62 @@ class FirestoreLeaderboardDao implements LeaderboardDao {
         .limit(limit)
         .get();
 
-    return snapshot.docs
+    final entries = snapshot.docs
         .map((doc) => LeaderboardEntryModel.fromMap(doc.id, doc.data()))
         .toList(growable: false);
+
+    return _withLivePublicProfiles(entries);
   }
+
+  /// Replaces each row's stored name and photo with the tourist's current ones.
+  ///
+  /// The row carries its own copy, refreshed only when publishEntry runs — at
+  /// a check-in, or when the tourist opens the board. So changing your profile
+  /// picture left a stale avatar on the leaderboard until your next walk. The
+  /// copy stays as the fallback for a uid with no projection yet.
+  ///
+  /// Failure is swallowed: a board with slightly stale names is far better
+  /// than no board, and the stored copy is always a reasonable answer.
+  Future<List<LeaderboardEntryModel>> _withLivePublicProfiles(
+    List<LeaderboardEntryModel> entries,
+  ) async {
+    if (entries.isEmpty) return entries;
+
+    try {
+      final ids = entries.map((e) => e.userId).where((id) => id.isNotEmpty);
+      if (ids.isEmpty) return entries;
+
+      final snapshot = await _firestore
+          .collection(publicProfilesCollection)
+          .where(FieldPath.documentId, whereIn: ids.toList())
+          .get();
+
+      final live = {for (final doc in snapshot.docs) doc.id: doc.data()};
+      if (live.isEmpty) return entries;
+
+      return entries.map((entry) {
+        final profile = live[entry.userId];
+        if (profile == null) return entry;
+
+        final name = (profile['displayName'] as String? ?? '').trim();
+        final photo = (profile['photoUrl'] as String? ?? '').trim();
+
+        return LeaderboardEntryModel(
+          userId: entry.userId,
+          displayName: name.isEmpty ? entry.displayName : name,
+          photoUrl: photo.isEmpty ? null : photo,
+          totalPoints: entry.totalPoints,
+          totalCheckIns: entry.totalCheckIns,
+          totalDistanceMetres: entry.totalDistanceMetres,
+        );
+      }).toList(growable: false);
+    } catch (_) {
+      return entries;
+    }
+  }
+
+  /// Mirrors PublicProfile / syncPublicProfile in functions/moderation.js.
+  static const String publicProfilesCollection = 'public_profiles';
 
   @override
   Future<LeaderboardEntryModel?> fetchEntry(String userId) async {

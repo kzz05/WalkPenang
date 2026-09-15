@@ -13,11 +13,11 @@
 // from LeaderboardRanking, points from the award formula; this formats what
 // it is handed.
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/leaderboard_entry_model.dart';
 import '../../theme/app_theme.dart';
+import '../../views/widgets/profile_avatar.dart';
 import '../../views/widgets/wp_components.dart';
 
 /// Colours for the three podium places.
@@ -39,12 +39,10 @@ Color rankColor(int rank) {
   }
 }
 
-/// A tourist's profile picture, or their initials when they have none.
+/// A tourist's profile picture on the board.
 ///
-/// Not [WpAvatar]: that falls back to a generic person icon, which would make
-/// every photo-less row on the board look like the same tourist. Initials
-/// keep the rows distinguishable at a glance, which is the one thing a
-/// leaderboard has to do.
+/// The drawing lives in [ProfileAvatar], shared with the reviews list — this
+/// is the Module 5 adapter that reads the two fields it needs off an entry.
 class LeaderboardAvatar extends StatelessWidget {
   final LeaderboardEntryModel entry;
   final double radius;
@@ -61,54 +59,11 @@ class LeaderboardAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final photoUrl = entry.photoUrl;
-
-    final avatar = CircleAvatar(
+    return ProfileAvatar(
+      photoUrl: entry.photoUrl,
+      initials: entry.initials,
       radius: radius,
-      backgroundColor: AppColors.backgroundDeep,
-      child: ClipOval(
-        child: SizedBox(
-          width: radius * 2,
-          height: radius * 2,
-          child: photoUrl == null
-              ? _initials()
-              : CachedNetworkImage(
-                  imageUrl: photoUrl,
-                  fit: BoxFit.cover,
-                  fadeInDuration: const Duration(milliseconds: 200),
-                  // Both fall back to the initials rather than to a spinner or
-                  // a broken-image icon: a row that briefly shows the wrong
-                  // thing is worse here than one that never changes.
-                  placeholder: (context, url) => _initials(),
-                  errorWidget: (context, url, error) => _initials(),
-                ),
-        ),
-      ),
-    );
-
-    if (ringColor == null) return avatar;
-
-    return Container(
-      padding: const EdgeInsets.all(2.5),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: ringColor!, width: 2),
-      ),
-      child: avatar,
-    );
-  }
-
-  Widget _initials() {
-    return Container(
-      color: AppColors.backgroundDeep,
-      alignment: Alignment.center,
-      child: Text(
-        entry.initials,
-        style: AppType.heading.copyWith(
-          fontSize: radius * 0.8,
-          color: AppColors.onPrimary,
-        ),
-      ),
+      ringColor: ringColor,
     );
   }
 }

@@ -258,3 +258,71 @@ exports.moderateProfileImage = onCall(
       return {photoUrl};
     },
 );
+
+/**
+ * Mirrors a tourist's display name and photo into `public_profiles/{uid}`.
+ *
+ * WHY THIS COLLECTION EXISTS
+ *
+ * A review has to show its author's CURRENT name and picture — rename yourself
+ * and every review you ever wrote should follow. The obvious source,
+ * `users/{uid}`, is owner-only in firestore.rules and holds email, phone
+ * number, weight and height, so it can never be read by a stranger. This is the
+ * two-field projection that can.
+ *
+ * `leaderboard/{uid}` could not serve the same purpose: publishEntry skips
+ * anyone with zero points, so a tourist who reviewed a place but never walked
+ * has no row, and it requires sign-in to read while reviews are world-readable.
+ *
+ * WHY IT IS A SEPARATE TRIGGER FROM moderateNickname
+ *
+ * That function returns early when the nickname is clean. Mirroring from inside
+ * it would propagate only PROFANE edits — precisely backwards. Both trigger on
+ * the same document write, which is fine and keeps each one about one thing.
+ *
+ * The two compose correctly on a revert: moderateNickname writes the clean name
+ * back to `users/{uid}`, and that write re-fires this trigger, so the
+ * projection ends up correct without either function knowing about the other.
+ */
+exports.syncPublicProfile = onDocumentWritten(
+    {document: "users/{uid}", region: TRIGGER_REGION},
+    async (event) => {
+      const uid = event.params.uid;
+      const ref = admin.firestore().collection("public_profiles").doc(uid);
+
+      const after = event.data && event.data.after;
+
+      // The tourist deleted their account. Leaving the projection behind would
+      // keep their name and face on reviews after the profile it mirrors is
+      // gone.
+      if (!after || !after.exists) {
+        await ref.delete().catch(() => {});
+        return;
+      }
+
+      const data = after.data() || {};
+      const nickname = typeof data.nickname === "string" ?
+        data.nickname.trim() :
+        "";
+      const photoUrl = typeof data.photoUrl === "string" ?
+        data.photoUrl.trim() :
+        "";
+
+      // Checked here as well as in moderateNickname, on purpose. Without it
+      // there is a window where a profane name sits in a world-readable
+      // document until the revert lands and re-fires this trigger. The check is
+      // two string comparisons; the window is not worth keeping.
+      const clean = !nickname || !firstMatch(nickname);
+
+      // "Walker" is kDefaultWalkerName in leaderboard_entry_model.dart and
+      // PublicProfile.defaultName, so a blank name reads the same everywhere.
+      await ref.set(
+          {
+            displayName: clean && nickname ? nickname : "Walker",
+            photoUrl: photoUrl || null,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          {merge: true},
+      );
+    },
+);
