@@ -24,8 +24,17 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    // Objects are stored as `<uid>.jpg`, so a path wildcard captures the whole
+    // FILE NAME, extension included — `isOwner(fileName)` compares "abc.jpg"
+    // against the uid "abc" and is false for everybody, forever.
+    //
+    // That is exactly what shipped: every profile-photo upload was denied
+    // before it started, moderateProfileImage was never once invoked, and the
+    // app reported "could not upload that photo". The rules compiled and
+    // deployed cleanly the whole time, because compiling proves nothing about
+    // whether a rule matches the paths the app actually writes.
+    function ownsFile(fileName) {
+      return isSignedIn() && fileName == request.auth.uid + '.jpg';
     }
 
     // An image, and small enough that a function can screen it cheaply. The
@@ -46,20 +55,24 @@ service firebase.storage {
     // Delete is allowed so a tourist who backs out of the picker is not left
     // with an orphan; the function deletes the object on both the approve and
     // the reject path anyway.
-    match /pending_profile_images/{userId} {
-      allow write: if isOwner(userId) && isReasonableImage();
-      allow delete: if isOwner(userId);
+    match /pending_profile_images/{fileName} {
+      allow write: if ownsFile(fileName) && isReasonableImage();
+      allow delete: if ownsFile(fileName);
       allow read: if false;
     }
 
     // ---- Approved photos -------------------------------------------------
     //
-    // Readable by any signed-in user, because the leaderboard shows other
-    // tourists' avatars. Writable by NOBODY — only the Admin SDK inside
-    // moderateProfileImage, which bypasses these rules. This is the line that
-    // makes quarantine enforceable rather than advisory.
-    match /profile_images/{userId} {
-      allow read: if isSignedIn();
+    // Writable by NOBODY — only the Admin SDK inside moderateProfileImage,
+    // which bypasses these rules. That is the line that makes the quarantine
+    // enforceable rather than advisory: there is no other way into this prefix.
+    //
+    // Read is open rather than isSignedIn(), matching public_profiles in
+    // firestore.rules. Avatars sit beside reviews, which are world-readable,
+    // so gating the picture alone would leave a signed-out reader a broken
+    // image next to a name they can already see.
+    match /profile_images/{fileName} {
+      allow read: if true;
       allow write, delete: if false;
     }
 
