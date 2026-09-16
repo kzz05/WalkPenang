@@ -1,0 +1,89 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Local drop zone for files shared with Claude (not committed)
+/_inbox/
+
+# Local environment variables, incl. the Google Maps API key.
+# Never commit the real key — only .env.example.
+.env
+
+# Legacy Flutter tool output (.idea/ and /build/ are already covered above)
+.packages
+.flutter-plugins
+
+# Machine-specific tooling output — these carry absolute SDK paths from
+# whoever last ran a build, so they must never be committed.
+android/local.properties
+ios/Flutter/ephemeral/
+macos/Flutter/ephemeral/
+
+# Gradle's incremental-build cache. Binary hash and lock files that every
+# build rewrites — tracking them means a dirty tree after every build and
+# binary merge conflicts nobody can resolve.
+android/.gradle/
+
+# Build transcripts. Large binary-ish logs that get regenerated on every build
+# and are meaningless to anyone but the machine that produced them.
+build_log.txt
+
+# Firebase Admin SDK service-account keys. These grant full, rule-bypassing
+# read/write on walkpenang-5cefb — committing one hands the whole database to
+# anyone who can read the repo. The leaderboard backfill in
+# tool/backfill_leaderboard/ needs one; keep it outside the repo if you can,
+# and if you can't, it matches here.
+*serviceAccount*.json
+*-firebase-adminsdk-*.json
+service-account*.json
+
+# Local dependencies of the one-off backfill tools.
+tool/backfill/node_modules/
+
+# Cloud Functions dependencies. firebase.json already excludes these from the
+# deploy upload; this keeps them out of git too. They were never ignored, so
+# installing anything under functions/ used to dump hundreds of packages into
+# `git status`.
+functions/node_modules/

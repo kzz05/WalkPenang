@@ -1,0 +1,129 @@
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+/// Fixed values for the Map & GPS module (UC-007, UC-008, UC-009, UC-M04).
+///
+/// Never hardcode the Penang boundary, radius options, or check-in threshold
+/// anywhere else — everything reads from here.
+class MapConstants {
+  const MapConstants._();
+
+  /// Approximate bounding box for Penang State, used to restrict map panning
+  /// (UC-009) and to reject destinations outside the state.
+  ///
+  /// `final`, not `const` — [LatLngBounds]'s constructor runs an `assert`,
+  /// which disqualifies it from being a compile-time constant.
+  static final LatLngBounds penangBounds = LatLngBounds(
+    southwest: const LatLng(5.2350, 100.1500),
+    northeast: const LatLng(5.5900, 100.5500),
+  );
+
+  static const LatLng georgeTownCenter = LatLng(5.4141, 100.3288);
+
+  static const double defaultSearchRadiusKm = 2.0;
+  static const List<double> radiusOptions = [1.0, 2.0, 5.0];
+
+  /// UC-008 A2: below this accuracy the system still shows the reading, but
+  /// flags it as unreliable.
+  static const double gpsAccuracyThresholdMeters = 20.0;
+
+  /// NFR-02: how close a tourist must be to a destination to count as arrived.
+  /// Owned by the Walking & Carbon module's check-in logic, defined here so
+  /// both modules read the same number.
+  static const double checkInThresholdMeters = 100.0;
+
+  /// Whether [distanceMeters] from the destination counts as arrived
+  /// (NFR-02).
+  ///
+  /// Sharing the constant was not enough: the Map module's in-app navigation
+  /// and the Walking module's check-in verification each wrote their own
+  /// `distance <= checkInThresholdMeters`, so the two could have drifted to
+  /// different comparisons — a `<` here and a `<=` there decides whether a
+  /// tourist standing exactly 100 m away has arrived. One predicate, one
+  /// answer.
+  static bool isWithinCheckInRange(double distanceMeters) =>
+      distanceMeters <= checkInThresholdMeters;
+
+  static const double defaultZoom = 14.0;
+
+  /// How far (in metres) the tourist must move before a journey-tracking fix
+  /// is delivered. JourneyProgressService leans on this: anything below it is
+  /// treated as jitter around a stationary tourist rather than distance
+  /// walked, so the figure is a correctness bound, not just a battery one.
+  static const int locationUpdateDistanceFilterMeters = 5;
+
+  /// UC-008: how often the map screen's live position marker refreshes.
+  ///
+  /// No distance filter and a one-second interval, because this drives what
+  /// the tourist watches. A filter makes the marker sit still until they have
+  /// covered its distance and then jump — at walking pace, a 5 m filter is a
+  /// hop every three or four seconds, which reads as a broken map rather than
+  /// a live one. Journey tracking keeps the filter; the marker does not need
+  /// it, since drawing a metre of GPS jitter costs nothing but a metre.
+  static const int mapUpdateDistanceFilterMeters = 0;
+  static const Duration mapUpdateInterval = Duration(seconds: 1);
+
+  /// Compass-follow map rotation (UC-008): skip a camera bearing / puck
+  /// rotation update unless the heading has drifted at least this many
+  /// degrees since the last applied reading — raw magnetometer output is
+  /// noisy enough that redrawing on every sample would look jittery and
+  /// burn battery for no visible benefit.
+  static const double compassHeadingChangeThresholdDegrees = 3.0;
+
+  /// UC-007: how far the camera must drift from the last search before the
+  /// pins on screen stop describing what the tourist is actually looking at,
+  /// and "Search this area" becomes worth offering.
+  static const double searchThisAreaThresholdMeters = 600;
+
+  // ── UC-M05 in-app navigation ──────────────────────────────────────────
+
+  /// While navigating, every fix matters — the puck is interpolated between
+  /// them, so a distance filter would just starve the interpolation and make
+  /// the marker jump. The browse screen keeps its 5 m filter for battery.
+  static const int navigationUpdateDistanceFilterMeters = 0;
+
+  /// How often the platform is asked for a navigation fix.
+  ///
+  /// Must be stated explicitly. A plain LocationSettings sends only accuracy
+  /// and distanceFilter across, and geolocator_android then defaults the
+  /// interval to 5000 ms — pinning setMinUpdateIntervalMillis to the same
+  /// value, so the stream is capped at one fix every five seconds however
+  /// small the distance filter is. The puck would glide for its 1.6 s and
+  /// then sit still for three and a half.
+  ///
+  /// 1 s is what the GPS hardware in a phone actually delivers at its best,
+  /// and what a turn-by-turn screen needs to look live.
+  static const Duration navigationUpdateInterval = Duration(seconds: 1);
+
+  /// How long the puck/camera takes to glide from the previous fix to the
+  /// new one. Clamped around the actual gap between fixes so the marker
+  /// neither races ahead of the tourist nor lags visibly behind them.
+  static const Duration minNavigationInterpolation = Duration(milliseconds: 350);
+  static const Duration maxNavigationInterpolation = Duration(milliseconds: 1600);
+
+  /// Cap on how often the interpolated puck/camera is pushed across the
+  /// platform channel. 25 fps reads as continuous motion while costing well
+  /// under half of what a per-frame (60 fps) update would.
+  static const Duration navigationRenderInterval = Duration(milliseconds: 40);
+
+  /// Below this ground speed, GPS course-over-ground is noise rather than a
+  /// direction (the tourist is standing at a crossing), so the puck falls
+  /// back to the magnetometer instead.
+  static const double navigationCourseMinSpeedMps = 0.6;
+
+  /// Camera tilt while navigating — a slight lean forward shows more of the
+  /// road ahead, the way a dedicated turn-by-turn app does.
+  static const double navigationCameraTilt = 45.0;
+
+  /// Fraction of the screen height the puck sits at while following, so most
+  /// of the map shows what's *ahead* rather than what's already behind.
+  /// Applied through `GoogleMap.padding`.
+  static const double navigationPuckScreenAnchor = 0.68;
+
+  /// UC-M04: how many "already routed" places are remembered between sessions.
+  ///
+  /// Unlike favourites, this list grows on its own — every route the tourist
+  /// looks at adds to it and nothing ever removes one — so it needs a ceiling.
+  /// Past this many, the oldest entries are dropped: a place routed to
+  /// hundreds of searches ago is no longer what the grey pin is telling them.
+  static const int maxRememberedRoutedPlaces = 200;
+}

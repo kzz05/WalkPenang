@@ -1,101 +1,153 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:walk_penang/controllers/discovery_controller.dart';
-import 'package:walk_penang/models/place.dart';
-import 'package:walk_penang/models/search_filters.dart';
-import 'package:walk_penang/screens/discovery_feed_screen.dart';
-import 'package:walk_penang/services/place_repository.dart';
-import 'package:walk_penang/widgets/place_card.dart';
+import 'package:walkpenang/controllers/discovery_controller.dart';
+import 'package:walkpenang/controllers/favorites_controller.dart';
+import 'package:walkpenang/models/place.dart';
+import 'package:walkpenang/models/rating_summary.dart';
+import 'package:walkpenang/models/review.dart';
+import 'package:walkpenang/models/search_filters.dart';
+import 'package:walkpenang/services/favorites_store.dart';
+import 'package:walkpenang/services/place_repository.dart';
+import 'package:walkpenang/models/public_profile.dart';
+import 'package:walkpenang/services/review_author.dart';
+import 'package:walkpenang/theme/discovery_theme.dart';
+import 'package:walkpenang/views/discovery_feed_view.dart';
+import 'package:walkpenang/views/widgets/place_grid_card.dart';
 
-/// T-FD02.3 — feed rendering, offline image fallback, API timeout errors.
+/// T-FD02.3 — feed rendering, offline image fallback, API timeout errors,
+/// plus the favourites flow.
 ///
 /// Note on images: flutter_test blocks real HTTP, so every CachedNetworkImage
-/// falls through to its errorWidget. That's convenient — it means these tests
-/// exercise the offline fallback path by default.
+/// falls through to its errorWidget. Convenient — these tests exercise the
+/// offline fallback path by default.
 void main() {
-  /// Fake repository with no real latency, so tests stay fast and predictable.
   late _FakeRepository repository;
 
   Place makePlace(int index) => Place(
     id: 'p$index',
     name: 'Place $index',
-    category: 'Cafe',
-    imageUrl: 'https://example.com/$index.jpg',
+    category: PlaceCategory.food,
+    photoUrls: <String>['https://example.com/$index.jpg'],
     priceLevel: PriceLevel.budget,
     distanceKm: index.toDouble(),
     rating: 4.0,
+    reviewCount: 100 + index,
+    address: 'Address $index',
+    hours: const OpeningHours(opensAtHour: 0, closesAtHour: 24),
     description: 'Description $index',
   );
 
   Future<void> pumpFeed(
       WidgetTester tester,
       DiscoveryController controller,
+      FavoritesController favorites,
       ) async {
+    // The default test surface is 800x600 — landscape, and short. The feed is
+    // a 2-column grid at childAspectRatio 0.82 built lazily, so on that surface
+    // only the first row is ever constructed and any assertion past the second
+    // card fails against a grid that is in fact laying out correctly. Pin a
+    // portrait phone instead: the shape this screen is designed for.
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(
-      MaterialApp(home: DiscoveryFeedScreen(controller: controller)),
+      MaterialApp(
+        theme: discoveryTheme,
+        home: DiscoveryFeedView(
+          controller: controller,
+          favorites: favorites,
+          repository: repository,
+        ),
+      ),
     );
     // One pump runs the post-frame loadInitial, the next settles the result.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
   }
 
+  FavoritesController makeFavorites() =>
+      FavoritesController(store: InMemoryFavoritesStore());
+
   setUp(() {
     repository = _FakeRepository();
   });
 
   group('feed rendering', () {
-    testWidgets('renders a card per place', (WidgetTester tester) async {
+    testWidgets('renders a grid card per place', (WidgetTester tester) async {
       repository.pages = <List<Place>>[
         <Place>[makePlace(1), makePlace(2), makePlace(3)],
       ];
       final DiscoveryController controller =
       DiscoveryController(repository: repository, pageSize: 3);
+      final FavoritesController favorites = makeFavorites();
       addTearDown(controller.dispose);
 
-      await pumpFeed(tester, controller);
+      await pumpFeed(tester, controller, favorites);
 
-      expect(find.byType(PlaceCard), findsNWidgets(3));
+      expect(find.byType(PlaceGridCard), findsNWidgets(3));
       expect(find.text('Place 1'), findsOneWidget);
     });
 
-    testWidgets('shows a spinner before the first page arrives',
-            (WidgetTester tester) async {
-          repository.pages = <List<Place>>[
-            <Place>[makePlace(1)],
-          ];
-          repository.latency = const Duration(seconds: 1);
-          final DiscoveryController controller =
-          DiscoveryController(repository: repository);
-          addTearDown(controller.dispose);
+    testWidgets('shows the nearby count header', (WidgetTester tester) async {
+      repository.pages = <List<Place>>[
+        <Place>[makePlace(1), makePlace(2)],
+      ];
+      repository.totalCount = 12;
+      final DiscoveryController controller =
+      DiscoveryController(repository: repository, pageSize: 2);
+      final FavoritesController favorites = makeFavorites();
+      addTearDown(controller.dispose);
 
-          await tester.pumpWidget(
-            MaterialApp(home: DiscoveryFeedScreen(controller: controller)),
-          );
-          await tester.pump();
+      await pumpFeed(tester, controller, favorites);
 
-          expect(find.byType(CircularProgressIndicator), findsWidgets);
-
-          await tester.pump(const Duration(seconds: 1));
-          expect(find.byType(PlaceCard), findsOneWidget);
-        });
+      expect(find.text('Nearby you (12 places)'), findsOneWidget);
+    });
 
     testWidgets('falls back gracefully when images cannot load',
             (WidgetTester tester) async {
-          // No network in tests, so the errorWidget renders. The card must still
-          // lay out and show its text rather than throwing.
           repository.pages = <List<Place>>[
             <Place>[makePlace(1)],
           ];
           final DiscoveryController controller =
           DiscoveryController(repository: repository);
+          final FavoritesController favorites = makeFavorites();
           addTearDown(controller.dispose);
 
-          await pumpFeed(tester, controller);
+          await pumpFeed(tester, controller, favorites);
           await tester.pump(const Duration(milliseconds: 300));
 
           expect(tester.takeException(), isNull);
           expect(find.text('Place 1'), findsOneWidget);
+        });
+
+    testWidgets('a place with no photos still renders',
+            (WidgetTester tester) async {
+          repository.pages = <List<Place>>[
+            <Place>[
+              const Place(
+                id: 'nophoto',
+                name: 'No Photo Place',
+                category: PlaceCategory.shopping,
+                priceLevel: PriceLevel.budget,
+                distanceKm: 1.0,
+                rating: 4.0,
+                reviewCount: 10,
+                address: 'Somewhere',
+              ),
+            ],
+          ];
+          final DiscoveryController controller =
+          DiscoveryController(repository: repository);
+          final FavoritesController favorites = makeFavorites();
+          addTearDown(controller.dispose);
+
+          await pumpFeed(tester, controller, favorites);
+
+          expect(tester.takeException(), isNull);
+          expect(find.text('No Photo Place'), findsOneWidget);
         });
   });
 
@@ -105,13 +157,14 @@ void main() {
           repository.pages = <List<Place>>[<Place>[]];
           final DiscoveryController controller =
           DiscoveryController(repository: repository);
+          final FavoritesController favorites = makeFavorites();
           addTearDown(controller.dispose);
 
-          await pumpFeed(tester, controller);
+          await pumpFeed(tester, controller, favorites);
 
           expect(find.text('No matches'), findsOneWidget);
-          expect(find.byType(PlaceCard), findsNothing);
-          expect(find.widgetWithText(FilledButton, 'Clear filters'), findsWidgets);
+          expect(find.byType(PlaceGridCard), findsNothing);
+          expect(find.text('Clear filters'), findsOneWidget);
         });
   });
 
@@ -121,9 +174,10 @@ void main() {
           repository.error = const ApiTimeoutException();
           final DiscoveryController controller =
           DiscoveryController(repository: repository);
+          final FavoritesController favorites = makeFavorites();
           addTearDown(controller.dispose);
 
-          await pumpFeed(tester, controller);
+          await pumpFeed(tester, controller, favorites);
 
           expect(find.text('Feed unavailable'), findsOneWidget);
           expect(find.text('Try again'), findsOneWidget);
@@ -133,12 +187,12 @@ void main() {
       repository.error = const ApiFailureException();
       final DiscoveryController controller =
       DiscoveryController(repository: repository);
+      final FavoritesController favorites = makeFavorites();
       addTearDown(controller.dispose);
 
-      await pumpFeed(tester, controller);
+      await pumpFeed(tester, controller, favorites);
       expect(find.text('Feed unavailable'), findsOneWidget);
 
-      // Backend comes back up.
       repository.error = null;
       repository.pages = <List<Place>>[
         <Place>[makePlace(1)],
@@ -148,12 +202,17 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
-      expect(find.byType(PlaceCard), findsOneWidget);
+      expect(find.byType(PlaceGridCard), findsOneWidget);
     });
 
     test('a failed load-more keeps the pages already on screen', () async {
+      // Two pages, so hasMore is true after the first load. With a single page
+      // the controller correctly refuses to load more and returns before it
+      // ever reaches the repository — the injected error would never be
+      // thrown and errorMessage would stay null.
       repository.pages = <List<Place>>[
         <Place>[makePlace(1), makePlace(2)],
+        <Place>[makePlace(3), makePlace(4)],
       ];
       final DiscoveryController controller =
       DiscoveryController(repository: repository, pageSize: 2);
@@ -208,7 +267,6 @@ void main() {
     test('never adds the same place twice', () async {
       repository.pages = <List<Place>>[
         <Place>[makePlace(1), makePlace(2)],
-        // Backend accidentally repeats an item across page boundaries.
         <Place>[makePlace(2), makePlace(3)],
       ];
       final DiscoveryController controller =
@@ -250,10 +308,15 @@ void main() {
       await controller.loadInitial();
       await controller.loadMore();
 
-      await controller.updateFilters(const SearchFilters(keyword: 'cafe'));
+      await controller.updateFilters(
+        const SearchFilters(categories: <PlaceCategory>{PlaceCategory.nature}),
+      );
 
       expect(controller.places, hasLength(2));
-      expect(repository.lastFilters?.keyword, 'cafe');
+      expect(
+        repository.lastFilters?.categories,
+        contains(PlaceCategory.nature),
+      );
     });
 
     test('identical filters do not trigger a refetch', () async {
@@ -272,6 +335,81 @@ void main() {
       expect(repository.callCount, callsBefore);
     });
   });
+
+  group('favourites from the feed', () {
+    testWidgets('tapping the heart on a card saves it',
+            (WidgetTester tester) async {
+          repository.pages = <List<Place>>[
+            <Place>[makePlace(1)],
+          ];
+          final DiscoveryController controller =
+          DiscoveryController(repository: repository);
+          final FavoritesController favorites = makeFavorites();
+          addTearDown(controller.dispose);
+
+          await pumpFeed(tester, controller, favorites);
+
+          await tester.tap(find.byIcon(Icons.favorite_border_rounded).first);
+          await tester.pump();
+
+          expect(favorites.count, 1);
+          expect(find.text('Added to Favorites'), findsOneWidget);
+        });
+  });
+
+  group('reviews', () {
+    test('submitting stamps the signed-in tourist, not a hardcoded name',
+        () async {
+      final Review review = await repository.submitReview(
+        placeId: 'p1',
+        rating: 4,
+        body: 'Solid spot, would come back.',
+      );
+
+      expect(review.placeId, 'p1');
+      expect(review.rating, 4);
+      // The caller no longer supplies a name at all; it comes from the
+      // signed-in account, so a review can't be published as a bare 'You'.
+      expect(review.authorName, 'Ong Song Wei');
+      expect(review.initials, 'OW');
+      expect(review.userId, 'uid-a');
+      expect(review.isMine('uid-a'), isTrue);
+    });
+
+    test('submitted reviews come back at the top of the list', () async {
+      repository.author =
+          const ReviewAuthor(uid: 'uid-b', displayName: 'Tang Yue Hann');
+
+      await repository.submitReview(
+        placeId: 'p1',
+        rating: 5,
+        body: 'Excellent, go at sunset.',
+      );
+
+      final List<Review> reviews = await repository.fetchReviews('p1');
+      expect(reviews.first.authorName, 'Tang Yue Hann');
+      expect(reviews.first.initials, 'TH');
+    });
+
+    test("another tourist's review is not badged as yours", () async {
+      await repository.submitReview(
+        placeId: 'p1',
+        rating: 5,
+        body: 'Written by the first account on this device.',
+      );
+
+      // Same device, second account signs in.
+      repository.author =
+          const ReviewAuthor(uid: 'uid-b', displayName: 'Tang Yue Hann');
+
+      final List<Review> reviews = await repository.fetchReviews('p1');
+      final Review theirs = reviews.first;
+
+      expect(theirs.authorName, 'Ong Song Wei');
+      expect(theirs.isMine('uid-b'), isFalse);
+      expect(theirs.isMine('uid-a'), isTrue);
+    });
+  });
 }
 
 /// Scriptable stand-in for the API: hand it pages, or an error to throw.
@@ -280,7 +418,37 @@ class _FakeRepository implements PlaceRepository {
   Exception? error;
   Duration latency = Duration.zero;
   int callCount = 0;
+  int? totalCount;
   SearchFilters? lastFilters;
+
+  final Map<String, List<Review>> _reviews = <String, List<Review>>{};
+
+  /// Who this fake is signed in as. Tests reassign it to simulate a second
+  /// tourist on the same device.
+  ReviewAuthor author =
+      const ReviewAuthor(uid: 'uid-a', displayName: 'Ong Song Wei');
+
+  @override
+  Future<ReviewAuthor> currentAuthor() async => author;
+
+  /// Live profiles keyed by uid. Tests set this to prove a review renders the
+  /// author's CURRENT name rather than the one stamped on it at write time.
+  Map<String, PublicProfile> authorProfiles = <String, PublicProfile>{};
+
+  /// Records what was asked for, so a test can assert Google reviews (which
+  /// have no uid) never reach the lookup.
+  final List<String> profileLookups = <String>[];
+
+  @override
+  Future<Map<String, PublicProfile>> fetchAuthorProfiles(
+    Iterable<String> userIds,
+  ) async {
+    profileLookups.addAll(userIds);
+    return <String, PublicProfile>{
+      for (final String id in userIds)
+        if (authorProfiles.containsKey(id)) id: authorProfiles[id]!,
+    };
+  }
 
   @override
   Future<PlacePage> fetchPlaces({
@@ -297,14 +465,64 @@ class _FakeRepository implements PlaceRepository {
 
     if (error != null) throw error!;
 
+    final int total = totalCount ??
+        pages.fold<int>(0, (int sum, List<Place> p) => sum + p.length);
+
     if (page >= pages.length) {
-      return PlacePage(items: const <Place>[], page: page, hasMore: false);
+      return PlacePage(
+        items: const <Place>[],
+        page: page,
+        hasMore: false,
+        totalCount: total,
+      );
     }
 
     return PlacePage(
       items: pages[page],
       page: page,
       hasMore: page + 1 < pages.length,
+      totalCount: total,
     );
+  }
+
+  @override
+  Future<List<Review>> fetchReviews(String placeId, {int limit = 3}) async {
+    if (error != null) throw error!;
+    return (_reviews[placeId] ?? const <Review>[]).take(limit).toList();
+  }
+
+  @override
+  Future<Review> submitReview({
+    required String placeId,
+    required int rating,
+    required String body,
+    int photoCount = 0,
+  }) async {
+    if (error != null) throw error!;
+
+    final Review review = Review(
+      id: 'r-${DateTime.now().microsecondsSinceEpoch}',
+      placeId: placeId,
+      authorName: author.displayName,
+      rating: rating,
+      body: body,
+      createdAt: DateTime.now(),
+      photoCount: photoCount,
+      userId: author.uid,
+    );
+
+    _reviews.putIfAbsent(placeId, () => <Review>[]).insert(0, review);
+    return review;
+  }
+
+  @override
+  RatingSummary ratingFor(Place place) {
+    final RatingSummary seeded = RatingSummary(
+      average: place.rating,
+      count: place.reviewCount,
+    );
+    final List<Review> mine = _reviews[place.id] ?? const <Review>[];
+    if (mine.isEmpty) return seeded;
+    return seeded.withReviews(mine.map((Review r) => r.rating));
   }
 }

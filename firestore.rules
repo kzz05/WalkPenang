@@ -1,0 +1,284 @@
+rules_version = '2';
+
+// WalkPenang Firestore security rules (NFR-04 — Data Protection).
+//
+// Merged 2026-08-20 from the two versions that had diverged:
+//
+//   • in-develop — users/, badges/, check_ins/. Never deployed: the rules
+//     actually running on the project were the Discovery module's, so this
+//     file's users/ block existed in git and nowhere else.
+//   • Food-and-Attraction-Discovery-Module — places/ and reviews/. This was
+//     the deployed version, and it ended with a catch-all
+//     `match /{document=**} { allow read, write: if false; }` that denied
+//     users/ out from under profile_store and the favourites store. Reading
+//     a profile has been failing in production because of it.
+//
+// Deploy with:
+//   firebase deploy --only firestore:rules --project walkpenang-5cefb
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // ---- Tourist profile and everything beneath it -----------------------
+    //
+    // The {document=**} suffix is load-bearing. Firestore rules do NOT
+    // cascade into subcollections: a bare `match /users/{userId}` grants the
+    // profile document alone, which is why reading the profile worked while
+    // the reward dashboard returned PERMISSION_DENIED — its badges live one
+    // level down.
+    //
+    // Covers:
+    //   users/{uid}                          profile + cumulative reward totals
+    //   users/{uid}/favorites/{placeId}      saved places (id only)
+    //   users/{uid}/user_badges/{badgeId}    badges this tourist has earned
+    //
+    // The points ledger is NOT under here — it is a top-level collection, see
+    // its own block below.
+    match /users/{userId}/{document=**} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // ---- Public profile projection ---------------------------------------
+    //
+    // Exactly two fields a stranger may see: displayName and photoUrl. This
+    // exists because a review must show its author's CURRENT name and picture,
+    // and users/{uid} cannot be the source — it is owner-only for good reason,
+    // holding email, phoneNumber, weightKg and heightCm.
+    //
+    // Read is open rather than isSignedIn(), matching /reviews below: a review
+    // is world-readable, so its author's name has to be too or signed-out
+    // readers get text with no attribution.
+    //
+    // Write is denied to every client. The syncPublicProfile Cloud Function
+    // mirrors it from users/{uid} with the Admin SDK, which bypasses these
+    // rules — so a display name cannot be forged by writing here directly.
+    // Same reasoning as the leaderboard block pinning totals to a get().
+    //
+    // Anything added to this document becomes world-readable. A new field here
+    // is a privacy decision, not a convenience.
+    match /public_profiles/{userId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ---- Points ledger ---------------------------------------------------
+    //
+    // Top-level, keyed by check-in id — see FirestoreRewardDao._ledgerRef.
+    // Its existence is the record of "this check-in has already been
+    // rewarded", which is what stops a completed journey paying out twice.
+    //
+    // This block was missing when the merged rules were first deployed, on
+    // the mistaken assumption that the ledger lived under users/. It does
+    // not, so every award transaction failed on its very first read and the
+    // journey-completed screen showed "Could not reach the reward service".
+    //
+    // The `resource == null` guard is load-bearing. Rules are evaluated for
+    // reads of documents that do not exist, with `resource` null, so a bare
+    // `resource.data.userId` errors out and denies — and on a tourist's first
+    // check-in the ledger entry has never existed. Same reasoning applies to
+    // check_ins below.
+    //
+    // create only: an award, once written, is final. Allowing update or
+    // delete would let a client clear the idempotency record and re-claim
+    // points for the same journey.
+    match /points_ledger/{checkInId} {
+      allow read: if isSignedIn()
+                  && (resource == null
+                      || resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // ---- Leaderboard (UC540 / FR-R06) ------------------------------------
+    //
+    // Public standings, one document per tourist, keyed by user id.
+    //
+    // This collection exists precisely so that the users/ block above can stay
+    // owner-only. Ranking every tourist means reading every tourist's row, and
+    // a tourist document carries email, phone number, weight and height —
+    // none of which belongs on a leaderboard (NFR-04). So the five public
+    // fields are mirrored here and nothing else is.
+    //
+    // Read: any signed-in tourist. The board is the whole point.
+    //
+    // Write: your own row only, and the totals are pinned to what the tourist
+    // document actually says. Without that last clause any tourist could set
+    // their own totalPoints to 99999 and take first place without walking,
+    // since this is a client-only app with no Cloud Function to write the row
+    // on their behalf. `get()` costs one extra document read per publish,
+    // which is the right price for a score that cannot be forged.
+    //
+    // No delete: a tourist removing their row to hide a low score, then
+    // republishing on a good day, would make the board mean nothing.
+    //
+    // A tourist with no document under users/ is denied outright — get()
+    // returns null and the field access errors. That is the right outcome:
+    // there are no totals to check the claim against, so there is nothing to
+    // publish. FirestoreLeaderboardDao only publishes above zero points, and
+    // a tourist cannot have points without the document those points were
+    // incremented on.
+    match /leaderboard/{userId} {
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(userId)
+                    && request.resource.data.totalPoints is int
+                    && request.resource.data.totalPoints ==
+                       get(/databases/$(database)/documents/users/$(userId))
+                         .data.get('totalPoints', 0)
+                    && request.resource.data.totalCheckIns ==
+                       get(/databases/$(database)/documents/users/$(userId))
+                         .data.get('totalCheckIns', 0)
+                    && request.resource.data.totalDistanceMetres ==
+                       get(/databases/$(database)/documents/users/$(userId))
+                         .data.get('totalDistanceMetres', 0)
+                    && request.resource.data.displayName is string
+                    && request.resource.data.displayName.size() <= 60;
+      allow delete: if false;
+    }
+
+    // ---- Email OTP -------------------------------------------------------
+    //
+    // Denied to every client, deliberately — this is not an oversight to be
+    // "fixed" later. functions/index.js writes these documents with the Admin
+    // SDK, which bypasses rules entirely, and the stored value is an HMAC of
+    // the code. A client that could read this collection could brute-force
+    // the hash offline; a client that could write it could mint its own
+    // verification. No Dart code path touches it.
+    match /email_otps/{uid} {
+      allow read, write: if false;
+    }
+
+    // ---- Badge catalogue -------------------------------------------------
+    //
+    // Shared reference data, not per-tourist: the definitions every gallery
+    // renders. Readable by any signed-in tourist; never written from a
+    // client, since letting a device edit badge criteria would let it mint
+    // its own achievements. Seed it from the console or an admin SDK script.
+    match /badges/{badgeId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ---- Check-ins -------------------------------------------------------
+    //
+    // Written by the Walking & Carbon module on arrival; the reward module
+    // only reads them and stamps `rewardProcessed` so points are awarded
+    // once. That write path does not exist yet, so this rule is provisional:
+    // it assumes the document carries a `userId` field, which is what
+    // CheckInResult.userId implies. Revisit when Module 4 lands its write.
+    //
+    // create is deliberately not update: a tourist may record a check-in but
+    // must not be able to rewrite its distance afterwards and farm points.
+    // transportMode must be one of the known ids. Only walking earns points
+    // (TransportMode.earnsPoints, FR-W01), and TransportMode.fromId falls back
+    // to 'walking' for anything it does not recognise — a fallback that is
+    // right for pre-existing records but would otherwise let any unknown
+    // string mint points. Absent is still allowed: check-ins written before
+    // modes existed carry no such field and were all walks.
+    match /check_ins/{checkInId} {
+      // The `resource == null` guard matters for the same reason it does on
+      // the points ledger: FirestoreRewardDao's award transaction reads this
+      // document before it decides whether to update or create it, and a bare
+      // field access on a document that does not exist errors out and denies
+      // the whole transaction.
+      allow read: if isSignedIn()
+                  && (resource == null
+                      || resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid
+                    && (!('transportMode' in request.resource.data.keys())
+                        || request.resource.data.transportMode
+                           in ['walking', 'driving', 'publicTransport']);
+      allow update: if isSignedIn()
+                    && resource.data.userId == request.auth.uid
+                    // Mode is fixed at creation. Allowing it to change would
+                    // let a car journey be rewritten as a walk after the fact
+                    // and claim a walker's points.
+                    && request.resource.data.get('transportMode', 'walking')
+                       == resource.data.get('transportMode', 'walking');
+      allow delete: if false;
+    }
+
+    // ---- Places ----------------------------------------------------------
+    //
+    // The Discovery module's place catalogue: name, category, address,
+    // photoUrls, priceLevel, opening hours, dietary tags. Seeded by
+    // tool/seed_places.dart and read by FirestorePlaceRepository.
+    //
+    // Read is public — the feed renders before the tourist signs in, and none
+    // of these fields are personal data.
+    //
+    // Write requires sign-in. The previously deployed rule allowed
+    // `write: if true`, which let anyone holding the project id rewrite or
+    // delete all twelve places. See the seeding note at the end of this file.
+    match /places/{placeId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // ---- Reviews ---------------------------------------------------------
+    //
+    // Top-level, carrying a placeId field, queried with the composite index
+    // in firestore.indexes.json.
+    //
+    // Bounds are enforced here rather than trusted from the client — the UI's
+    // 1-5 star picker is not a security control. Create only: a review that
+    // has already been shown to other tourists must not be silently rewritten
+    // or removed from the client.
+    //
+    // Reviews now carry the writer's uid, so a tourist can only publish under
+    // their own identity. Read stays open: reviews are public, and the whole
+    // point is that other tourists read them. The uid is for attribution and
+    // for the "You" badge, not for filtering the list.
+    //
+    // Documents written before 2026-09-16 have no userId and no real author
+    // name (the submission modal hardcoded 'You'). They stay readable; the
+    // client shows them as Anonymous rather than as the reader's own.
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.authorName is string
+                    && request.resource.data.authorName.size() <= 60
+                    && request.resource.data.placeId is string
+                    && request.resource.data.rating is int
+                    && request.resource.data.rating >= 1
+                    && request.resource.data.rating <= 5
+                    && request.resource.data.body is string
+                    && request.resource.data.body.size() <= 2000;
+      allow update, delete: if false;
+    }
+
+    // Anything not matched above is denied by default. Add collections
+    // explicitly as other modules start writing — do NOT add a catch-all
+    // `match /{document=**}` here. One was deployed on 2026-08-20 and it
+    // silently locked users/ out from under the profile and favourites
+    // stores, because a catch-all matches every path no other rule grants.
+  }
+}
+
+// ── Note for whoever next runs tool/seed_places.dart ────────────────────────
+//
+// places writes now require sign-in, so the seeder must authenticate before
+// its batch commits:
+//
+//     await FirebaseAuth.instance.signInWithEmailAndPassword(
+//       email: '<a test account that already exists>',
+//       password: '<its password>',
+//     );
+//
+// The same applies to lib/main_discovery.dart if reviews are to be submitted
+// from that standalone entry point.
+//
+// Separately, the seeder's batch.set() call passes no SetOptions, so it is a
+// full document replace. That is harmless today, but once a place carries
+// tourist-submitted data a re-seed would wipe it; prefer
+// `batch.set(ref, place.toMap(), SetOptions(merge: true))`.

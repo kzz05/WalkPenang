@@ -1,0 +1,15 @@
+{
+  "name": "walkpenang-backfill",
+  "version": "1.0.0",
+  "description": "One-off Admin SDK backfills: leaderboard rows and public profile projections.",
+  "scripts": {
+    "leaderboard:dry": "node backfill_leaderboard.js --dry-run",
+    "leaderboard": "node backfill_leaderboard.js",
+    "profiles:dry": "node backfill_public_profiles.js --dry-run",
+    "profiles": "node backfill_public_profiles.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0"
+  },
+  "private": true
+}

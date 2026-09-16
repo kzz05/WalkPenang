@@ -1,0 +1,84 @@
+rules_version = '2';
+
+// WalkPenang — Cloud Storage rules.
+//
+// This file did not exist until content moderation was added. firebase.json
+// had no "storage" key either, so `firebase deploy` never touched the bucket
+// and it ran on whatever the console default was — which for a default Firebase
+// bucket lets any signed-in user read and write any path. That was a live hole
+// independent of moderation, and closing it is a prerequisite for the rest of
+// this to mean anything.
+//
+// Deploy with:
+//   firebase deploy --only storage --project walkpenang-5cefb
+//
+// The whole design rests on one asymmetry: a client may write the quarantine
+// prefix but not read it, and may read the public prefix but not write it. That
+// is what forces every photo through moderateProfileImage in
+// functions/moderation.js — there is no other way into profile_images/.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Objects are stored as `<uid>.jpg`, so a path wildcard captures the whole
+    // FILE NAME, extension included — `isOwner(fileName)` compares "abc.jpg"
+    // against the uid "abc" and is false for everybody, forever.
+    //
+    // That is exactly what shipped: every profile-photo upload was denied
+    // before it started, moderateProfileImage was never once invoked, and the
+    // app reported "could not upload that photo". The rules compiled and
+    // deployed cleanly the whole time, because compiling proves nothing about
+    // whether a rule matches the paths the app actually writes.
+    function ownsFile(fileName) {
+      return isSignedIn() && fileName == request.auth.uid + '.jpg';
+    }
+
+    // An image, and small enough that a function can screen it cheaply. The
+    // app already re-encodes at quality 70 and caps dimensions at 1024px, so a
+    // legitimate upload lands far under this; the cap is here to stop someone
+    // pushing a 100 MB file at the bucket, not to constrain real photos.
+    function isReasonableImage() {
+      return request.resource.size < 5 * 1024 * 1024
+             && request.resource.contentType.matches('image/.*');
+    }
+
+    // ---- Quarantine ------------------------------------------------------
+    //
+    // Write-only, and only your own. No read: an unscreened photo must not be
+    // fetchable by anyone, including the person who uploaded it — otherwise
+    // the URL could be shared before moderation has run.
+    //
+    // Delete is allowed so a tourist who backs out of the picker is not left
+    // with an orphan; the function deletes the object on both the approve and
+    // the reject path anyway.
+    match /pending_profile_images/{fileName} {
+      allow write: if ownsFile(fileName) && isReasonableImage();
+      allow delete: if ownsFile(fileName);
+      allow read: if false;
+    }
+
+    // ---- Approved photos -------------------------------------------------
+    //
+    // Writable by NOBODY — only the Admin SDK inside moderateProfileImage,
+    // which bypasses these rules. That is the line that makes the quarantine
+    // enforceable rather than advisory: there is no other way into this prefix.
+    //
+    // Read is open rather than isSignedIn(), matching public_profiles in
+    // firestore.rules. Avatars sit beside reviews, which are world-readable,
+    // so gating the picture alone would leave a signed-out reader a broken
+    // image next to a name they can already see.
+    match /profile_images/{fileName} {
+      allow read: if true;
+      allow write, delete: if false;
+    }
+
+    // Anything not matched above is denied. Add prefixes explicitly as other
+    // modules start storing files — do NOT add a catch-all `match /{allPaths=**}`.
+    // One was deployed to Firestore on 2026-08-20 and silently locked users/
+    // out from under the profile store; the same mistake is available here.
+  }
+}
