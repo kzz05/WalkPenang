@@ -69,6 +69,21 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ---- Display-name reservations ---------------------------------------
+    //
+    // One document per claimed name, id = the name exactly as typed. Firestore
+    // document ids are case-sensitive, which is what makes the uniqueness rule
+    // case-sensitive for free: "Ianwong" and "IANwong" are different ids and
+    // both may exist. Only an exact clash is refused.
+    //
+    // Closed to clients in both directions. Written only by the claimNickname
+    // callable, inside a transaction, with the Admin SDK — a client that could
+    // write here could squat every good name, and a client that could read here
+    // could enumerate who holds what.
+    match /nicknames/{nickname} {
+      allow read, write: if false;
+    }
+
     // ---- Points ledger ---------------------------------------------------
     //
     // Top-level, keyed by check-in id — see FirestoreRewardDao._ledgerRef.

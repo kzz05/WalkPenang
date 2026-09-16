@@ -228,6 +228,13 @@ class WpField extends StatelessWidget {
             filled: true,
             fillColor: AppColors.card,
             suffixIcon: suffixIcon,
+            // Flutter defaults errorMaxLines to 1, which ellipsises any
+            // message wider than the field. Height and weight sit in Expanded
+            // halves of a Row, so "Height must be between 50-250 cm" rendered
+            // as "Height must be be…" — the rule was being enforced correctly
+            // and the user simply could not read what it was. The phone
+            // message is the longest in the app and clipped even full-width.
+            errorMaxLines: 3,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
               vertical: 14,

@@ -82,6 +82,15 @@ class ValidationMessages {
   static const nicknameProfane =
       'Please choose a different name — that one is not allowed';
 
+  /// Shown when another account already holds this exact name.
+  ///
+  /// Matching is case-sensitive by decision, so "Ianwong" and "IANwong" are
+  /// different names and only an exact clash is refused. The message says
+  /// "already taken" rather than naming the holder — who owns a name is not
+  /// something a stranger needs to be told.
+  static const nicknameTaken =
+      'That name is already taken. Try a different one';
+
   // ── Phone ─────────────────────────────────────────────────────────────────
 
   static const phoneRequired = 'Contact number cannot be empty';

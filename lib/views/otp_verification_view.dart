@@ -215,6 +215,10 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
             showCursor: false,
             decoration: const InputDecoration(
               counterText: '',
+              // Same reason as WpField: the default of 1 ellipsises anything
+              // longer than the field. "The code is 6 digits, numbers only"
+              // fits today, but it should not depend on that.
+              errorMaxLines: 3,
               // This field is a transparent hit target laid over the six
               // painted boxes, so it must opt out of the app-wide filled
               // input style — otherwise the theme's white fill covers them.
