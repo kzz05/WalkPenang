@@ -64,6 +64,9 @@ const PENDING_PREFIX = "pending_profile_images";
 /** Where moderated photos live. No client can write this prefix. */
 const PUBLIC_PREFIX = "profile_images";
 
+/** One tourist per display name. See claimNickname and ensureNicknameReserved. */
+const NICKNAMES_COLLECTION = "nicknames";
+
 /**
  * SafeSearch verdicts that reject a photo.
  *
@@ -478,6 +481,7 @@ exports.syncPublicProfile = onDocumentWritten(
       // gone.
       if (!after || !after.exists) {
         await ref.delete().catch(() => {});
+        await releaseNicknamesOf(uid);
         return;
       }
 
@@ -505,5 +509,256 @@ exports.syncPublicProfile = onDocumentWritten(
           },
           {merge: true},
       );
+
+      if (clean && nickname) {
+        await ensureNicknameReserved(uid, nickname);
+      }
+    },
+);
+
+/**
+ * Drops every reservation held by [uid]. Used when the account is deleted.
+ *
+ * @param {string} uid the account whose reservations should be freed
+ * @return {Promise<void>} resolves once they are gone
+ */
+async function releaseNicknamesOf(uid) {
+  const db = admin.firestore();
+  try {
+    const held = await db
+        .collection(NICKNAMES_COLLECTION)
+        .where("uid", "==", uid)
+        .get();
+    await Promise.all(held.docs.map((doc) => doc.ref.delete()));
+  } catch (error) {
+    logger.error("Could not release nicknames", {uid, error: error.message});
+  }
+}
+
+/**
+ * Makes sure [nickname] is reserved for [uid], healing any gap left by a write
+ * that did not go through claimNickname.
+ *
+ * WHY THIS EXISTS
+ *
+ * claimNickname protects a name from the moment it is claimed — but a name
+ * already sitting in users/{uid} before the reservation system existed was
+ * never registered, so the server saw it as free and a second account could
+ * take it. That is not hypothetical: two accounts ended up holding "IanWong",
+ * because the reservation backfill had only been dry-run.
+ *
+ * This hook removes the dependency on that one operational step. Any name that
+ * reaches users/{uid} by ANY route is protected on the next write.
+ *
+ * WHAT IT MUST NEVER DO
+ *
+ * Steal. If the name is held by a different account, that account keeps it and
+ * this logs a warning. Two accounts genuinely holding one name is a state only
+ * a human can arbitrate — a background trigger silently reassigning names would
+ * be far worse than the gap it is closing.
+ *
+ * @param {string} uid the account the name belongs to
+ * @param {string} nickname the name as stored on the profile
+ * @return {Promise<void>} resolves once the reservation is settled
+ */
+async function ensureNicknameReserved(uid, nickname) {
+  if (nickname.includes("/") || nickname === "." || nickname === "..") return;
+
+  const db = admin.firestore();
+  const wanted = db.collection(NICKNAMES_COLLECTION).doc(nickname);
+
+  try {
+    await db.runTransaction(async (tx) => {
+      const existing = await tx.get(wanted);
+      const owner = existing.exists ? (existing.data() || {}).uid : null;
+
+      if (owner && owner !== uid) {
+        // Somebody else holds it. Leave it alone — see the note above.
+        logger.warn("Nickname already held by another account", {
+          uid,
+          nickname,
+          heldBy: owner,
+        });
+        return;
+      }
+
+      // All reads before any write, as Firestore transactions require.
+      const held = await tx.get(
+          db.collection(NICKNAMES_COLLECTION).where("uid", "==", uid),
+      );
+
+      // A rename that bypassed claimNickname would otherwise strand the old
+      // name, reserved to somebody who no longer uses it.
+      held.docs.forEach((doc) => {
+        if (doc.id !== nickname) tx.delete(doc.ref);
+      });
+
+      if (!existing.exists) {
+        tx.set(wanted, {
+          uid,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+    });
+  } catch (error) {
+    // Never fail the profile sync over this. The public profile is already
+    // written by the time this runs, and a missed reservation is healed by the
+    // next write to the document.
+    logger.error("Could not reserve nickname", {
+      uid,
+      nickname,
+      error: error.message,
+    });
+  }
+}
+
+/**
+ * Shape rules, mirrored from Validators.nickname / ValidationMessages.
+ *
+ * Re-checked here rather than trusted from the client for the usual reason:
+ * the form's checks are a courtesy to the person typing, not a control. They
+ * also keep a name that the app would refuse from occupying a reservation.
+ */
+const NICKNAME_MIN = 2;
+const NICKNAME_MAX = 30;
+const NICKNAME_PATTERN = /^[\p{L}\p{M}0-9 .'_-]+$/u;
+const NICKNAME_HAS_LETTER = /\p{L}/u;
+
+/**
+ * Reserves the caller's display name, releasing whichever one they held.
+ *
+ * CASE-SENSITIVE BY DECISION. The document id is the name exactly as typed and
+ * Firestore ids are case-sensitive, so "Ianwong" and "IANwong" are different
+ * names and both may exist. Only an exact clash is refused.
+ *
+ * WHY A TRANSACTION
+ *
+ * A client that read nicknames/{name} and then wrote it would race any other
+ * client doing the same: two simultaneous registrations could both see the
+ * name free and both write it, and the second silently wins. Reading and
+ * writing inside one transaction makes exactly one caller succeed.
+ *
+ * WHY THE OLD NAME IS FOUND BY QUERY
+ *
+ * The previous reservation is located with `where uid == caller` rather than by
+ * reading users/{uid}.nickname. The profile write happens AFTER this call and
+ * can fail — an orphaned reservation pointing at a name the profile no longer
+ * claims would then lock the tourist out of renaming. Querying the reservations
+ * themselves keeps this collection self-consistent whatever happens downstream.
+ */
+exports.claimNickname = onCall(
+    {region: REGION},
+    async (request) => {
+      const uid = request.auth && request.auth.uid;
+      if (!uid) {
+        throw new HttpsError("unauthenticated", "Sign in first.");
+      }
+
+      const raw = request.data && request.data.nickname;
+      const nickname = typeof raw === "string" ? raw.trim() : "";
+
+      if (nickname.length < NICKNAME_MIN || nickname.length > NICKNAME_MAX) {
+        throw new HttpsError(
+            "invalid-argument",
+            `Name must be ${NICKNAME_MIN}-${NICKNAME_MAX} characters.`,
+        );
+      }
+      if (!NICKNAME_PATTERN.test(nickname) ||
+          !NICKNAME_HAS_LETTER.test(nickname)) {
+        throw new HttpsError(
+            "invalid-argument",
+            "Name can only use letters, numbers, spaces and . ' - _",
+        );
+      }
+      if (firstMatch(nickname)) {
+        throw new HttpsError(
+            "invalid-argument",
+            "Please choose a different name.",
+        );
+      }
+      // A name is a document id here, so it must not contain a slash or be a
+      // path traversal token. The pattern above already excludes "/", and the
+      // letter requirement excludes "." and "..", but assert it rather than
+      // rely on that reasoning holding if the pattern is ever widened.
+      if (nickname.includes("/") || nickname === "." || nickname === "..") {
+        throw new HttpsError("invalid-argument", "That name cannot be used.");
+      }
+
+      const db = admin.firestore();
+      const wanted = db.collection(NICKNAMES_COLLECTION).doc(nickname);
+
+      await db.runTransaction(async (tx) => {
+        const existing = await tx.get(wanted);
+        if (existing.exists && (existing.data() || {}).uid !== uid) {
+          throw new HttpsError(
+              "already-exists",
+              "That name is already taken. Try a different one.",
+          );
+        }
+
+        // Every read must happen before any write in a Firestore transaction.
+        const held = await tx.get(
+            db.collection(NICKNAMES_COLLECTION).where("uid", "==", uid),
+        );
+
+        held.docs.forEach((doc) => {
+          if (doc.id !== nickname) tx.delete(doc.ref);
+        });
+
+        tx.set(wanted, {
+          uid,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+
+      logger.info("Nickname claimed", {uid, nickname});
+      return {claimed: nickname};
+    },
+);
+
+/**
+ * Whether [nickname] is free for the caller. Reads only; reserves nothing.
+ *
+ * Feeds the inline "that name is already taken" message that appears under the
+ * field as the tourist types. claimNickname remains the authority — this exists
+ * so the answer arrives before Save rather than after it.
+ *
+ * A name reserved to the CALLER counts as available. Otherwise opening your own
+ * profile and not touching your name would report it as taken, which is both
+ * wrong and alarming.
+ *
+ * Auth-gated, so an anonymous caller cannot probe the collection. A signed-in
+ * caller learns whether one specific name exists, which is the same thing the
+ * register form tells them anyway; nicknames/ itself stays unreadable by every
+ * client, so the collection cannot be enumerated.
+ */
+exports.checkNicknameAvailable = onCall(
+    {region: REGION},
+    async (request) => {
+      const uid = request.auth && request.auth.uid;
+      if (!uid) {
+        throw new HttpsError("unauthenticated", "Sign in first.");
+      }
+
+      const raw = request.data && request.data.nickname;
+      const nickname = typeof raw === "string" ? raw.trim() : "";
+
+      // Shape is the client's job here — an unusable name is simply not
+      // "available", and the synchronous validator has already told the user
+      // why. Guarding the document id is still required.
+      if (!nickname ||
+          nickname.includes("/") ||
+          nickname === "." ||
+          nickname === "..") {
+        return {available: false};
+      }
+
+      const doc = await admin.firestore()
+          .collection(NICKNAMES_COLLECTION)
+          .doc(nickname)
+          .get();
+
+      const owner = doc.exists ? (doc.data() || {}).uid : null;
+      return {available: owner === null || owner === uid};
     },
 );

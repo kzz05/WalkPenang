@@ -256,3 +256,5 @@ exports.moderateReview = moderation.moderateReview;
 exports.moderateNickname = moderation.moderateNickname;
 exports.moderateProfileImage = moderation.moderateProfileImage;
 exports.syncPublicProfile = moderation.syncPublicProfile;
+exports.claimNickname = moderation.claimNickname;
+exports.checkNicknameAvailable = moderation.checkNicknameAvailable;
