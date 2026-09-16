@@ -75,6 +75,129 @@ const PUBLIC_PREFIX = "profile_images";
 const REJECT_LIKELIHOODS = new Set(["LIKELY", "VERY_LIKELY"]);
 
 /**
+ * Where the Gemini check runs, and which model.
+ *
+ * Vertex mode rather than the Gemini Developer API: it authenticates with this
+ * function's own service account, so there is no API key to keep as a secret,
+ * and it reads the image straight from gs:// exactly as the Vision client does.
+ *
+ * The SDK is @google/genai, NOT @google-cloud/vertexai. The latter was the
+ * obvious choice by name and is the one most examples still show, but it was
+ * deprecated on 2025-06-24 with a stated removal date of 2026-06-24 — already
+ * in the past. It still installs and runs, which is precisely what makes it a
+ * trap.
+ *
+ * Swap GEMINI_MODEL if the deploy reports an unknown model for this region —
+ * it is deliberately the only place the id appears.
+ */
+const VERTEX_LOCATION = "us-central1";
+const GEMINI_MODEL = "gemini-2.5-flash";
+
+/**
+ * What Gemini is asked to judge, and — just as importantly — what it must NOT
+ * reject.
+ *
+ * SafeSearch cannot see gestures: it classifies adult, racy, medical, violence
+ * and spoof, and a raised middle finger is none of those. That gap is the whole
+ * reason this second check exists.
+ *
+ * The permit list is not padding. A profile picture IS a photo of a person's
+ * face, often close-up, sometimes in swimwear on a Penang beach. A model that
+ * refuses those is worse than no check at all — the same reasoning that keeps
+ * the profanity wordlist matching on whole words.
+ */
+const GEMINI_PROMPT = [
+  "You are moderating a profile picture for a tourism app.",
+  "",
+  "REJECT the image if it contains any of:",
+  "- an offensive or obscene hand gesture (raised middle finger, and similar)",
+  "- nudity, partial nudity, or sexual content",
+  "- blood, gore, injury, or graphic violence",
+  "- hate symbols or extremist imagery",
+  "- text that is profane or abusive",
+  "",
+  "ALLOW everything else. In particular, ALLOW:",
+  "- an ordinary photo of a person, including a close-up face or selfie",
+  "- people in everyday or beach clothing, including swimwear",
+  "- ordinary hand gestures such as a wave, thumbs up, peace sign or OK sign",
+  "- pets, food, scenery, cartoons, avatars, or an empty/abstract image",
+  "",
+  "If you are unsure, ALLOW. Wrongly rejecting a real person's photo is worse",
+  "than letting a borderline one through.",
+  "",
+  "Answer with JSON only, in exactly this shape:",
+  '{"allowed": true|false, "category": "gesture|nudity|violence|hate|' +
+    'profanity|other", "reason": "<short explanation>"}',
+  "Use category \"other\" when allowed is true.",
+].join("\n");
+
+/** Categories Gemini may return, and how each is described to the tourist. */
+const GEMINI_CATEGORIES = {
+  gesture: "an offensive gesture",
+  nudity: "nudity or sexual content",
+  violence: "violent or graphic content",
+  hate: "hate or extremist imagery",
+  profanity: "offensive text",
+  other: "content unsuitable for a profile picture",
+};
+
+/**
+ * Asks Gemini whether the image at gcsUri is suitable.
+ *
+ * Throws on any transport, quota or parse failure so the caller can fail
+ * closed — a verdict that could not be obtained must never read as "allowed".
+ *
+ * @param {string} gcsUri gs:// URI of the pending image
+ * @return {Promise<{allowed: boolean, category: string, reason: string}>} verdict
+ */
+async function geminiVerdict(gcsUri) {
+  const {GoogleGenAI} = require("@google/genai");
+
+  const ai = new GoogleGenAI({
+    vertexai: true,
+    project: process.env.GCLOUD_PROJECT,
+    location: VERTEX_LOCATION,
+  });
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL,
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {fileData: {fileUri: gcsUri, mimeType: "image/jpeg"}},
+          {text: GEMINI_PROMPT},
+        ],
+      },
+    ],
+    config: {
+      temperature: 0,
+      // JSON mime type, but no responseSchema: sending one alongside a gs://
+      // image made Vertex return a bare 500 INTERNAL on every request. The
+      // shape is stated in the prompt instead and validated below, which lands
+      // in the same place — a reply that is not the expected shape throws, and
+      // the caller fails closed.
+      responseMimeType: "application/json",
+    },
+  });
+
+  const text = response.text;
+  if (!text) throw new Error("Gemini returned no content");
+
+  const parsed = JSON.parse(text);
+  if (typeof parsed.allowed !== "boolean") {
+    throw new Error("Gemini verdict had no boolean 'allowed'");
+  }
+  if (!Object.prototype.hasOwnProperty.call(GEMINI_CATEGORIES,
+      parsed.category)) {
+    // Unknown category is not fatal — the verdict is what matters, and the
+    // caller maps an unrecognised category to the generic wording.
+    parsed.category = "other";
+  }
+  return parsed;
+}
+
+/**
  * Categories checked, and how each is described back to the user.
  *
  * `medical` is included because gore and injury imagery frequently lands there
@@ -218,6 +341,18 @@ exports.moderateProfileImage = onCall(
       }
 
       const annotation = result.safeSearchAnnotation || {};
+
+      // Logged on every path, approvals included. Without this an approval was
+      // just {"message":"Profile photo approved"}, so "why did this pass?"
+      // could only be answered by reading the code — which is exactly the
+      // question a middle-finger photo getting through produced.
+      const safeSearch = {
+        adult: annotation.adult || "UNKNOWN",
+        racy: annotation.racy || "UNKNOWN",
+        violence: annotation.violence || "UNKNOWN",
+        medical: annotation.medical || "UNKNOWN",
+      };
+
       const tripped = Object.keys(CHECKED_CATEGORIES).find((category) =>
         REJECT_LIKELIHOODS.has(annotation[category]),
       );
@@ -226,12 +361,54 @@ exports.moderateProfileImage = onCall(
         await pending.delete().catch(() => {});
         logger.warn("Rejected a profile photo", {
           uid,
+          by: "safesearch",
           category: tripped,
           likelihood: annotation[tripped],
+          safeSearch,
         });
         throw new HttpsError(
             "invalid-argument",
             `This photo looks like it contains ${CHECKED_CATEGORIES[tripped]}. ` +
+            "Please choose a different one.",
+        );
+      }
+
+      // SafeSearch is clean. It cannot see gestures, so ask Gemini — this is
+      // the check that catches a raised middle finger, which no SafeSearch
+      // category covers. Run second because SafeSearch is cheaper and faster,
+      // so the common rejection never reaches the model.
+      let gemini;
+      try {
+        gemini = await geminiVerdict(`gs://${bucket.name}/${pendingPath}`);
+      } catch (error) {
+        // Fail closed, like the SafeSearch path above. A Vertex outage
+        // blocking new photos is recoverable by retrying; an unscreened photo
+        // reaching profile_images/ is not — the URL lands in the world-readable
+        // leaderboard row and in every device's image cache.
+        await pending.delete().catch(() => {});
+        logger.error("Gemini check failed", {uid, error: error.message});
+        throw new HttpsError(
+            "unavailable",
+            "Could not check the photo right now. Please try again.",
+        );
+      }
+
+      if (!gemini.allowed) {
+        await pending.delete().catch(() => {});
+        logger.warn("Rejected a profile photo", {
+          uid,
+          by: "gemini",
+          category: gemini.category,
+          reason: gemini.reason,
+          safeSearch,
+        });
+        // The model's own reason is logged but not shown: it is free text from
+        // a model and may be oddly worded or describe what it saw.
+        const described = GEMINI_CATEGORIES[gemini.category] ||
+          GEMINI_CATEGORIES.other;
+        throw new HttpsError(
+            "invalid-argument",
+            `This photo looks like it contains ${described}. ` +
             "Please choose a different one.",
         );
       }
@@ -254,7 +431,11 @@ exports.moderateProfileImage = onCall(
         `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
         `${encodeURIComponent(publicPath)}?alt=media&token=${token}`;
 
-      logger.info("Profile photo approved", {uid});
+      logger.info("Profile photo approved", {
+        uid,
+        safeSearch,
+        gemini: {category: gemini.category, reason: gemini.reason},
+      });
       return {photoUrl};
     },
 );
