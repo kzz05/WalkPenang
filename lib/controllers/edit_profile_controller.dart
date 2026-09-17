@@ -10,21 +10,25 @@ import '../services/auth_service.dart';
 import '../services/nickname_service.dart';
 import '../services/profile_store.dart';
 import '../utils/validators.dart';
+import 'profile_form_fields.dart';
 
 /// Controller for the edit-profile screen.
 ///
 /// Seeds the form from the existing profile, handles avatar picking/uploading,
 /// and writes the updated profile to local storage + Firestore.
-class EditProfileController extends ChangeNotifier {
+class EditProfileController extends ChangeNotifier with ProfileFormFields {
   /// [nicknames] is injectable so a test can drive the "name taken" path
   /// without a Firebase app.
   EditProfileController({required this.profile, NicknameService? nicknames})
       : _nicknames = nicknames ?? NicknameService() {
     nicknameCtrl = TextEditingController(text: profile.nickname);
-    phoneCtrl = TextEditingController(text: profile.phoneNumber ?? '');
-    heightCtrl = TextEditingController(text: profile.heightCm.toString());
-    weightCtrl = TextEditingController(text: profile.weightKg.toString());
-    _units = profile.units;
+    seedProfileFields(
+      heightCm: profile.heightCm,
+      weightKg: profile.weightKg,
+      units: profile.units,
+      phoneNumber: profile.phoneNumber,
+      phoneCountryIso: profile.phoneCountryIso,
+    );
     nicknameCtrl.addListener(_onNicknameChanged);
   }
 
@@ -34,9 +38,6 @@ class EditProfileController extends ChangeNotifier {
   final formKey = GlobalKey<FormState>();
 
   late final TextEditingController nicknameCtrl;
-  late final TextEditingController phoneCtrl;
-  late final TextEditingController heightCtrl;
-  late final TextEditingController weightCtrl;
 
   final ProfileStore _store = ProfileStore();
   final AuthService _auth = AuthService();
@@ -44,21 +45,17 @@ class EditProfileController extends ChangeNotifier {
 
   File? _selectedImage;
   bool _busy = false;
-  late String _units;
   String? _errorMessage;
   bool _disposed = false;
 
   File? get selectedImage => _selectedImage;
   bool get busy => _busy;
-  String get units => _units;
 
   /// Set when [save] fails; null when it was only a validation miss.
   String? get errorMessage => _errorMessage;
 
-  void setUnits(String? value) {
-    _units = value ?? 'metric';
-    _safeNotify();
-  }
+  @override
+  void safeNotify() => _safeNotify();
 
   // ── Validation rules ──────────────────────────────────────────────────────
   // Same rules the sign-up form applies, so a profile that was valid at
@@ -136,12 +133,6 @@ class EditProfileController extends ChangeNotifier {
   }
 
 
-  String? validatePhone(String? v) => Validators.phone(v);
-
-  String? validateHeight(String? v) => Validators.heightCm(v);
-
-  String? validateWeight(String? v) => Validators.weightKg(v);
-
   Future<void> pickImage() async {
     final picked = await ImagePicker().pickImage(
       source: ImageSource.gallery,
@@ -218,10 +209,14 @@ class EditProfileController extends ChangeNotifier {
       // 3. Clone the profile with the modified fields.
       final updated = profile.copyWith(
         nickname: nickname,
-        phoneNumber: phoneCtrl.text.trim(),
-        weightKg: double.tryParse(weightCtrl.text.trim()) ?? profile.weightKg,
-        heightCm: double.tryParse(heightCtrl.text.trim()) ?? profile.heightCm,
-        units: _units,
+        phoneNumber: phoneNational,
+        phoneCountryIso: phoneCountry.isoCode,
+        // Converted from whatever units the form is in, and left byte-identical
+        // when the displayed figure did not change — so re-saving an untouched
+        // imperial profile can't drift the stored centimetres.
+        weightKg: resolvedWeightKg(profile.weightKg),
+        heightCm: resolvedHeightCm(profile.heightCm),
+        units: units,
         photoUrl: photoUrl,
       );
 
@@ -251,9 +246,7 @@ class EditProfileController extends ChangeNotifier {
     _nicknameDebounce?.cancel();
     nicknameCtrl.removeListener(_onNicknameChanged);
     nicknameCtrl.dispose();
-    phoneCtrl.dispose();
-    heightCtrl.dispose();
-    weightCtrl.dispose();
+    disposeProfileFormFields();
     super.dispose();
   }
 }

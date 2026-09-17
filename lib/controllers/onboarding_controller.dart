@@ -12,6 +12,7 @@ import '../services/auth_service.dart';
 import '../services/nickname_service.dart';
 import '../services/profile_store.dart';
 import '../utils/validators.dart';
+import 'profile_form_fields.dart';
 
 /// What the view should do once an onboarding step finishes.
 enum OnboardingNext {
@@ -41,13 +42,17 @@ class OnboardingOutcome {
 /// and the metrics phase (nickname, contact, height/weight, avatar upload).
 /// The view reads state through the getters below and calls these methods —
 /// it never touches Firebase, ImagePicker, or the profile store directly.
-class OnboardingController extends ChangeNotifier {
+class OnboardingController extends ChangeNotifier with ProfileFormFields {
   /// [nicknames] is injectable so a test can drive the "name taken" path
   /// without a Firebase app.
   OnboardingController({User? existingUser, NicknameService? nicknames})
       : _nicknames = nicknames ?? NicknameService() {
     weightCtrl.addListener(_recalculateBmi);
     heightCtrl.addListener(_recalculateBmi);
+    // Imperial height is two boxes, and the BMI preview has to update from
+    // either of them.
+    heightFeetCtrl.addListener(_recalculateBmi);
+    heightInchesCtrl.addListener(_recalculateBmi);
     passwordCtrl.addListener(_recalculatePasswordStrength);
     nicknameCtrl.addListener(_onNicknameChanged);
 
@@ -72,13 +77,9 @@ class OnboardingController extends ChangeNotifier {
   final emailCtrl = TextEditingController();
   final passwordCtrl = TextEditingController();
   final nicknameCtrl = TextEditingController();
-  final phoneCtrl = TextEditingController();
-  final weightCtrl = TextEditingController();
-  final heightCtrl = TextEditingController();
 
   User? _authenticatedUser;
   File? _selectedImage;
-  String _units = 'metric';
   bool _busy = false;
   bool _obscurePassword = true;
   double _bmi = 0.0;
@@ -89,7 +90,6 @@ class OnboardingController extends ChangeNotifier {
   /// True once the user is signed in — the view swaps to the metrics form.
   bool get isAuthenticated => _authenticatedUser != null;
   File? get selectedImage => _selectedImage;
-  String get units => _units;
   bool get busy => _busy;
   bool get obscurePassword => _obscurePassword;
   double get bmi => _bmi;
@@ -104,10 +104,8 @@ class OnboardingController extends ChangeNotifier {
     _safeNotify();
   }
 
-  void setUnits(String? value) {
-    _units = value ?? 'metric';
-    _safeNotify();
-  }
+  @override
+  void safeNotify() => _safeNotify();
 
   // ── Validation rules ──────────────────────────────────────────────────────
   // Thin delegates to Validators so the view never imports it directly and
@@ -189,12 +187,6 @@ class OnboardingController extends ChangeNotifier {
   }
 
 
-  String? validatePhone(String? v) => Validators.phone(v);
-
-  String? validateHeight(String? v) => Validators.heightCm(v);
-
-  String? validateWeight(String? v) => Validators.weightKg(v);
-
   // ── Live password strength ────────────────────────────────────────────────
 
   void _recalculatePasswordStrength() {
@@ -217,8 +209,11 @@ class OnboardingController extends ChangeNotifier {
   // ── Live BMI preview ──────────────────────────────────────────────────────
 
   void _recalculateBmi() {
-    final w = double.tryParse(weightCtrl.text.trim());
-    final h = double.tryParse(heightCtrl.text.trim());
+    // Read through the mixin so an imperial entry is converted first — BMI is
+    // a metric formula, and feeding it pounds and inches would show the
+    // tourist a number roughly five times too small.
+    final w = readWeightKg();
+    final h = readHeightCm();
     if (w == null || h == null || h <= 0) return;
 
     // Reuse the Model's own BMI rules instead of duplicating the thresholds.
@@ -226,7 +221,7 @@ class OnboardingController extends ChangeNotifier {
       nickname: '',
       weightKg: w,
       heightCm: h,
-      units: _units,
+      units: units,
     );
     _bmi = draft.bmi;
     _bmiCategory = draft.bmiCategory;
@@ -361,13 +356,16 @@ class OnboardingController extends ChangeNotifier {
       }
 
       final profile = UserProfile(
+        // Converted out of whatever units the form is showing; the profile
+        // only ever stores centimetres and kilograms.
+        weightKg: readWeightKg() ?? 0.0,
+        heightCm: readHeightCm() ?? 0.0,
         nickname: nickname,
-        weightKg: double.tryParse(weightCtrl.text.trim()) ?? 0.0,
-        heightCm: double.tryParse(heightCtrl.text.trim()) ?? 0.0,
-        units: _units,
+        units: units,
         email: user.email ?? emailCtrl.text.trim(),
         photoUrl: photoUrl,
-        phoneNumber: phoneCtrl.text.trim(),
+        phoneNumber: phoneNational,
+        phoneCountryIso: phoneCountry.isoCode,
         points: 0,
       );
 
@@ -399,15 +397,15 @@ class OnboardingController extends ChangeNotifier {
     _disposed = true;
     weightCtrl.removeListener(_recalculateBmi);
     heightCtrl.removeListener(_recalculateBmi);
+    heightFeetCtrl.removeListener(_recalculateBmi);
+    heightInchesCtrl.removeListener(_recalculateBmi);
     passwordCtrl.removeListener(_recalculatePasswordStrength);
     nicknameCtrl.removeListener(_onNicknameChanged);
     _nicknameDebounce?.cancel();
     emailCtrl.dispose();
     passwordCtrl.dispose();
     nicknameCtrl.dispose();
-    phoneCtrl.dispose();
-    weightCtrl.dispose();
-    heightCtrl.dispose();
+    disposeProfileFormFields();
     super.dispose();
   }
 }

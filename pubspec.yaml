@@ -30,6 +30,10 @@ dependencies:
   http: ^1.2.2
   flutter_dotenv: ^5.2.1 # loads MAPS_API_KEY from .env for Places/Directions calls
   flutter_compass: ^0.8.1 # device magnetometer heading, for compass-follow map mode
+  # Google's libphonenumber rules as a pure-Dart port: no platform channels, so
+  # the phone validator still runs in the plain `package:test` suite, and the
+  # metadata ships with the app rather than needing a network call.
+  phone_numbers_parser: ^9.0.26
 
 dev_dependencies:
   flutter_test:

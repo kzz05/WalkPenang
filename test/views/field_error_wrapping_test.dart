@@ -17,6 +17,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:walkpenang/constants/country_dial_codes.dart';
 import 'package:walkpenang/constants/validation_messages.dart';
 import 'package:walkpenang/utils/validators.dart';
 import 'package:walkpenang/views/widgets/wp_components.dart';
@@ -24,10 +25,22 @@ import 'package:walkpenang/views/widgets/wp_components.dart';
 void main() {
   /// The longest messages in the app, and the ones on the narrowest fields.
   /// If someone adds a longer message later, this is where to add it.
-  const List<String> longestMessages = <String>[
+  final List<String> longestMessages = <String>[
     ValidationMessages.phoneInvalid,
+    // Interpolated with the country name, so the longest name in the picker is
+    // what has to fit. Computed rather than hardcoded so adding a longer
+    // country name to the table trips this test instead of clipping a message.
+    ValidationMessages.phoneInvalidForCountry(
+      kCountries.map((c) => c.name).reduce((a, b) => b.length > a.length ? b : a),
+    ),
     ValidationMessages.heightOutOfRange,
     ValidationMessages.weightOutOfRange,
+    // Imperial height and weight land in the same half-width Row halves.
+    ValidationMessages.heightOutOfRangeImperial,
+    ValidationMessages.heightInchesOutOfRange,
+    ValidationMessages.heightFeetInvalid,
+    ValidationMessages.weightOutOfRangeLb,
+    ValidationMessages.weightInvalidLb,
     ValidationMessages.nicknameInvalid,
     ValidationMessages.nicknameProfane,
     ValidationMessages.emailInvalid,
@@ -122,7 +135,8 @@ void main() {
         WpField(
           label: 'phone',
           controller: TextEditingController(),
-          validator: Validators.phone,
+          validator: (v) =>
+              Validators.phoneNational(v, countryByIso(kDefaultCountryIso)),
         ),
       );
       final int allowed = decoration.errorMaxLines! * charsPerLineHalfWidth;

@@ -31,6 +31,30 @@ class ValidationMessages {
   static const int weightMinKg = 20;
   static const int weightMaxKg = 300;
 
+  // The same limits expressed in imperial. Each is rounded *inwards* from the
+  // metric bound — up for a minimum, down for a maximum — so that a value the
+  // imperial message says is allowed always converts to a metric value inside
+  // the range above. Rounding outwards would let the form reject 44 lb while
+  // the message beneath it claimed 44 lb was fine.
+  //   1ft 8in = 20in = 50.8 cm  (>= 50)      8ft 2in = 98in = 248.9 cm (<= 250)
+  //   45 lb   = 20.41 kg        (>= 20)      661 lb  = 299.8 kg        (<= 300)
+  // `unit_conversion_test.dart` asserts these four still bracket correctly.
+  static const int heightMinFeet = 1;
+  static const int heightMinInches = 8;
+  static const int heightMaxFeet = 8;
+  static const int heightMaxInches = 2;
+  static const int weightMinLb = 45;
+  static const int weightMaxLb = 661;
+
+  /// Inches are entered as the remainder beside whole feet.
+  static const int inchesPerFoot = 12;
+
+  /// E.164 caps a full international number at 15 digits including the country
+  /// code. libphonenumber enforces the real per-country rule; this is only the
+  /// ceiling on what the keyboard will accept, so a stuck key cannot produce a
+  /// hundred-digit field.
+  static const int phoneMaxE164Digits = 15;
+
   static const int otpLength = 6;
 
   // ── Email ─────────────────────────────────────────────────────────────────
@@ -94,8 +118,19 @@ class ValidationMessages {
   // ── Phone ─────────────────────────────────────────────────────────────────
 
   static const phoneRequired = 'Contact number cannot be empty';
-  static const phoneInvalid =
-      'Enter a valid Malaysian number, e.g. 012-345 6789 or +60123456789';
+
+  /// Country-neutral: the dial code is chosen from the picker beside the
+  /// field, so the number itself is only ever bare digits.
+  static const phoneInvalid = 'Enter your number using digits only';
+
+  /// Shown when libphonenumber says the digits are not a number that country
+  /// allocates. Names the country because the same digits can be perfectly
+  /// valid one entry up or down the picker.
+  ///
+  /// Longest case is `Saint Vincent and the Grenadines` at 53 characters,
+  /// inside the width budget `field_error_wrapping_test.dart` enforces.
+  static String phoneInvalidForCountry(String country) =>
+      'Enter a valid $country number';
 
   // ── Body metrics ──────────────────────────────────────────────────────────
 
@@ -107,6 +142,20 @@ class ValidationMessages {
   static const weightInvalid = 'Enter weight as a number in kg';
   static const weightOutOfRange =
       'Weight must be between $weightMinKg–$weightMaxKg kg';
+
+  // Imperial equivalents. Feet and inches are two fields, so each gets its own
+  // "this box alone is wrong" message and the combined range check reports
+  // under the inches box, where the second half of the answer is typed.
+  static const heightFeetInvalid = 'Enter feet as a whole number';
+  static const heightInchesInvalid = 'Enter inches as a number';
+  static const heightInchesOutOfRange =
+      'Inches must be 0–${inchesPerFoot - 1}';
+  static const heightOutOfRangeImperial =
+      'Height must be between ${heightMinFeet}ft ${heightMinInches}in '
+      'and ${heightMaxFeet}ft ${heightMaxInches}in';
+  static const weightInvalidLb = 'Enter weight as a number in lb';
+  static const weightOutOfRangeLb =
+      'Weight must be between $weightMinLb–$weightMaxLb lb';
 
   // ── OTP ───────────────────────────────────────────────────────────────────
 

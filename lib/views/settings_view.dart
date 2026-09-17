@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../controllers/settings_controller.dart';
 import '../models/user_profile.dart';
 import '../theme/app_theme.dart';
+import '../utils/unit_conversion.dart';
 import 'onboarding_view.dart';
 import 'widgets/wp_components.dart';
 
@@ -89,12 +90,24 @@ class _SettingsViewState extends State<SettingsView> {
         const Divider(height: 1, thickness: 1, color: AppColors.outline),
         WpDetailRow(
           label: 'contact number',
-          value: profile.phoneNumber?.isNotEmpty == true
-              ? profile.phoneNumber!
-              : 'Not provided',
+          value: profile.phoneDisplay ?? 'Not provided',
         ),
-        WpDetailRow(label: 'height', value: '${profile.heightCm} cm'),
-        WpDetailRow(label: 'weight', value: '${profile.weightKg} kg'),
+        // Shown in the tourist's chosen units — this used to print the raw
+        // stored double, so an imperial profile read "170.0 cm".
+        WpDetailRow(
+          label: 'height',
+          value: UnitConversion.formatHeight(
+            profile.heightCm,
+            profile.unitSystem,
+          ),
+        ),
+        WpDetailRow(
+          label: 'weight',
+          value: UnitConversion.formatWeight(
+            profile.weightKg,
+            profile.unitSystem,
+          ),
+        ),
         WpDetailRow(
           label: 'body mass index',
           value: '${profile.bmi.toStringAsFixed(1)} · ${profile.bmiCategory}',

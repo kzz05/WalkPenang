@@ -5,6 +5,7 @@ import '../controllers/onboarding_controller.dart';
 import '../theme/app_theme.dart';
 import 'home_view.dart';
 import 'otp_verification_view.dart';
+import 'widgets/body_metrics_fields.dart';
 import 'widgets/wp_components.dart';
 
 /// Screens 03 · Sign In and 04 · Profile Setup.
@@ -180,47 +181,15 @@ class _OnboardingViewState extends State<OnboardingView> {
               validator: _controller.validateNickname,
             ),
             const SizedBox(height: 20),
-            WpField(
+            WpCountryPhoneField(
               label: 'contact number',
               controller: _controller.phoneCtrl,
-              keyboardType: TextInputType.phone,
+              country: _controller.phoneCountry,
+              onCountryChanged: _controller.setPhoneCountry,
               validator: _controller.validatePhone,
             ),
             const SizedBox(height: 20),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: WpField(
-                    label: 'height (cm)',
-                    controller: _controller.heightCtrl,
-                    keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                    validator: _controller.validateHeight,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: WpField(
-                    label: 'weight (kg)',
-                    controller: _controller.weightCtrl,
-                    keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                    validator: _controller.validateWeight,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            WpDropdownField(
-              label: 'system units',
-              value: _controller.units,
-              options: const {
-                'metric': 'Metric (kg, cm)',
-                'imperial': 'Imperial (lb, in)',
-              },
-              onChanged: _controller.setUnits,
-            ),
+            BodyMetricsFields(fields: _controller),
           ],
         ),
       ),

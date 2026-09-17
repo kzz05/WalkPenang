@@ -1,4 +1,5 @@
 import 'package:test/test.dart';
+import 'package:walkpenang/constants/country_dial_codes.dart';
 import 'package:walkpenang/constants/validation_messages.dart';
 import 'package:walkpenang/utils/validators.dart';
 
@@ -166,33 +167,86 @@ void main() {
   });
 
   group('phone', () {
-    test('accepts Malaysian mobile numbers in the usual shapes', () {
-      expect(Validators.phone('0123456789'), isNull);
-      expect(Validators.phone('012-345 6789'), isNull);
-      expect(Validators.phone('+60123456789'), isNull);
-      expect(Validators.phone('+60 12-345 6789'), isNull);
-      expect(Validators.phone('(012) 345-6789'), isNull);
-      expect(Validators.phone('60123456789'), isNull);
+    final malaysia = countryByIso('MY');
+    final unitedStates = countryByIso('US');
+
+    // Rules now come from Google's libphonenumber metadata via
+    // phone_numbers_parser, so the digits must match a range the country
+    // really allocates rather than merely being a plausible length.
+
+    test('accepts real Malaysian numbers', () {
+      expect(Validators.phoneNational('1112013343', malaysia), isNull);
+      expect(Validators.phoneNational('123456789', malaysia), isNull);
+      // Separators the user types are stripped before checking.
+      expect(Validators.phoneNational('12-345 6789', malaysia), isNull);
+      expect(Validators.phoneNational('(12) 345-6789', malaysia), isNull);
     });
 
     test('accepts a Penang landline', () {
-      expect(Validators.phone('04-226 1234'), isNull);
+      expect(Validators.phoneNational('42261234', malaysia), isNull);
+    });
+
+    test('accepts a foreign number — the point of the country picker', () {
+      // '+1 415 555 0100' was asserted INVALID before the picker existed,
+      // which locked every non-Malaysian visitor out of the field.
+      expect(Validators.phoneNational('4155550100', unitedStates), isNull);
+      expect(Validators.phoneNational('412345678', countryByIso('AU')), isNull);
+      expect(Validators.phoneNational('7400123456', countryByIso('GB')), isNull);
+      expect(Validators.phoneNational('91234567', countryByIso('SG')), isNull);
     });
 
     test('rejects empty input', () {
-      expect(Validators.phone(null), ValidationMessages.phoneRequired);
-      expect(Validators.phone('  '), ValidationMessages.phoneRequired);
+      expect(Validators.phoneNational(null, malaysia),
+          ValidationMessages.phoneRequired);
+      expect(Validators.phoneNational('  ', malaysia),
+          ValidationMessages.phoneRequired);
     });
 
-    test('rejects malformed numbers', () {
-      expect(Validators.phone('12345'), ValidationMessages.phoneInvalid);
-      expect(Validators.phone('0'), ValidationMessages.phoneInvalid);
-      expect(Validators.phone('00123456789'), ValidationMessages.phoneInvalid);
-      expect(Validators.phone('012345678901234'),
+    test('accepts a trunk zero and does not complain about it', () {
+      // Most countries write the national number with a leading 0 that is
+      // dropped when dialling in from abroad. libphonenumber resolves it, so
+      // the tourist may type their number the way they always write it.
+      expect(Validators.phoneNational('0123456789', malaysia), isNull);
+      expect(Validators.phoneNational('012-345 6789', malaysia), isNull);
+      expect(Validators.phoneNational('0412345678', countryByIso('AU')), isNull);
+    });
+
+    test('keeps a leading zero where it is part of the number', () {
+      // Italy is the counter-example: 06 is Rome's area code, not a prefix to
+      // be stripped. Deferring to the library is what gets both cases right.
+      expect(Validators.phoneNational('0612345678', countryByIso('IT')), isNull);
+    });
+
+    test('rejects digits that are not a real number for that country', () {
+      // The whole reason for adopting libphonenumber — the old length-only
+      // rule waved these through.
+      expect(Validators.phoneNational('1234567890', malaysia),
+          ValidationMessages.phoneInvalidForCountry('Malaysia'));
+      expect(Validators.phoneNational('1234567890', unitedStates),
+          ValidationMessages.phoneInvalidForCountry('United States'));
+      expect(Validators.phoneNational('12', malaysia),
+          ValidationMessages.phoneInvalidForCountry('Malaysia'));
+    });
+
+    test('the same digits can be valid in one country and not another', () {
+      const digits = '91234567';
+      expect(Validators.phoneNational(digits, countryByIso('SG')), isNull);
+      expect(Validators.phoneNational(digits, countryByIso('GB')),
+          ValidationMessages.phoneInvalidForCountry('United Kingdom'));
+    });
+
+    test('rejects anything that is not digits', () {
+      expect(Validators.phoneNational('not a number', malaysia),
           ValidationMessages.phoneInvalid);
-      expect(Validators.phone('not a number'), ValidationMessages.phoneInvalid);
-      expect(Validators.phone('+1 415 555 0100'),
+      // The dial code comes from the picker; typing it again is not allowed.
+      expect(Validators.phoneNational('+60123456789', malaysia),
           ValidationMessages.phoneInvalid);
+      expect(Validators.phoneNational('12a45678', malaysia),
+          ValidationMessages.phoneInvalid);
+    });
+
+    test('an absurdly long string is rejected, not thrown on', () {
+      expect(Validators.phoneNational('9' * 40, malaysia), isNotNull);
     });
   });
 
@@ -242,6 +296,83 @@ void main() {
     test('the bounds themselves are inclusive', () {
       expect(Validators.weightKg('${ValidationMessages.weightMinKg}'), isNull);
       expect(Validators.weightKg('${ValidationMessages.weightMaxKg}'), isNull);
+    });
+  });
+
+  group('height — imperial', () {
+    test('accepts realistic feet and inches', () {
+      expect(Validators.heightFeet('5'), isNull);
+      expect(Validators.heightImperial('5', '8'), isNull);
+      expect(Validators.heightImperial('6', '0'), isNull);
+      expect(Validators.heightImperial('5', '11.5'), isNull);
+    });
+
+    test('rejects empty and non-numeric input', () {
+      expect(Validators.heightFeet(''), ValidationMessages.heightRequired);
+      expect(Validators.heightFeet('tall'),
+          ValidationMessages.heightFeetInvalid);
+      expect(Validators.heightImperial('5', ''),
+          ValidationMessages.heightRequired);
+      expect(Validators.heightImperial('5', 'eight'),
+          ValidationMessages.heightInchesInvalid);
+    });
+
+    test('inches must be a remainder, not a whole height', () {
+      expect(Validators.heightImperial('5', '12'),
+          ValidationMessages.heightInchesOutOfRange);
+      expect(Validators.heightImperial('5', '-1'),
+          ValidationMessages.heightInchesOutOfRange);
+    });
+
+    test('reports the combined range under the inches box', () {
+      // 0'6" and 9'0" are each individually well-formed; only the total is
+      // out of range, which is why the check lives on the second field.
+      expect(Validators.heightImperial('0', '6'),
+          ValidationMessages.heightOutOfRangeImperial);
+      expect(Validators.heightImperial('9', '0'),
+          ValidationMessages.heightOutOfRangeImperial);
+    });
+
+    test('stays quiet about inches while the feet box is the problem', () {
+      // The feet field is already showing its own message; saying it twice
+      // under two fields reads as two separate faults.
+      expect(Validators.heightImperial('tall', '8'), isNull);
+    });
+
+    test('the bounds themselves are inclusive', () {
+      expect(
+        Validators.heightImperial(
+          '${ValidationMessages.heightMinFeet}',
+          '${ValidationMessages.heightMinInches}',
+        ),
+        isNull,
+      );
+      expect(
+        Validators.heightImperial(
+          '${ValidationMessages.heightMaxFeet}',
+          '${ValidationMessages.heightMaxInches}',
+        ),
+        isNull,
+      );
+    });
+  });
+
+  group('weight — imperial', () {
+    test('accepts realistic weights in pounds', () {
+      expect(Validators.weightLb('150'), isNull);
+      expect(Validators.weightLb('150.5'), isNull);
+    });
+
+    test('rejects empty, non-numeric and out-of-range input', () {
+      expect(Validators.weightLb(''), ValidationMessages.weightRequired);
+      expect(Validators.weightLb('heavy'), ValidationMessages.weightInvalidLb);
+      expect(Validators.weightLb('0'), ValidationMessages.weightOutOfRangeLb);
+      expect(Validators.weightLb('5000'), ValidationMessages.weightOutOfRangeLb);
+    });
+
+    test('the bounds themselves are inclusive', () {
+      expect(Validators.weightLb('${ValidationMessages.weightMinLb}'), isNull);
+      expect(Validators.weightLb('${ValidationMessages.weightMaxLb}'), isNull);
     });
   });
 

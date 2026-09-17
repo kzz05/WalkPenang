@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../../constants/country_dial_codes.dart';
 import '../../constants/validation_messages.dart';
 import '../../models/password_strength.dart';
 import '../../theme/app_theme.dart';
@@ -192,6 +194,59 @@ class WpAvatar extends StatelessWidget {
   }
 }
 
+/// The one [InputDecoration] every field in the app wears.
+///
+/// Extracted so that controls which are not a [TextFormField] — the country
+/// selector in [WpCountryPhoneField] — can sit beside one and match its fill,
+/// border, radius and height exactly, instead of re-declaring the values and
+/// drifting apart the first time a token changes.
+InputDecoration wpInputDecoration({
+  Widget? suffixIcon,
+  Widget? prefix,
+  String? hintText,
+  EdgeInsetsGeometry padding = const EdgeInsets.symmetric(
+    horizontal: 16,
+    vertical: 14,
+  ),
+}) {
+  return InputDecoration(
+    filled: true,
+    fillColor: AppColors.card,
+    suffixIcon: suffixIcon,
+    prefix: prefix,
+    hintText: hintText,
+    hintStyle: AppType.body.copyWith(color: AppColors.subtle),
+    // Flutter defaults errorMaxLines to 1, which ellipsises any
+    // message wider than the field. Height and weight sit in Expanded
+    // halves of a Row, so "Height must be between 50-250 cm" rendered
+    // as "Height must be be…" — the rule was being enforced correctly
+    // and the user simply could not read what it was. The phone
+    // message is the longest in the app and clipped even full-width.
+    errorMaxLines: 3,
+    contentPadding: padding,
+    border: const OutlineInputBorder(
+      borderRadius: AppRadius.smAll,
+      borderSide: BorderSide(color: AppColors.outline),
+    ),
+    enabledBorder: const OutlineInputBorder(
+      borderRadius: AppRadius.smAll,
+      borderSide: BorderSide(color: AppColors.outline),
+    ),
+    focusedBorder: const OutlineInputBorder(
+      borderRadius: AppRadius.smAll,
+      borderSide: BorderSide(color: AppColors.primary, width: 1.6),
+    ),
+    errorBorder: const OutlineInputBorder(
+      borderRadius: AppRadius.smAll,
+      borderSide: BorderSide(color: AppColors.danger),
+    ),
+    focusedErrorBorder: const OutlineInputBorder(
+      borderRadius: AppRadius.smAll,
+      borderSide: BorderSide(color: AppColors.danger, width: 1.6),
+    ),
+  );
+}
+
 /// Labeled text field: a [WpMonoLabel] caption above a white bordered box.
 class WpField extends StatelessWidget {
   final String label;
@@ -201,6 +256,13 @@ class WpField extends StatelessWidget {
   final bool obscureText;
   final Widget? suffixIcon;
 
+  /// Restricts what can be typed at all. Height, weight and the phone number
+  /// use this to reject non-digits at the keyboard rather than at validation.
+  final List<TextInputFormatter>? inputFormatters;
+
+  final String? hintText;
+  final ValueChanged<String>? onChanged;
+
   const WpField({
     super.key,
     required this.label,
@@ -209,6 +271,9 @@ class WpField extends StatelessWidget {
     this.keyboardType,
     this.obscureText = false,
     this.suffixIcon,
+    this.inputFormatters,
+    this.hintText,
+    this.onChanged,
   });
 
   @override
@@ -223,38 +288,12 @@ class WpField extends StatelessWidget {
           validator: validator,
           keyboardType: keyboardType,
           obscureText: obscureText,
+          inputFormatters: inputFormatters,
+          onChanged: onChanged,
           style: AppType.body,
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: AppColors.card,
+          decoration: wpInputDecoration(
             suffixIcon: suffixIcon,
-            // Flutter defaults errorMaxLines to 1, which ellipsises any
-            // message wider than the field. Height and weight sit in Expanded
-            // halves of a Row, so "Height must be between 50-250 cm" rendered
-            // as "Height must be be…" — the rule was being enforced correctly
-            // and the user simply could not read what it was. The phone
-            // message is the longest in the app and clipped even full-width.
-            errorMaxLines: 3,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-            border: const OutlineInputBorder(
-              borderRadius: AppRadius.smAll,
-              borderSide: BorderSide(color: AppColors.outline),
-            ),
-            enabledBorder: const OutlineInputBorder(
-              borderRadius: AppRadius.smAll,
-              borderSide: BorderSide(color: AppColors.outline),
-            ),
-            focusedBorder: const OutlineInputBorder(
-              borderRadius: AppRadius.smAll,
-              borderSide: BorderSide(color: AppColors.primary, width: 1.6),
-            ),
-            errorBorder: const OutlineInputBorder(
-              borderRadius: AppRadius.smAll,
-              borderSide: BorderSide(color: AppColors.danger),
-            ),
+            hintText: hintText,
           ),
         ),
       ],
@@ -409,6 +448,240 @@ class WpDropdownField extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Phone number entry: a country selector and a national-number box sharing
+/// one label.
+///
+/// The tourist picks their country and types only the subscriber digits, so
+/// `+60` and `1112013343` are stored as two separate things. That is what
+/// makes the field work for a visitor from anywhere rather than just Malaysia.
+class WpCountryPhoneField extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+  final Country country;
+  final ValueChanged<Country> onCountryChanged;
+  final FormFieldValidator<String>? validator;
+
+  /// Width of the country button. Fixed rather than intrinsic so the number
+  /// box does not jump sideways when the dial code changes length.
+  static const double _selectorWidth = 116;
+
+  const WpCountryPhoneField({
+    super.key,
+    required this.label,
+    required this.controller,
+    required this.country,
+    required this.onCountryChanged,
+    this.validator,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        WpMonoLabel(label),
+        const SizedBox(height: 8),
+        Row(
+          // Start-aligned so a wrapped error message under the number box
+          // grows downwards instead of dragging the selector off-centre.
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: _selectorWidth,
+              child: InkWell(
+                borderRadius: AppRadius.smAll,
+                onTap: () async {
+                  final picked = await showCountryPicker(context, country);
+                  if (picked != null) onCountryChanged(picked);
+                },
+                // InputDecorator rather than a hand-built Container: it lays
+                // out with the very same InputDecoration as the box beside it,
+                // so the two line up without anyone matching paddings by hand.
+                child: InputDecorator(
+                  decoration: wpInputDecoration(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 14,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(country.flagEmoji, style: AppType.body),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          country.displayDialCode,
+                          style: AppType.body,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const Icon(
+                        Icons.keyboard_arrow_down,
+                        size: 18,
+                        color: AppColors.onPrimary,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextFormField(
+                controller: controller,
+                validator: validator,
+                keyboardType: TextInputType.phone,
+                // Digits only at the keyboard. The old field accepted any
+                // text and relied on a regex to sort it out afterwards.
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  // E.164 allows 15 digits for the whole number and the dial
+                  // code has already spent some of them, so the cap moves with
+                  // the country. The +1 leaves room for a trunk `0`, which the
+                  // tourist may well type and libphonenumber then resolves.
+                  LengthLimitingTextInputFormatter(
+                    ValidationMessages.phoneMaxE164Digits -
+                        country.dialCode.length +
+                        1,
+                  ),
+                ],
+                style: AppType.body,
+                decoration: wpInputDecoration(hintText: '1112013343'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Bottom sheet listing every country, filtered by a search box.
+///
+/// A sheet rather than a dropdown menu because there are 241 entries: a
+/// `DropdownButton` would open an unsearchable scroll the length of the
+/// alphabet, and offers nowhere to put the search field.
+Future<Country?> showCountryPicker(BuildContext context, Country selected) {
+  return showModalBottomSheet<Country>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: AppColors.background,
+    barrierColor: AppColors.scrim,
+    shape: const RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
+    builder: (_) => _CountryPickerSheet(selected: selected),
+  );
+}
+
+class _CountryPickerSheet extends StatefulWidget {
+  final Country selected;
+
+  const _CountryPickerSheet({required this.selected});
+
+  @override
+  State<_CountryPickerSheet> createState() => _CountryPickerSheetState();
+}
+
+class _CountryPickerSheetState extends State<_CountryPickerSheet> {
+  final _searchCtrl = TextEditingController();
+  List<Country> _results = kCountries;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _search(String query) {
+    setState(() => _results = searchCountries(query));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    return Padding(
+      // Lift the sheet clear of the keyboard the search field just opened.
+      padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
+      child: SizedBox(
+        height: media.size.height * 0.75,
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.outline,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const WpMonoLabel('select country'),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _searchCtrl,
+                    onChanged: _search,
+                    autofocus: true,
+                    style: AppType.body,
+                    decoration: wpInputDecoration(
+                      hintText: 'Search country or code',
+                      suffixIcon: const Icon(
+                        Icons.search,
+                        color: AppColors.muted,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _results.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No country matches that search.',
+                        style: AppType.body.copyWith(color: AppColors.muted),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.only(bottom: 24),
+                      itemCount: _results.length,
+                      itemBuilder: (_, i) {
+                        final country = _results[i];
+                        final isSelected =
+                            country.isoCode == widget.selected.isoCode;
+                        return ListTile(
+                          leading: Text(
+                            country.flagEmoji,
+                            style: const TextStyle(fontSize: 22),
+                          ),
+                          title: Text(country.name, style: AppType.body),
+                          trailing: Text(
+                            country.displayDialCode,
+                            style: AppType.monoValue.copyWith(
+                              color: isSelected
+                                  ? AppColors.onPrimary
+                                  : AppColors.muted,
+                            ),
+                          ),
+                          selected: isSelected,
+                          selectedTileColor: AppColors.backgroundDeep,
+                          onTap: () => Navigator.of(context).pop(country),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

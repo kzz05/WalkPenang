@@ -1,4 +1,6 @@
+import '../constants/country_dial_codes.dart';
 import '../constants/validation_messages.dart';
+import 'phone_number_rules.dart';
 import 'profanity_filter.dart';
 
 /// Every form rule for the user-authentication and edit-profile modules,
@@ -38,11 +40,6 @@ class Validators {
 
   /// Separators people type inside phone numbers, stripped before matching.
   static final _phoneSeparators = RegExp(r'[\s\-().]');
-
-  /// Malaysian numbers: optional `+60`/`60` country code or a leading `0`,
-  /// then an 8–10 digit national number. Covers mobile (`012-345 6789`) and
-  /// landline (`04-226 1234`).
-  static final _malaysianPhone = RegExp(r'^(?:\+?60|0)[1-9]\d{7,9}$');
 
   static final _digitsOnly = RegExp(r'^\d+$');
 
@@ -116,21 +113,32 @@ class Validators {
 
   // ── Phone ─────────────────────────────────────────────────────────────────
 
-  static String? phone(String? value) {
+  /// The national number, with the country supplied by the picker beside the
+  /// field.
+  ///
+  /// The rule is Google's libphonenumber metadata, via [PhoneNumberRules] —
+  /// the digits must match a range the country actually allocates, not merely
+  /// be a plausible length. A trunk `0` is accepted and resolved per country
+  /// rather than rejected: the library drops Malaysia's, and keeps Rome's,
+  /// where the zero is part of the number.
+  static String? phoneNational(String? value, Country country) {
     final input = value?.trim() ?? '';
     if (input.isEmpty) return ValidationMessages.phoneRequired;
+
     final cleaned = input.replaceAll(_phoneSeparators, '');
-    if (!_malaysianPhone.hasMatch(cleaned)) {
-      return ValidationMessages.phoneInvalid;
+    if (!_digitsOnly.hasMatch(cleaned)) return ValidationMessages.phoneInvalid;
+
+    if (!PhoneNumberRules.check(cleaned, country).isValid) {
+      return ValidationMessages.phoneInvalidForCountry(country.name);
     }
     return null;
   }
 
   // ── Body metrics ──────────────────────────────────────────────────────────
 
-  /// Height in centimetres. The unit dropdown only changes how figures are
-  /// *displayed* elsewhere; UserProfile always stores centimetres, so this
-  /// field is always validated as cm.
+  /// Height in centimetres — the unit the profile always stores. The imperial
+  /// pair below converts before deferring to the same bounds, so this is the
+  /// only place the height rule is actually expressed.
   static String? heightCm(String? value) => _numberInRange(
     value,
     min: ValidationMessages.heightMinCm,
@@ -149,6 +157,66 @@ class Validators {
     invalidMessage: ValidationMessages.weightInvalid,
     rangeMessage: ValidationMessages.weightOutOfRange,
   );
+
+  /// The feet box on its own — format and sign only.
+  ///
+  /// The real limit is the combined height, reported under the inches box by
+  /// [heightImperial], because `5 ft` on its own is neither right nor wrong
+  /// until you know the inches beside it.
+  static String? heightFeet(String? value) {
+    final input = value?.trim() ?? '';
+    if (input.isEmpty) return ValidationMessages.heightRequired;
+    final parsed = int.tryParse(input);
+    if (parsed == null || parsed < 0) {
+      return ValidationMessages.heightFeetInvalid;
+    }
+    return null;
+  }
+
+  /// The inches box, followed by the combined feet + inches range.
+  ///
+  /// Bounds come from the imperial constants rather than converting to cm and
+  /// comparing there, so the rule enforced is exactly the rule the message
+  /// states. Those constants are rounded inwards from the cm bounds, so a
+  /// height that passes here is always inside the stored range too.
+  static String? heightImperial(String? feetText, String? inchesText) {
+    final input = inchesText?.trim() ?? '';
+    if (input.isEmpty) return ValidationMessages.heightRequired;
+
+    final inches = double.tryParse(input);
+    if (inches == null || !inches.isFinite) {
+      return ValidationMessages.heightInchesInvalid;
+    }
+    if (inches < 0 || inches >= ValidationMessages.inchesPerFoot) {
+      return ValidationMessages.heightInchesOutOfRange;
+    }
+
+    final feet = int.tryParse(feetText?.trim() ?? '');
+    // The feet box is already showing its own message; don't say it twice.
+    if (feet == null || feet < 0) return null;
+
+    final total = feet * ValidationMessages.inchesPerFoot + inches;
+    const min = ValidationMessages.heightMinFeet *
+            ValidationMessages.inchesPerFoot +
+        ValidationMessages.heightMinInches;
+    const max = ValidationMessages.heightMaxFeet *
+            ValidationMessages.inchesPerFoot +
+        ValidationMessages.heightMaxInches;
+    if (total < min || total > max) {
+      return ValidationMessages.heightOutOfRangeImperial;
+    }
+    return null;
+  }
+
+  /// Weight in pounds — see the note on [heightImperial] about bounds.
+  static String? weightLb(String? value) => _numberInRange(
+        value,
+        min: ValidationMessages.weightMinLb,
+        max: ValidationMessages.weightMaxLb,
+        requiredMessage: ValidationMessages.weightRequired,
+        invalidMessage: ValidationMessages.weightInvalidLb,
+        rangeMessage: ValidationMessages.weightOutOfRangeLb,
+      );
 
   static String? _numberInRange(
       String? value, {
