@@ -110,6 +110,27 @@ class MapConstants {
   /// back to the magnetometer instead.
   static const double navigationCourseMinSpeedMps = 0.6;
 
+  /// UC-M05: how close to the current step's manoeuvre point a fix has to
+  /// land for that step to count as done on proximity alone.
+  ///
+  /// Deliberately tight. It is not the only way a step can be completed —
+  /// [navigationRouteCorridorMeters] covers the tourist who passes the
+  /// waypoint without ever coming this close — so widening it would only make
+  /// the banner turn early, not make navigation more robust.
+  static const double navigationStepArrivalRadiusMeters = 15.0;
+
+  /// UC-M05: how far off a route leg a fix may sit and still be treated as
+  /// being on it.
+  ///
+  /// Used to recognise that the tourist has moved onto a *later* leg of the
+  /// route, which is how navigation recovers from a waypoint that was walked
+  /// past rather than through. Sized for the worst honest GPS error a tourist
+  /// sees between shophouses in George Town, not for the width of a street:
+  /// anything further off than this is a wrong turn, and navigation should
+  /// keep pointing at the manoeuvre the tourist missed rather than quietly
+  /// skipping ahead.
+  static const double navigationRouteCorridorMeters = 40.0;
+
   /// Camera tilt while navigating — a slight lean forward shows more of the
   /// road ahead, the way a dedicated turn-by-turn app does.
   static const double navigationCameraTilt = 45.0;

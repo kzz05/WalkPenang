@@ -79,9 +79,9 @@ class NoJourneyProgressService implements JourneyProgressService {
       const Stream<JourneyProgressUpdate>.empty();
 }
 
-/// The production implementation: sums the distance between consecutive GPS
-/// fixes from [LocationService] for [JourneyProgressUpdate.metresWalked], and
-/// measures each fix against the destination for
+/// The production implementation: accumulates how far the tourist has moved
+/// away from the last counted position for [JourneyProgressUpdate.metresWalked],
+/// and measures each fix against the destination for
 /// [JourneyProgressUpdate.metresToDestination]. One subscription feeds both.
 class LocationJourneyProgressService implements JourneyProgressService {
   LocationJourneyProgressService({LocationService? locationService})
@@ -89,7 +89,7 @@ class LocationJourneyProgressService implements JourneyProgressService {
 
   final LocationService _locationService;
 
-  /// A single fix further than this from the previous one is treated as a
+  /// A single fix further than this from the one before it is treated as a
   /// glitch rather than a walk — a tower hand-off or a mock-location jump can
   /// teleport the reported position, and one bad fix would otherwise add
   /// kilometres to the total that the tourist never walked.
@@ -100,33 +100,67 @@ class LocationJourneyProgressService implements JourneyProgressService {
     required double destinationLatitude,
     required double destinationLongitude,
   }) {
-    GpsLocation? previous;
+    // The most recent raw fix, whatever it was. Only the jump guard reads it:
+    // a teleport is a discontinuity between *consecutive readings*, so that is
+    // what it has to be measured against.
+    GpsLocation? previousFix;
+
+    // The last position whose movement was actually added to the total — the
+    // reference every displacement below is measured from.
+    //
+    // Keeping this apart from `previousFix` is the whole fix for the tile that
+    // sat at 0.00 km for a slow walk. When both were the same variable, every
+    // fix moved the reference point, so a stream delivering 1-2 m of movement
+    // at a time never had a step that reached the 5 m filter and nothing was
+    // ever counted, however far the tourist actually walked. With the anchor
+    // held still until it is passed, those same 1-2 m fixes accumulate: the
+    // third one is 5 m or more from the anchor and gets counted in full.
+    GpsLocation? anchor;
+
     var metresWalked = 0.0;
     double? metresToDestination;
 
+    double distanceBetween(GpsLocation from, GpsLocation to) =>
+        _locationService.distanceMeters(
+          startLatitude: from.latitude,
+          startLongitude: from.longitude,
+          endLatitude: to.latitude,
+          endLongitude: to.longitude,
+        );
+
     return _locationService.startLocationUpdates().map((fix) {
-      final last = previous;
-      previous = fix;
+      final last = previousFix;
+      previousFix = fix;
 
-      final step = last == null
-          ? null
-          : _locationService.distanceMeters(
-              startLatitude: last.latitude,
-              startLongitude: last.longitude,
-              endLatitude: fix.latitude,
-              endLongitude: fix.longitude,
-            );
+      final isGlitch =
+          last != null && distanceBetween(last, fix) > _implausibleJumpMeters;
 
-      final isGlitch = step != null && step > _implausibleJumpMeters;
-
-      // The position stream already applies a distance filter, so anything
-      // below it is jitter around a stationary tourist rather than movement.
-      // Counting it would have someone standing still slowly "walking" a
-      // route they never left the spot for.
-      if (step != null &&
-          !isGlitch &&
-          step >= MapConstants.locationUpdateDistanceFilterMeters) {
-        metresWalked += step;
+      if (isGlitch) {
+        // The jump itself is never walked distance. The anchor still moves to
+        // it, so that if the phone has genuinely relocated (resumed after a
+        // spell in a tunnel, a mock provider retargeted) tracking carries on
+        // from where the tourist now is instead of measuring every later fix
+        // against a reference point they will never return to.
+        anchor = fix;
+      } else {
+        final from = anchor;
+        if (from == null) {
+          anchor = fix;
+        } else {
+          final displacement = distanceBetween(from, fix);
+          // Measured from the anchor rather than from the previous fix, so a
+          // tourist wobbling inside a 5 m ball never accumulates anything:
+          // the displacement has to actually leave the ball to count, and it
+          // is then counted once, in full, as the straight line out of it.
+          if (displacement >=
+              MapConstants.locationUpdateDistanceFilterMeters) {
+            metresWalked += displacement;
+            anchor = fix;
+          }
+          // Otherwise the anchor is deliberately left where it is: this fix is
+          // pending, not discarded, and its movement is counted as soon as the
+          // tourist has covered the threshold from the anchor.
+        }
       }
 
       // A teleported fix is rejected for both figures, not just the walked
