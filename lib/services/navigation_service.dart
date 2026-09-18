@@ -126,6 +126,55 @@ class NavigationService {
     return best;
   }
 
+  /// UC-M05 rerouting: how far [position] is from the nearest point on the
+  /// route the tourist has *left to travel* — every leg from [currentIndex]
+  /// onwards.
+  ///
+  /// Measured against the remaining route rather than the whole of it because
+  /// a route that doubles back on itself (out and back along the same
+  /// promenade, a one-way loop through George Town) passes close to legs the
+  /// tourist finished long ago. Those legs would report a small offset for
+  /// someone standing well off their current road, and the wrong turn would
+  /// never be noticed.
+  ///
+  /// The current leg is included, not skipped: a tourist who walks the length
+  /// of the leg they are on is still on the route, and [advanceStepIndex] only
+  /// moves the index once they have both passed the manoeuvre and joined the
+  /// next road.
+  ///
+  /// Returns [double.infinity] for a route with no steps — there is no
+  /// geometry to be off, and nothing to reroute towards either.
+  double offsetFromRemainingRoute(
+    List<RouteStep> steps,
+    int currentIndex,
+    LatLng position,
+  ) {
+    var best = double.infinity;
+    for (var i = currentIndex.clamp(0, steps.length); i < steps.length; i++) {
+      final match = matchToPath(position, _pathOf(steps[i]));
+      if (match.offsetMeters < best) best = match.offsetMeters;
+    }
+    return best;
+  }
+
+  /// UC-M05 rerouting: whether this single fix sits outside the route
+  /// corridor.
+  ///
+  /// One fix saying "off route" is not grounds for anything —
+  /// [NavigationController] requires
+  /// [MapConstants.navigationOffRouteFixesBeforeReroute] of them in a row
+  /// before it acts. This only answers the per-fix question.
+  bool isOffRoute(
+    List<RouteStep> steps,
+    int currentIndex,
+    LatLng position, {
+    double thresholdMeters = MapConstants.navigationOffRouteThresholdMeters,
+  }) {
+    if (steps.isEmpty) return false;
+    return offsetFromRemainingRoute(steps, currentIndex, position) >
+        thresholdMeters;
+  }
+
   /// A step's own geometry, falling back to the straight line between its end
   /// points. Very short manoeuvres come back from the Directions API with a
   /// one-point (or empty) polyline, and those still have a direction worth

@@ -169,4 +169,94 @@ void main() {
       );
     });
   });
+
+  // --- Off-route detection (UC-M05 rerouting) -------------------------------
+  //
+  // Step advancement is deliberately forgiving: it would rather keep showing a
+  // manoeuvre the tourist missed than skip the instruction that gets them back
+  // on route. That leaves a tourist who takes a genuinely wrong road following
+  // directions for a road they are no longer on, which is what rerouting
+  // exists to answer — but only once the geometry says so unambiguously.
+
+  group('offset from the remaining route', () {
+    test('a fix on the current leg reports a near-zero offset', () {
+      expect(
+        service.offsetFromRemainingRoute(
+          _route,
+          0,
+          const LatLng(5.4141, 100.3293),
+        ),
+        lessThan(1),
+      );
+      expect(
+        service.isOffRoute(_route, 0, const LatLng(5.4141, 100.3293)),
+        isFalse,
+      );
+    });
+
+    test('ordinary GPS wobble beside the route is not off route', () {
+      // ~2 m north of the leg — a fix bouncing off a shophouse, not a turn.
+      const wobble = LatLng(5.414118, 100.3293);
+
+      expect(service.offsetFromRemainingRoute(_route, 0, wobble), lessThan(10));
+      expect(service.isOffRoute(_route, 0, wobble), isFalse);
+    });
+
+    test('a fix a street away from every remaining leg is off route', () {
+      // ~111 m south of the first leg, and further still from the other two.
+      const wrongStreet = LatLng(5.4131, 100.3293);
+
+      expect(
+        service.offsetFromRemainingRoute(_route, 0, wrongStreet),
+        greaterThan(100),
+      );
+      expect(service.isOffRoute(_route, 0, wrongStreet), isTrue);
+    });
+
+    test('legs already walked are not measured against', () {
+      // Standing back at A while the banner is on the last leg. Measured
+      // against the whole route this looks like being perfectly on it; the
+      // route the tourist has *left to travel* is nowhere near.
+      expect(service.offsetFromRemainingRoute(_route, 0, _a), lessThan(1));
+      expect(
+        service.offsetFromRemainingRoute(_route, 2, _a),
+        greaterThan(100),
+      );
+      expect(service.isOffRoute(_route, 2, _a), isTrue);
+    });
+
+    test('a route with no steps is never off route', () {
+      expect(service.offsetFromRemainingRoute(const [], 0, _a), double.infinity);
+      expect(service.isOffRoute(const [], 0, _a), isFalse);
+    });
+
+    test('a step with no usable polyline is still measured against', () {
+      // Same one-point-polyline case step advancement handles: the straight
+      // line between the step's own end points stands in for the geometry.
+      final sparse = [
+        RouteStep(
+          instruction: 'Head east on Lebuh Chulia',
+          maneuver: '',
+          distanceMeters: 110,
+          durationSeconds: 90,
+          startLocation: _a,
+          endLocation: _b,
+          polylinePoints: const [_a],
+        ),
+      ];
+
+      expect(
+        service.offsetFromRemainingRoute(
+          sparse,
+          0,
+          const LatLng(5.4141, 100.3293),
+        ),
+        lessThan(1),
+      );
+      expect(
+        service.isOffRoute(sparse, 0, const LatLng(5.4131, 100.3293)),
+        isTrue,
+      );
+    });
+  });
 }

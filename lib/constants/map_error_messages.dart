@@ -38,4 +38,16 @@ class MapErrorMessages {
   /// browser, if it isn't installed) could not be opened at all. The tourist
   /// stays on the route summary; nothing else about the journey changes.
   static const externalMapsLaunchFailed = 'Unable to open Google Maps.';
+
+  /// UC-M05 rerouting: the tourist has left the route and the replacement
+  /// route could not be fetched (no connection, API failure, or no route back
+  /// from where they now are). Navigation deliberately keeps running on the
+  /// original directions — a stale route still shows where the destination is,
+  /// which is more than a blank screen does — so this is worded as something
+  /// that can be retried, not as the session having ended.
+  static const rerouteFailed =
+      'Could not update your route. Still showing the original directions.';
+
+  /// Shown while a replacement route is being fetched (UC-M05 rerouting).
+  static const rerouting = 'Recalculating route…';
 }

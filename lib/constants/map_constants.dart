@@ -131,6 +131,33 @@ class MapConstants {
   /// skipping ahead.
   static const double navigationRouteCorridorMeters = 40.0;
 
+  /// UC-M05 rerouting: how far off the *remaining* route a fix has to sit
+  /// before it counts as evidence the tourist has genuinely left the route.
+  ///
+  /// Deliberately wider than [navigationRouteCorridorMeters]. That corridor
+  /// answers "which leg of this route am I on?", and being generous there only
+  /// risks crediting the tourist with a manoeuvre they nearly made. This one
+  /// answers "should I spend a Directions API call and throw the current route
+  /// away?", and being generous there throws away a perfectly good route
+  /// because a fix bounced off a shophouse wall. A tourist who has actually
+  /// turned down the wrong street is a full street-width away within seconds,
+  /// so nothing is lost by insisting on the wider figure.
+  static const double navigationOffRouteThresholdMeters = 50.0;
+
+  /// UC-M05 rerouting: how many *consecutive* fixes must land outside
+  /// [navigationOffRouteThresholdMeters] before a reroute is requested.
+  ///
+  /// One fix is never enough. A single reading dropped between shophouses in
+  /// George Town can land a hundred metres off the road the tourist is walking
+  /// down, and rerouting from it would replace a correct route with one
+  /// calculated from a position they were never at. Three consecutive fixes —
+  /// about three seconds at [navigationUpdateInterval] — is long enough that a
+  /// spike has been ruled out and short enough that the new directions still
+  /// arrive while the wrong turn is recoverable. The count resets the moment a
+  /// fix lands back inside the corridor, so a tourist who strays and returns
+  /// never spends an API call.
+  static const int navigationOffRouteFixesBeforeReroute = 3;
+
   /// Camera tilt while navigating — a slight lean forward shows more of the
   /// road ahead, the way a dedicated turn-by-turn app does.
   static const double navigationCameraTilt = 45.0;

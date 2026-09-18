@@ -10,9 +10,12 @@ import '../models/gps_location.dart';
 import '../models/place_model.dart';
 import '../models/route_result.dart';
 import '../models/route_step.dart';
+import '../models/transport_mode.dart';
 import '../services/compass_service.dart';
 import '../services/location_service.dart';
+import '../services/map_service.dart';
 import '../services/navigation_service.dart';
+import '../services/route_service.dart';
 import '../utils/angle_utils.dart';
 
 /// Drives [NavigationView] — live turn-by-turn navigation rendered on
@@ -26,24 +29,46 @@ import '../utils/angle_utils.dart';
 /// interpolated animation frame.
 class NavigationController extends ChangeNotifier {
   NavigationController({
-    required this.route,
+    required RouteResult route,
     required this.destination,
+    required this.mode,
     required LatLng initialPosition,
     LocationService? locationService,
     NavigationService? navigationService,
     CompassService? compassService,
-  }) : _locationService = locationService ?? LocationService(),
+    RouteService? routeService,
+  }) : _route = route,
+       _locationService = locationService ?? LocationService(),
        _navigationService = navigationService ?? NavigationService(),
        _compassService = compassService ?? CompassService(),
+       _routeService = routeService ?? RouteService(MapService()),
+       _totalRouteMeters = route.distanceKm * 1000,
        currentPosition = initialPosition {
     _startTracking();
   }
 
-  final RouteResult route;
+  /// The route currently being navigated.
+  ///
+  /// Not final, and deliberately so: a tourist who takes a wrong road is
+  /// rerouted from where they now are, and everything downstream — the
+  /// instruction banner, the polyline, remaining distance and the ETA — has to
+  /// follow. It used to be a `final` field read straight off the widget, which
+  /// is what made in-app navigation keep pointing down the road the tourist
+  /// had already left.
+  RouteResult _route;
+  RouteResult get route => _route;
+
   final PlaceModel destination;
+
+  /// The mode the tourist picked in UC-M04. A reroute is requested in this
+  /// same mode — a walking journey stays a walking journey, and a driven one
+  /// must never be handed a route down a footpath.
+  final TransportMode mode;
+
   final LocationService _locationService;
   final NavigationService _navigationService;
   final CompassService _compassService;
+  final RouteService _routeService;
 
   StreamSubscription<GpsLocation>? _locationSubscription;
   StreamSubscription<double?>? _compassSubscription;
@@ -80,10 +105,37 @@ class NavigationController extends ChangeNotifier {
   double? _compassHeading;
   double _lastKnownHeading = 0;
 
-  /// Total route length as originally calculated — the denominator for
-  /// [routeProgress]. Taken from the route rather than accumulated from the
-  /// live stream so GPS wobble can't make the progress bar run backwards.
-  late final double _totalRouteMeters = route.distanceKm * 1000;
+  /// Total length of the route currently being navigated — the denominator
+  /// for [routeProgress]. Taken from the route rather than accumulated from
+  /// the live stream so GPS wobble can't make the progress bar run backwards.
+  ///
+  /// Rebaselined on every reroute: the replacement route is measured from
+  /// where the tourist is *now*, so keeping the original total would show them
+  /// most of the way through a journey they have just restarted.
+  double _totalRouteMeters;
+
+  // ── UC-M05 rerouting ────────────────────────────────────────────────────
+
+  /// Consecutive fixes that have landed outside
+  /// [MapConstants.navigationOffRouteThresholdMeters]. Reset by any fix back
+  /// inside the corridor, so only a sustained departure from the route counts.
+  int _consecutiveOffRouteFixes = 0;
+
+  /// True while a replacement route is being fetched. Guards against a second
+  /// request being started on the next fix while the first is still in flight
+  /// — at one fix a second, an unguarded reroute would fire a Directions call
+  /// every second for as long as the tourist stayed off route.
+  bool _isRerouting = false;
+  bool get isRerouting => _isRerouting;
+
+  /// Set when a reroute attempt fails. Navigation carries on with the route it
+  /// already has; this is what [NavigationView] shows its retry affordance
+  /// from.
+  String? rerouteErrorMessage;
+
+  /// The location stream outlives an in-flight Directions call, so a reroute
+  /// that returns after the screen is gone must not touch state or notify.
+  bool _isDisposed = false;
 
   void _startTracking() {
     _locationSubscription = _locationService.startNavigationUpdates().listen(
@@ -218,6 +270,140 @@ class NavigationController extends ChangeNotifier {
       justArrived = true;
     }
 
+    _evaluateOffRoute();
+
+    notifyListeners();
+  }
+
+  /// UC-M05 rerouting: decides, from this one fix, whether the tourist has
+  /// genuinely left the route.
+  ///
+  /// The question this asks is deliberately different from the one
+  /// [NavigationService.advanceStepIndex] asks. Step advancement is forgiving
+  /// by design — it would rather keep showing a manoeuvre the tourist missed
+  /// than skip the instruction that gets them back on track — so on its own it
+  /// leaves someone who took the wrong road following directions for a road
+  /// they are no longer on, forever. Rerouting is the other half of that
+  /// bargain: once enough consecutive fixes agree the tourist is nowhere near
+  /// the remaining route, the route itself is the thing that is wrong, and it
+  /// gets replaced rather than re-explained.
+  ///
+  /// Nothing happens once the tourist has arrived: a fix that drifts 50 m from
+  /// the last leg while they stand at the destination is not a wrong turn, and
+  /// rerouting them to somewhere they already are would be absurd.
+  void _evaluateOffRoute() {
+    if (hasArrived || _route.steps.isEmpty) {
+      _consecutiveOffRouteFixes = 0;
+      return;
+    }
+
+    final offRoute = _navigationService.isOffRoute(
+      _route.steps,
+      currentStepIndex,
+      currentPosition,
+    );
+
+    if (!offRoute) {
+      // Rejoining the route — or a spike falling back into the corridor —
+      // clears the tally outright rather than decaying it. A tourist who is
+      // back on the road needs no new directions, however many stray fixes
+      // preceded this one.
+      _consecutiveOffRouteFixes = 0;
+      return;
+    }
+
+    _consecutiveOffRouteFixes++;
+    if (_consecutiveOffRouteFixes <
+        MapConstants.navigationOffRouteFixesBeforeReroute) {
+      return;
+    }
+
+    // Already fetching one: the tally keeps climbing but no second request is
+    // made, and whichever way the in-flight one resolves resets it.
+    if (_isRerouting) return;
+
+    unawaited(_requestReroute());
+  }
+
+  /// UC-M05 rerouting: asks for a fresh route from the tourist's live position
+  /// to the destination they were always heading for, in the mode they chose.
+  ///
+  /// The origin is read at the moment of the call rather than captured when
+  /// the off-route tally started: by now the tourist has been walking the
+  /// wrong way for several seconds, and routing them from where they were is
+  /// routing them from a position they have already left.
+  Future<void> _requestReroute() async {
+    _isRerouting = true;
+    rerouteErrorMessage = null;
+    notifyListeners();
+
+    final origin = currentPosition;
+    RouteResult? replacement;
+    try {
+      replacement = await _routeService.calculateRoute(
+        origin: origin,
+        // The destination never changes — a wrong turn is a question about how
+        // to get there, not about where the tourist is going.
+        destination: LatLng(destination.latitude, destination.longitude),
+        mode: mode,
+      );
+    } catch (_) {
+      replacement = null;
+    }
+
+    if (_isDisposed) return;
+
+    _isRerouting = false;
+    // Either outcome clears the tally. On success the tourist is on the new
+    // route and there is nothing to count; on failure it acts as a backoff —
+    // another full run of off-route fixes has to accumulate before the API is
+    // asked again, instead of every subsequent fix retrying a call that has
+    // just failed.
+    _consecutiveOffRouteFixes = 0;
+
+    // A route that came back empty is no more usable than one that failed to
+    // arrive, and both leave the tourist better off with the directions
+    // already on screen than with none.
+    if (replacement == null ||
+        !replacement.routeFound ||
+        replacement.steps.isEmpty) {
+      rerouteErrorMessage = MapErrorMessages.rerouteFailed;
+      notifyListeners();
+      return;
+    }
+
+    _applyRoute(replacement);
+    notifyListeners();
+  }
+
+  /// Swaps in a replacement route and rebaselines everything derived from the
+  /// old one.
+  ///
+  /// [remainingDistanceMeters], [remainingDurationSeconds],
+  /// [estimatedArrivalTime] and [routeProgress] are all computed from
+  /// [_route], [currentStepIndex] and [_totalRouteMeters], so resetting those
+  /// three is what updates the whole screen.
+  void _applyRoute(RouteResult replacement) {
+    _route = replacement;
+    // The new route starts at the tourist's current position, so its first
+    // step is the one they are on — there is no earlier progress to preserve.
+    currentStepIndex = 0;
+    _totalRouteMeters = replacement.distanceKm * 1000;
+    rerouteErrorMessage = null;
+  }
+
+  /// Lets [NavigationView] ask again after a failed reroute, without waiting
+  /// for another run of off-route fixes to build up.
+  void retryReroute() {
+    if (_isRerouting || hasArrived) return;
+    unawaited(_requestReroute());
+  }
+
+  /// Dismisses the failure notice without retrying — the tourist has decided
+  /// the original directions are good enough.
+  void dismissRerouteError() {
+    if (rerouteErrorMessage == null) return;
+    rerouteErrorMessage = null;
     notifyListeners();
   }
 
@@ -278,6 +464,7 @@ class NavigationController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _locationSubscription?.cancel();
     _compassSubscription?.cancel();
     super.dispose();

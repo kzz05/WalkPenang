@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../constants/map_constants.dart';
+import '../constants/map_error_messages.dart';
 import '../constants/map_style.dart';
 import '../models/transport_mode.dart';
 import '../controllers/navigation_controller.dart';
@@ -39,6 +40,16 @@ class NavigationView extends StatefulWidget {
   /// its plain "Done".
   final VoidCallback? onCompleteJourney;
 
+  /// Overrides the controller this screen builds for itself.
+  ///
+  /// For tests, which otherwise cannot reach the states that only a live GPS
+  /// track and a Directions call produce — rerouting, a reroute that failed —
+  /// and so could not check that the screen says anything about them. The
+  /// screen disposes only a controller it created; an injected one belongs to
+  /// whoever passed it.
+  @visibleForTesting
+  final NavigationController? controller;
+
   const NavigationView({
     super.key,
     required this.route,
@@ -46,6 +57,7 @@ class NavigationView extends StatefulWidget {
     required this.origin,
     required this.mode,
     this.onCompleteJourney,
+    this.controller,
   });
 
   @override
@@ -54,11 +66,16 @@ class NavigationView extends StatefulWidget {
 
 class _NavigationViewState extends State<NavigationView>
     with SingleTickerProviderStateMixin {
-  late final NavigationController _controller = NavigationController(
-    route: widget.route,
-    destination: widget.destination,
-    initialPosition: widget.origin,
-  );
+  late final NavigationController _controller =
+      widget.controller ??
+          NavigationController(
+            route: widget.route,
+            destination: widget.destination,
+            mode: widget.mode,
+            initialPosition: widget.origin,
+          );
+
+  late final bool _ownsController = widget.controller == null;
 
   GoogleMapController? _mapController;
   BitmapDescriptor? _puckIcon;
@@ -127,6 +144,12 @@ class _NavigationViewState extends State<NavigationView>
   Set<Polyline> _polylines = const {};
   int _polylinesForStepIndex = -1;
 
+  /// Which route the cached lines were built from. A reroute replaces the
+  /// route wholesale and can easily land on the same step index (rerouting
+  /// always resets it to 0), so the step index alone cannot tell the cache it
+  /// is stale — that is how the old, abandoned route stayed drawn on the map.
+  RouteResult? _polylinesForRoute;
+
   @override
   void initState() {
     super.initState();
@@ -147,7 +170,7 @@ class _NavigationViewState extends State<NavigationView>
   @override
   void dispose() {
     _controller.removeListener(_onControllerChanged);
-    _controller.dispose();
+    if (_ownsController) _controller.dispose();
     _glide.dispose();
     _puckFrame.dispose();
     _mapController?.dispose();
@@ -182,7 +205,8 @@ class _NavigationViewState extends State<NavigationView>
       ..duration = _interpolationDuration
       ..forward(from: 0);
 
-    if (_controller.currentStepIndex != _polylinesForStepIndex) {
+    if (_controller.currentStepIndex != _polylinesForStepIndex ||
+        !identical(_controller.route, _polylinesForRoute)) {
       _rebuildPolylines();
     }
 
@@ -523,6 +547,23 @@ class _NavigationViewState extends State<NavigationView>
                               message: _controller.errorMessage!,
                             ),
                           ],
+                          // UC-M05 rerouting. A strip under the banner, not a
+                          // screen of its own: the tourist is still moving,
+                          // and the directions they have — stale as they are —
+                          // are the only thing telling them where the
+                          // destination lies until the new ones land.
+                          if (_controller.isRerouting) ...[
+                            const SizedBox(height: 8),
+                            const _ReroutingBanner(),
+                          ] else if (_controller.rerouteErrorMessage !=
+                              null) ...[
+                            const SizedBox(height: 8),
+                            _RerouteFailedBanner(
+                              message: _controller.rerouteErrorMessage!,
+                              onRetry: _controller.retryReroute,
+                              onDismiss: _controller.dismissRerouteError,
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -556,12 +597,17 @@ class _NavigationViewState extends State<NavigationView>
   /// map alone.
   void _rebuildPolylines() {
     _polylinesForStepIndex = _controller.currentStepIndex;
+    _polylinesForRoute = _controller.route;
     final travelled = _controller.travelledPolyline;
+    // The controller's current route, never widget.route: after a reroute the
+    // widget still holds the route the tourist abandoned, and drawing it would
+    // leave the old line on the map beside the new one.
+    final points = _controller.route.polylinePoints;
 
     _polylines = {
       Polyline(
         polylineId: const PolylineId('route_casing'),
-        points: widget.route.polylinePoints,
+        points: points,
         color: AppColors.routeCasing,
         width: 14,
         startCap: Cap.roundCap,
@@ -571,7 +617,7 @@ class _NavigationViewState extends State<NavigationView>
       ),
       Polyline(
         polylineId: const PolylineId('route'),
-        points: widget.route.polylinePoints,
+        points: points,
         color: AppColors.primary,
         width: 9,
         startCap: Cap.roundCap,
@@ -756,6 +802,100 @@ class _GpsWarningBanner extends StatelessWidget {
               message,
               style: AppType.body.copyWith(color: Colors.white, fontSize: 13),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// UC-M05 rerouting: shown while a replacement route is being fetched after
+/// the tourist left the route. Deliberately the same shape and footprint as
+/// the GPS warning it sits beside, so the banner above it never shifts when
+/// one swaps for the other mid-walk.
+class _ReroutingBanner extends StatelessWidget {
+  const _ReroutingBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.92),
+        borderRadius: AppRadius.smAll,
+      ),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation(AppColors.onPrimary),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              MapErrorMessages.rerouting,
+              style: AppType.body.copyWith(
+                color: AppColors.onPrimary,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// UC-M05 rerouting: the reroute could not be fetched. Navigation is still
+/// running on the original route, so this offers the retry rather than
+/// announcing a failure the tourist can do nothing about.
+class _RerouteFailedBanner extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  final VoidCallback onDismiss;
+
+  const _RerouteFailedBanner({
+    required this.message,
+    required this.onRetry,
+    required this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+      decoration: const BoxDecoration(
+        color: AppColors.warning,
+        borderRadius: AppRadius.smAll,
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.alt_route, color: Colors.white, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: AppType.body.copyWith(color: Colors.white, fontSize: 13),
+            ),
+          ),
+          TextButton(
+            onPressed: onRetry,
+            child: Text(
+              'Retry',
+              style: AppType.button.copyWith(color: Colors.white, fontSize: 13),
+            ),
+          ),
+          IconButton(
+            onPressed: onDismiss,
+            tooltip: 'Dismiss',
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.close, color: Colors.white, size: 18),
           ),
         ],
       ),

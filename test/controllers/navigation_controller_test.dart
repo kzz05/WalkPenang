@@ -18,6 +18,7 @@ import 'package:walkpenang/models/gps_location.dart';
 import 'package:walkpenang/models/place_model.dart';
 import 'package:walkpenang/models/route_result.dart';
 import 'package:walkpenang/models/route_step.dart';
+import 'package:walkpenang/models/transport_mode.dart';
 import 'package:walkpenang/services/compass_service.dart';
 import 'package:walkpenang/services/location_service.dart';
 
@@ -89,6 +90,7 @@ void main() {
     controller = NavigationController(
       route: _route(),
       destination: _destination,
+      mode: TransportMode.walking,
       initialPosition: _a,
       locationService: location,
       compassService: _NoCompassService(),
